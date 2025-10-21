@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<testsuite name="IdeaPipelineTest" tests="4" skipped="0" failures="0" errors="0" timestamp="2025-10-20T03:59:33.971Z" hostname="cage-desktop" time="0.01">
+  <properties/>
+  <testcase name="testForcedChaptersManagement()" classname="IdeaPipelineTest" time="0.006"/>
+  <testcase name="testIdeaSettingsUpdate()" classname="IdeaPipelineTest" time="0.001"/>
+  <testcase name="testIdeaSettingsDefaults()" classname="IdeaPipelineTest" time="0.001"/>
+  <testcase name="testTokenBudgetCalculation()" classname="IdeaPipelineTest" time="0.001"/>
+  <system-out><![CDATA[]]></system-out>
+  <system-err><![CDATA[]]></system-err>
+</testsuite>
