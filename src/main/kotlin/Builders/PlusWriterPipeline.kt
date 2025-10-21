@@ -18,7 +18,6 @@ import bedrockPipe.BedrockMultimodalPipe
 import com.TTT.Context.ContextWindow
 import com.TTT.Enums.PromptMode
 import com.TTT.Pipeline.Pipeline
-import com.TTT.Util.exampleFor
 import env.bedrockEnv
 import kotlinx.coroutines.runBlocking
 
@@ -535,8 +534,8 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPipeName("dummy pipe")
     
 
-    //This next pipe should eliminate the "nice little bow" bullshit
-    val unfuckeryPipe = BedrockMultimodalPipe()
+    //This pipe removes the attempt to forcefully wrap up the chapter when the user does not tell the llm to do so.
+    val unwrapPipe = BedrockMultimodalPipe()
         .setRegion("us-east-2")
         .useConverseApi()
         .setModel(deepseekModelName)
@@ -690,7 +689,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .add(logicalProgressionPipe)
         .add(logicalCorrectionPipe)
         .add(dummyPipe)
-        .add(unfuckeryPipe)
+        .add(unwrapPipe)
         .add(secondPassPipe)
         .add(loreBookPipe)
 
