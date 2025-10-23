@@ -298,7 +298,8 @@ val expansionPipeline = Pipeline()
             |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material (there should be MORE).
             |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
-            |NO TEXT CAN BE DELETED: ONLY ADDED.
+            |NO TEXT CAN BE DELETED: ONLY ADDED. You are attempting to LENGTHEN THE EXISTING DIALOGUE: DO NOT ADD NEW
+            |PARAGRAPHS TO THE END OF THE PAGE.
             |###WARNING: ABSOLUTELY DO NOT INCLUDE THE LIST OF YOUR CHANGES IN THE OUTPUT. 
             |THE FINAL OUTPUT MUST BE ONLY THE FULLY MODIFIED PAGE.
         """.trimMargin())

@@ -666,6 +666,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setMaxTokens(20000)
         .truncateModuleContext()
         .updatePipelineContextOnExit()
+        .enableAppendLoreBookScheme()
         .setJsonOutput(blankLoreBookExample)
         .setSystemPrompt(loreBookPipeSystemPrompt)
         .autoInjectContext("The following json schema will be used to supply context for the story. " +

@@ -728,7 +728,9 @@ suspend fun recordLoreBook(content: MultimodalContent) : MultimodalContent
 
     //Merge in new keys that do not exist yet.
     var bankedContext = ContextBank.getContextFromBank("main")
-    bankedContext.merge(newLoreBookEntries)
+    bankedContext.merge(newLoreBookEntries,
+        content.currentPipe?.getLorebookScheme()!!.second,
+        content.currentPipe?.getLorebookScheme()!!.first)
 
     //Update the banked context.
     content.context = bankedContext

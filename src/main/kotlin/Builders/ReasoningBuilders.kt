@@ -23,7 +23,7 @@ fun authorBuilder(
     focusPoints: MutableMap<Int, String> = mutableMapOf(),
     region: String = "us-west-2",
     model: String = "qwen.qwen3-coder-480b-a35b-v1:0",
-    maxTokens: Int = 32000,
+    maxTokens: Int = 8000,
     temperature: Double = 1.0,
     topP: Double = .7
 ) : Pipe
@@ -65,13 +65,11 @@ fun authorBuilder(
 fun obsessivePlannerBuilder(): Pipe
 {
     val reasoningSettings = ReasoningSettings(
-        reasoningMethod = ReasoningMethod.ExplicitCot,
+        reasoningMethod = ReasoningMethod.ComprehensivePlan,
         depth = ReasoningDepth.High,
         duration = ReasoningDuration.Long,
         reasoningInjector = ReasoningInjector.AfterUserPrompt,
-        numberOfRounds = 1,
-        focusPoints = mutableMapOf(1 to "You have been provided with json. Focus on the contents and requirements" +
-                "of the provided json.")
+        numberOfRounds = 1
     )
 
     val config = BedrockConfiguration(
@@ -88,6 +86,139 @@ fun obsessivePlannerBuilder(): Pipe
 
     val pipe = reasonWithBedrock(
         config,
+        reasoningSettings,
+        pipeSettings
+    )
+
+    runBlocking { pipe.init() }
+
+    return pipe
+}
+
+
+fun bestIdeaBuilder(): Pipe
+{
+    val reasoningSettings = ReasoningSettings(
+        reasoningMethod = ReasoningMethod.BestIdea,
+        depth = ReasoningDepth.High,
+        duration = ReasoningDuration.Long,
+        reasoningInjector = ReasoningInjector.AfterUserPrompt
+    )
+
+    val config = BedrockConfiguration(
+        region = "us-west-2",
+        model = "qwen.qwen3-coder-480b-a35b-v1:0"
+    )
+
+    val pipeSettings = PipeSettings(
+        model = "qwen.qwen3-coder-480b-a35b-v1:0",
+        temperature = .7,
+        topP = .7,
+        maxTokens = 8000,
+        contextWindowSize = 115000
+    )
+
+    val pipe = reasonWithBedrock(
+        config,
+        reasoningSettings,
+        pipeSettings
+    )
+
+    runBlocking { pipe.init() }
+
+    return pipe
+}
+
+fun structuredCotBuilder() : Pipe
+{
+    val reasoningSettings = ReasoningSettings(
+        reasoningMethod = ReasoningMethod.StructuredCot,
+        depth = ReasoningDepth.High,
+        duration = ReasoningDuration.Long,
+        reasoningInjector = ReasoningInjector.AfterUserPrompt,
+        numberOfRounds = 1
+    )
+
+    val bedrockSettings = BedrockConfiguration(
+        region = "us-west-2",
+        model = "qwen.qwen3-coder-480b-a35b-v1:0"
+    )
+
+    val pipeSettings = PipeSettings(
+        temperature = .7,
+        topP = .7,
+        maxTokens = 8000,
+        contextWindowSize = 115000
+    )
+
+    val pipe = reasonWithBedrock(
+        bedrockSettings,
+        reasoningSettings,
+        pipeSettings
+    )
+
+    runBlocking { pipe.init() }
+
+    return pipe
+}
+
+fun processFocusedBuilder() : Pipe
+{
+    val reasoningSettings = ReasoningSettings(
+        reasoningMethod = ReasoningMethod.processFocusedCot,
+        depth = ReasoningDepth.High,
+        duration = ReasoningDuration.Long,
+        reasoningInjector = ReasoningInjector.AfterUserPrompt,
+        numberOfRounds = 1
+    )
+
+    val bedrockSettings = BedrockConfiguration(
+        region = "us-west-2",
+        model = "qwen.qwen3-coder-480b-a35b-v1:0"
+    )
+
+    val pipeSettings = PipeSettings(
+        temperature = .7,
+        topP = .7,
+        maxTokens = 8000,
+        contextWindowSize = 115000
+    )
+
+    val pipe = reasonWithBedrock(
+        bedrockSettings,
+        reasoningSettings,
+        pipeSettings
+    )
+
+    runBlocking { pipe.init() }
+
+    return pipe
+}
+
+fun explicitCotBuilder() : Pipe
+{
+    val reasoningSettings = ReasoningSettings(
+        reasoningMethod = ReasoningMethod.ExplicitCot,
+        depth = ReasoningDepth.High,
+        duration = ReasoningDuration.Long,
+        reasoningInjector = ReasoningInjector.AfterUserPrompt,
+        numberOfRounds = 1
+    )
+
+    val bedrockSettings = BedrockConfiguration(
+        region = "us-west-2",
+        model = "qwen.qwen3-coder-480b-a35b-v1:0"
+    )
+
+    val pipeSettings = PipeSettings(
+        temperature = .7,
+        topP = .7,
+        maxTokens = 8000,
+        contextWindowSize = 115000
+    )
+
+    val pipe = reasonWithBedrock(
+        bedrockSettings,
         reasoningSettings,
         pipeSettings
     )
