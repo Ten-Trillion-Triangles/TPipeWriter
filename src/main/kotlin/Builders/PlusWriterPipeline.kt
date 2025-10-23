@@ -190,9 +190,9 @@ fun buildPlusWriterPipeline() : Pipeline
      * story's progress against the chapter guide
      */
     val guidePipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
+        .setRegion("us-west-2")
         .useConverseApi()
-        .setModel(deepseekModelName)
+        .setModel(qwenCoder480B)
         .requireJsonPromptInjection()
         .setJsonInput(VibeInstruct())
         .setJsonOutput(TodoList())
@@ -200,6 +200,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setMaxTokens(32000)
         .setTemperature(0.8)
         .setTopP(0.8)
+        .setReasoningPipe(obsessivePlannerBuilder())
         .setPreValidationMiniBankFunction(::logicalProgressionPreValidationMiniBank)
         .setSystemPrompt("""
                 ##Modus Operandi
@@ -285,6 +286,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::recordWritingPipePage)
+        .setReasoningPipe(authorBuilder(Env.authorPrompt))
         .setSystemPrompt(
                 "##Modus Operandi:\n" +
                 "-Write the next page of the story\n\n" +
@@ -332,6 +334,7 @@ fun buildPlusWriterPipeline() : Pipeline
             | 1. ...it's not 'X', it's 'Y.' ; ...it wasn't 'X', it was 'Y.'
             | 2. ...it's actually an 'X'. ; ...not 'X': 'Y.'
             | 3. ...it's possible that actually 'Z.'
+            | 4. ...it's not just 'X', it's 'Y.'
         """.trimMargin()
         )
         .setFooterPrompt("Your output must be the edited page ONLY: apply your changes and DO NOT include them as a list in your output." +
@@ -352,6 +355,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .pullGlobalContext()
         .setPageKey("user prompt")
         .truncateModuleContext()
+        .setReasoningPipe(authorBuilder(Env.editorPrompt))
         .setTransformationFunction(::recordWritingPipePage)
         .setSystemPrompt("""You are ${Env.editorPrompt}. You nod slowly as you think back on all those years spent studying history books
             |instead of reading novels or short stories or even comic books as you should have done had you known better:
@@ -535,7 +539,7 @@ fun buildPlusWriterPipeline() : Pipeline
     
 
     //This pipe removes the attempt to forcefully wrap up the chapter when the user does not tell the llm to do so.
-    val unwrapPipe = BedrockMultimodalPipe()
+    val unmessupendingPipe = BedrockMultimodalPipe()
         .setRegion("us-east-2")
         .useConverseApi()
         .setModel(deepseekModelName)
@@ -589,7 +593,111 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
             |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material.""")
         .setTransformationFunction(::recordWritingPipePage)
-        .setPipeName("unfuckery pipe")
+        .setPipeName("un-mess-up ending pipe")
+//the following pipes will attempt to clean up common AI writing practices, as well as fix any lingering style problems.
+    val cleanupStepOnePipe = BedrockMultimodalPipe()
+        .setRegion("us-west-2")
+        .useConverseApi()
+        .setModel(deepseekV31)
+        .setTemperature(1.0)
+        .setTopP(0.7)
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .setTransformationFunction(::secondPassTransform)
+        .setReasoningPipe(bestIdeaBuilder())
+        .setPageKey("user prompt, new page")
+        .setSystemPrompt("""Your job is simple. Review the new page for improper use of punctuation. You are 
+            |looking for two things specifically:
+            |
+            |1. Improper use of em dashes. Em dashes should ONLY EVER BE USED to replace parentheses in places where
+            |parentheses would be too strong (weak parenthetical text is only a slight diversion from the current subject
+            |or is necessary to understand the rest of the sentence it is a part of; strong parenthetical text is a 
+            |large diversion from the current sentence or is not inherently part of the sentence it is inside of). This
+            |also means that em dashes can only be kept in places WHERE THEY BRACKET THE INCLUDED TEXT: there must be
+            |an em dash on both sides of the portion of text that follows the first em dash. If you see an em dash
+            |preceding text that does not end with a closing em dash, that em dash has been used improperly.
+            |Replace all improper em dashes with their corresponding correct punctuation: parentheses for strong parentheticals,
+            |colons or semicolons for places where the break ends in a period. 
+            |
+            |2. Contractions in the body text. CONTRACTIONS SHOULD ONLY EVER BE USED IN DIALOGUE. If you see a contraction
+            |in the body text, IT IS WRONG: rewrite the contracted words to eliminate the contraction.
+            |
+            |Fix the above problems using surgical changes. DO NOT MAKE ANY CHANGES ASIDE FROM THE ONES YOU HAVE BEEN
+            |INSTRUCTED TO MAKE. DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material.  DO NOT include the list of changes in your
+            |output. THE OUTPUT SHOULD ONLY BE THE FINAL, FULLY ADJUSTED PAGE.
+        """.trimMargin())
+        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
+            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material.""")
+
+    val cleanupStepTwoPipe = BedrockMultimodalPipe()
+        .setRegion("us-west-2")
+        .useConverseApi()
+        .setModel(deepseekV31)
+        .setTemperature(1.0)
+        .setTopP(0.7)
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .setTransformationFunction(::secondPassTransform)
+        .setReasoningPipe(bestIdeaBuilder())
+        .setPageKey("user prompt, new page")
+        .setSystemPrompt("""Your task is fairly simple: you must fix the text for common issues in accordance to the
+            |following four rules:
+            |1. All text that can be dialogue SHOULD BE DIALOGUE/INTERNAL MONOLOGUE: You will in places in the text where character opinions,
+            |thoughts, consciousness indicators, or general author commentary are written out as body text. Instances
+            |of these things should ALL BE CONVERTED INTO DIALOGUE/INTERNAL MONOLOGUE. Example: instead of "These weren't urgent problems, 
+            |but he wondered about their cause. An environmental shift? 
+            |The growth rings told a story he couldn't read, but he felt concern for its wellbeing", it should read 
+            |"'It's not that urgent, but what could have caused this? Environmental shifts? I'm not well read on
+            |growth rings, but I can't help but wonder how its doing.'"
+            |
+            |2. STAGE DIRECTIONS SUCK: WE ARE WRITING A BOOK, NOT A MOVIE SCRIPT: You will find frequently throughout
+            |the written page that dialogue is interrupted with, or followed by, bullshit stage directions.
+            |You must eliminate all instances of these things that you find, and merge together bodies of dialogue text
+            |as necessary when you do so. Examples of things that you would remove: "Geno observed, his analytical mind unable to fully rest";
+            |"She paused, feathers rustling."; "her voice cutting through the noise of the market." 
+            |
+            |3. Any statements of hyperbole, hype, and particularly strong adjectives in places where the user prompt
+            |has not demanded, or in scenes that are otherwise climactic,
+            |it must either be removed in their entirety or converted into character dialogue, depending
+            |on what's more convenient. You're looking for strong visual metaphors, like "shattered" or "downpour", to describe
+            |character mental states or reaction to a situation.
+            |
+            |Fix the above problems using surgical changes. DO NOT MAKE ANY CHANGES ASIDE FROM THE ONES YOU HAVE BEEN
+            |INSTRUCTED TO MAKE. DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material.  DO NOT include the list of changes in your
+            |output. THE OUTPUT SHOULD ONLY BE THE FINAL, FULLY ADJUSTED PAGE.
+        """.trimMargin())
+        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
+            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material.""")
+        .setPipeName("cleanup step two pipe")
+
+    val styleReapplyPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .setTemperature(1.0)
+        .setTopP(0.7)
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .setTransformationFunction(::secondPassTransform)
+        .setPageKey("user prompt, new page")
+        .setSystemPrompt("""Your job is straightforward: you must do one final pass over of the new page to ensure
+            |the style guide is adhered to properly. Here is your style guide: ${settings.writingStyle}. 
+            |Do not make any changes beyond the ones you were instructed to make.
+            |###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
+            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material.
+        """.trimMargin())
+        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
+            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material.""")
+        .setPipeName("style reapply pipe")
 
     /**
      * Final step. Author sweeps over the result and makes any final tweaks and desired changes.
@@ -604,6 +712,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::secondPassTransform)
+        .setReasoningPipe(authorBuilder(Env.richardTreadwell))
         .setPageKey("user prompt, new page")
         .setSystemPrompt("""${Env.richardTreadwell} Now that the new page is finished, it is time to do a second pass.
             |You are ${Env.richardTreadwell}.
@@ -690,7 +799,10 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .add(logicalProgressionPipe)
         .add(logicalCorrectionPipe)
         .add(dummyPipe)
-        .add(unwrapPipe)
+        .add(unmessupendingPipe)
+        .add(cleanupStepOnePipe)
+        .add(cleanupStepTwoPipe)
+        .add(styleReapplyPipe)
         .add(secondPassPipe)
         .add(loreBookPipe)
 

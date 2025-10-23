@@ -347,15 +347,122 @@ val expansionPipeline = Pipeline()
             """)
         .setPipeName("final edit pipe")
 
+    //the following pipes will attempt to clean up common AI writing practices, as well as fix any lingering style problems.
+    val cleanupStepOnePipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .setTemperature(1.0)
+        .setTopP(0.7)
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .setTransformationFunction(::secondPassTransform)
+        .setPageKey("user prompt, new page")
+        .setSystemPrompt("""Your job is simple. Review the new page for improper use of punctuation. You are 
+            |looking for two things specifically:
+            |
+            |1. Improper use of em dashes. Em dashes should ONLY EVER BE USED to replace parentheses in places where
+            |parentheses would be too strong (weak parenthetical text is only a slight diversion from the current subject
+            |or is necessary to understand the rest of the sentence it is a part of; strong parenthetical text is a 
+            |large diversion from the current sentence or is not inherently part of the sentence it is inside of). This
+            |also means that em dashes can only be kept in places WHERE THEY BRACKET THE INCLUDED TEXT: there must be
+            |an em dash on both sides of the portion of text that follows the first em dash. If you see an em dash
+            |preceding text that does not end with a closing em dash, that em dash has been used improperly.
+            |Replace all improper em dashes with their corresponding correct punctuation: parentheses for strong parentheticals,
+            |colons or semicolons for places where the break ends in a period. 
+            |
+            |2. Contractions in the body text. CONTRACTIONS SHOULD ONLY EVER BE USED IN DIALOGUE. If you see a contraction
+            |in the body text, IT IS WRONG: rewrite the contracted words to eliminate the contraction.
+            |
+            |Fix the above problems using surgical changes. DO NOT MAKE ANY CHANGES ASIDE FROM THE ONES YOU HAVE BEEN
+            |INSTRUCTED TO MAKE. DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material.  DO NOT include the list of changes in your
+            |output. THE OUTPUT SHOULD ONLY BE THE FINAL, FULLY ADJUSTED PAGE.
+        """.trimMargin())
+        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
+            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material.""")
+
+    val cleanupStepTwoPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .setTemperature(1.0)
+        .setTopP(0.7)
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .setTransformationFunction(::secondPassTransform)
+        .setPageKey("user prompt, new page")
+        .setSystemPrompt("""Your task is fairly simple: you must fix the text for common issues in accordance to the
+            |following four rules:
+            |1. All text that can be dialogue SHOULD BE DIALOGUE/INTERNAL MONOLOGUE: You will in places in the text where character opinions,
+            |thoughts, consciousness indicators, or general author commentary are written out as body text. Instances
+            |of these things should ALL BE CONVERTED INTO DIALOGUE/INTERNAL MONOLOGUE. Example: instead of "These weren't urgent problems, 
+            |but he wondered about their cause. An environmental shift? 
+            |The growth rings told a story he couldn't read, but he felt concern for its wellbeing", it should read 
+            |"'It's not that urgent, but what could have caused this? Environmental shifts? I'm not well read on
+            |growth rings, but I can't help but wonder how its doing.'"
+            |
+            |2. STAGE DIRECTIONS SUCK: WE ARE WRITING A BOOK, NOT A MOVIE SCRIPT: You will find frequently throughout
+            |the written page that dialogue is preceded by, interrupted with, or followed by bullshit stage directions.
+            |You must eliminate all instances of these things that you find, and merge together bodies of dialogue text
+            |as necessary when you do so. Examples of things that you would remove: "Geno observed, his analytical mind unable to fully rest";
+            |"She paused, feathers rustling."; "her voice cutting through the noise of the market." 
+            |
+            |3. Any statements of hyperbole, hype, and particularly strong adjectives in places where the user prompt
+            |has not demanded, or in scenes that are otherwise climactic,
+            |it must either be removed in their entirety or converted into character dialogue, depending
+            |on what's more convenient. You're looking for strong visual metaphors, like "shattered" or "downpour", to describe
+            |character mental states or reaction to a situation.
+            |
+            |Fix the above problems using surgical changes. DO NOT MAKE ANY CHANGES ASIDE FROM THE ONES YOU HAVE BEEN
+            |INSTRUCTED TO MAKE. DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material.  DO NOT include the list of changes in your
+            |output. THE OUTPUT SHOULD ONLY BE THE FINAL, FULLY ADJUSTED PAGE.
+        """.trimMargin())
+        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
+            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material.""")
+        .setPipeName("cleanup step two pipe")
+
+    val styleReapplyPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .setTemperature(1.0)
+        .setTopP(0.7)
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .setTransformationFunction(::secondPassTransform)
+        .setPageKey("user prompt, new page")
+        .setSystemPrompt("""Your job is straightforward: you must do one final pass over of the new page to ensure
+            |the style guide is adhered to properly. Here is your style guide: ${settings.writingStyle}. 
+            |Do not make any changes beyond the ones you were instructed to make.
+            |###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
+            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material.
+        """.trimMargin())
+        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
+            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material.""")
+        .setPipeName("style reapply pipe")
+
+
 
     expansionPipeline
         .add(breakerPipe)
         .add(expanderPipe)
         .add(instructorPipe)
         .add(implementerPipe)
-        //.add(shuntPipe)
-        .add(dialoguePipe)
+        .add(shuntPipe)
+        //.add(dialoguePipe)
         .add(finalEditPipe)
+        .add(cleanupStepOnePipe)
+        .add(cleanupStepTwoPipe)
+        .add(styleReapplyPipe)
 
     runBlocking {
         expansionPipeline.init(true)

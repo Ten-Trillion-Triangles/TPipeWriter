@@ -139,6 +139,7 @@ fun buildDialogueConnector() : Pair<Pipe, Connector>
         .setTemperature(0.8)
         .setTopP(.7)
         .applySystemPrompt()
+        .setReasoningPipe(obsessivePlannerBuilder())
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setSystemPrompt("""Looking at new page, find all instances of dialogue where a character
             |has more than one consecutive sentence of dialogue. In each place you find a segment of dialogue with more
@@ -155,6 +156,7 @@ fun buildDialogueConnector() : Pair<Pipe, Connector>
             |7. Ideological rant as character voice: characters delivering monologues like they're sapient op-ed pieces.
             |
             |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story. 
+            |MAKE SURE YOUR ADDITIONS COMPLY WITH THE STYLE GUIDE: ${settings.writingStyle}.
             |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material (there should be MORE).
             |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
@@ -187,6 +189,7 @@ fun buildDialogueConnector() : Pair<Pipe, Connector>
         .setTemperature(0.8)
         .setTopP(.7)
         .applySystemPrompt()
+        .setReasoningPipe(obsessivePlannerBuilder())
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setSystemPrompt("""Looking at new page, find all instances of dialogue. 
             |You must extend the character's dialogue by adding in additional exposition
@@ -212,6 +215,7 @@ fun buildDialogueConnector() : Pair<Pipe, Connector>
             |6. Socratic structure: question → short assent → layered explanation.
             |
             |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story. 
+            |MAKE SURE YOUR ADDITIONS COMPLY WITH THE STYLE GUIDE: ${settings.writingStyle}.
             |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material (there should be MORE).
             |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
@@ -243,6 +247,7 @@ fun buildDialogueConnector() : Pair<Pipe, Connector>
         .setTemperature(0.8)
         .setTopP(.7)
         .applySystemPrompt()
+        .setReasoningPipe(obsessivePlannerBuilder())
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setSystemPrompt("""Looking at new page, find all instances of dialogue. 
             |You must extend the character's dialogue by adding in additional exposition
@@ -271,6 +276,7 @@ fun buildDialogueConnector() : Pair<Pipe, Connector>
             |3. Deadpan menace: calm assurances paired with threats.
             |
             |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story. 
+            |MAKE SURE YOUR ADDITIONS COMPLY WITH THE STYLE GUIDE: ${settings.writingStyle}.
             |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material (there should be MORE).
             |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
