@@ -160,7 +160,9 @@ fun buildDialogueConnector() : Pair<Pipe, Connector>
             |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material (there should be MORE).
             |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
-            |NO TEXT CAN BE DELETED: ONLY ADDED.
+            |NO TEXT CAN BE DELETED: ONLY ADDED. Additionally, your changes must be to ALL PLACES WITH MORE THAN ONE
+            |EXISTING LINE OF DIALOGUE: ONLY ADD TO PLACES THAT ALREADY HAVE DIALOGUE. YOU MUST NOT ADD ADDITIONAL
+            |PARAGRAPHS OF BODY TEXT TO THE END OF THE PAGE.
             |###WARNING: ABSOLUTELY DO NOT INCLUDE THE LIST OF YOUR CHANGES IN THE OUTPUT. 
             |THE FINAL OUTPUT MUST BE ONLY THE FULLY MODIFIED PAGE.
         """.trimMargin())
@@ -170,6 +172,7 @@ fun buildDialogueConnector() : Pair<Pipe, Connector>
             |as many sentences in your output as there were in the provided material (there should be MORE).
             |###IMPORTANT: DO NOT INCLUDE THE LIST OF YOUR CHANGES IN YOUR OUTPUT. THE OUTPUT MUST BE ONLY THE 
             |FULLY MODIFIED PAGE.
+            |###WARNING: Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD CONTENT TO THE END OF THE PAGE.
         """.trimMargin())
         .setTransformationFunction(::recordWritingPipePage)
         .applySystemPrompt()
@@ -214,12 +217,15 @@ fun buildDialogueConnector() : Pair<Pipe, Connector>
             |5. Rhetorical questions as stepping stones; each is immediately answered and advanced.
             |6. Socratic structure: question → short assent → layered explanation.
             |
-            |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story. 
+            |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story.
+            |Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD CONTENT TO THE END OF THE PAGE.
             |MAKE SURE YOUR ADDITIONS COMPLY WITH THE STYLE GUIDE: ${settings.writingStyle}.
             |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material (there should be MORE).
             |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
-            |NO TEXT CAN BE DELETED: ONLY ADDED.
+            |NO TEXT CAN BE DELETED: ONLY ADDED. Additionally, your changes must be to ALL PLACES WITH MORE THAN ONE
+            |EXISTING LINE OF DIALOGUE: ONLY ADD TO PLACES THAT ALREADY HAVE DIALOGUE. YOU MUST NOT ADD ADDITIONAL
+            |PARAGRAPHS OF BODY TEXT TO THE END OF THE PAGE.
             |###WARNING: ABSOLUTELY DO NOT INCLUDE THE LIST OF YOUR CHANGES IN THE OUTPUT. 
             |THE FINAL OUTPUT MUST BE ONLY THE FULLY MODIFIED PAGE.
         """.trimMargin())
@@ -229,6 +235,7 @@ fun buildDialogueConnector() : Pair<Pipe, Connector>
             |as many sentences in your output as there were in the provided material (there should be MORE).
             |###IMPORTANT: DO NOT INCLUDE THE LIST OF YOUR CHANGES IN YOUR OUTPUT. THE OUTPUT MUST BE ONLY THE 
             |FULLY MODIFIED PAGE.
+            |###WARNING: Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD CONTENT TO THE END OF THE PAGE.
         """.trimMargin())
         .setTransformationFunction(::recordWritingPipePage)
         .applySystemPrompt()
@@ -280,7 +287,9 @@ fun buildDialogueConnector() : Pair<Pipe, Connector>
             |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material (there should be MORE).
             |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
-            |NO TEXT CAN BE DELETED: ONLY ADDED.
+            |NO TEXT CAN BE DELETED: ONLY ADDED. Additionally, your changes must be to ALL PLACES WITH MORE THAN ONE
+            |EXISTING LINE OF DIALOGUE: ONLY ADD TO PLACES THAT ALREADY HAVE DIALOGUE. YOU MUST NOT ADD ADDITIONAL
+            |PARAGRAPHS OF BODY TEXT TO THE END OF THE PAGE.
             |###WARNING: ABSOLUTELY DO NOT INCLUDE THE LIST OF YOUR CHANGES IN THE OUTPUT. 
             |THE FINAL OUTPUT MUST BE ONLY THE FULLY MODIFIED PAGE.
         """.trimMargin())
@@ -290,6 +299,7 @@ fun buildDialogueConnector() : Pair<Pipe, Connector>
             |as many sentences in your output as there were in the provided material (there should be MORE).
             |###IMPORTANT: DO NOT INCLUDE THE LIST OF YOUR CHANGES IN YOUR OUTPUT. THE OUTPUT MUST BE ONLY THE 
             |FULLY MODIFIED PAGE.
+            |###WARNING: Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD CONTENT TO THE END OF THE PAGE.
         """.trimMargin())
         .setTransformationFunction(::recordWritingPipePage)
         .applySystemPrompt()

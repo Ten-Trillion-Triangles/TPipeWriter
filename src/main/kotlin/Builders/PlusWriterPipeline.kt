@@ -274,19 +274,19 @@ fun buildPlusWriterPipeline() : Pipeline
      * existing story content, and the "editors note" to execute on the plan for the next page of the story.
      */
     val writingPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
+        .setRegion("us-east-2")
         .useConverseApi()
-        .setModel(qwenCoder480B)
+        .setModel(llamaMaverick)
         .setTemperature(1.0)
         .setTopP(0.6)
         .pullGlobalContext()
         .setPageKey("main, user prompt")
         .setContextWindowSize(120000)
         .truncateModuleContext()
-        .setMaxTokens(32000)
+        .setMaxTokens(8000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::recordWritingPipePage)
-        .setReasoningPipe(authorBuilder(Env.authorPrompt))
+        .setReasoningPipe(obsessivePlannerBuilder())
         .setSystemPrompt(
                 "##Modus Operandi:\n" +
                 "-Write the next page of the story\n\n" +
@@ -594,6 +594,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
             |sentences in your output as there were in the provided material.""")
         .setTransformationFunction(::recordWritingPipePage)
         .setPipeName("un-mess-up ending pipe")
+
 //the following pipes will attempt to clean up common AI writing practices, as well as fix any lingering style problems.
     val cleanupStepOnePipe = BedrockMultimodalPipe()
         .setRegion("us-west-2")
@@ -605,7 +606,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::secondPassTransform)
-        .setReasoningPipe(bestIdeaBuilder())
+        .setReasoningPipe(obsessivePlannerBuilder())
         .setPageKey("user prompt, new page")
         .setSystemPrompt("""Your job is simple. Review the new page for improper use of punctuation. You are 
             |looking for two things specifically:
@@ -636,18 +637,18 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setRegion("us-west-2")
         .useConverseApi()
         .setModel(deepseekV31)
-        .setTemperature(1.0)
+        .setTemperature(0.7)
         .setTopP(0.7)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::secondPassTransform)
-        .setReasoningPipe(bestIdeaBuilder())
+        .setReasoningPipe(obsessivePlannerBuilder())
         .setPageKey("user prompt, new page")
         .setSystemPrompt("""Your task is fairly simple: you must fix the text for common issues in accordance to the
             |following four rules:
-            |1. All text that can be dialogue SHOULD BE DIALOGUE/INTERNAL MONOLOGUE: You will in places in the text where character opinions,
-            |thoughts, consciousness indicators, or general author commentary are written out as body text. Instances
+            |1. Character thoughts should be written as INTERNAL MONOLOGUE: You will in places in the text where character opinions
+            |or thoughts are written out as body text. Instances
             |of these things should ALL BE CONVERTED INTO DIALOGUE/INTERNAL MONOLOGUE. Example: instead of "These weren't urgent problems, 
             |but he wondered about their cause. An environmental shift? 
             |The growth rings told a story he couldn't read, but he felt concern for its wellbeing", it should read 
@@ -798,11 +799,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .add(loreRepairPipe)
         .add(logicalProgressionPipe)
         .add(logicalCorrectionPipe)
-        .add(dummyPipe)
-        .add(unmessupendingPipe)
         .add(cleanupStepOnePipe)
         .add(cleanupStepTwoPipe)
-        .add(styleReapplyPipe)
+        .add(dummyPipe)
+        .add(unmessupendingPipe)
+        //.add(styleReapplyPipe)
         .add(secondPassPipe)
         .add(loreBookPipe)
 
