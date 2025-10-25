@@ -48,6 +48,7 @@ fun authorBuilder(
         temperature = temperature,
         topP = topP,
         maxTokens = maxTokens,
+        pipeName = "author"
     )
 
     val pipe = reasonWithBedrock(
@@ -82,6 +83,7 @@ fun obsessivePlannerBuilder(): Pipe
         temperature = 1.0,
         topP = .7,
         maxTokens = 32000,
+        pipeName = "obsessive planner"
     )
 
     val pipe = reasonWithBedrock(
@@ -115,7 +117,8 @@ fun bestIdeaBuilder(): Pipe
         temperature = .7,
         topP = .7,
         maxTokens = 8000,
-        contextWindowSize = 115000
+        contextWindowSize = 115000,
+        pipeName = "best idea"
     )
 
     val pipe = reasonWithBedrock(
@@ -148,7 +151,8 @@ fun structuredCotBuilder() : Pipe
         temperature = .7,
         topP = .7,
         maxTokens = 8000,
-        contextWindowSize = 115000
+        contextWindowSize = 115000,
+        pipeName = "structured cot"
     )
 
     val pipe = reasonWithBedrock(
@@ -181,7 +185,8 @@ fun processFocusedBuilder() : Pipe
         temperature = .7,
         topP = .7,
         maxTokens = 8000,
-        contextWindowSize = 115000
+        contextWindowSize = 115000,
+        pipeName = "process focused"
     )
 
     val pipe = reasonWithBedrock(
@@ -214,7 +219,8 @@ fun explicitCotBuilder() : Pipe
         temperature = .7,
         topP = .7,
         maxTokens = 8000,
-        contextWindowSize = 115000
+        contextWindowSize = 115000,
+        pipeName = "explicit cot"
     )
 
     val pipe = reasonWithBedrock(

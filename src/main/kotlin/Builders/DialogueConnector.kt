@@ -8,7 +8,6 @@ import Util.enablePipelineStreaming
 import bedrockPipe.BedrockMultimodalPipe
 import com.TTT.Debug.TraceStreamMerger
 import com.TTT.Pipe.MultimodalContent
-import com.TTT.Pipe.Pipe
 import com.TTT.Pipeline.Connector
 import com.TTT.Pipeline.Pipeline
 import com.TTT.Util.extractJson
@@ -30,7 +29,7 @@ data class dialogueClass (
 /**
  * Builder that generates the dialogue connector and required evaluation pipe.
  */
-fun buildDialogueConnector() : Pair<Pipe, Connector>
+fun buildDialogueConnector() : Pair<Pipeline, Connector>
 {
     val deepseekModelName = "deepseek.r1-v1:0"
     val claudeModelName = "anthropic.claude-sonnet-4-20250514-v1:0"
@@ -316,7 +315,7 @@ fun buildDialogueConnector() : Pair<Pipe, Connector>
     enablePipelineStreaming(informalCasualPipeline)
     enablePipelineStreaming(formalFreeformPipeline)
 
-    return Pair<Pipe, Connector>(identifyMyDialogue, dialogueConnector)
+    return Pair<Pipeline, Connector>(evaluateDialoguePipeline, dialogueConnector)
 }
 
 /**
@@ -325,16 +324,17 @@ fun buildDialogueConnector() : Pair<Pipe, Connector>
  */
 suspend fun shunt(content: MultimodalContent) : MultimodalContent
 {
-    val dialogueConnector = buildDialogueConnector()
-    val dialogueSelectionPipe = dialogueConnector.first
-    val connector = dialogueConnector.second
+    val (dialogueSelectionPipeline, connector) = buildDialogueConnector()
     connector.enableTracing()
+    dialogueSelectionPipeline.enableTracing()
 
-    dialogueSelectionPipe.init()
+    // Capture the host pipeline before the dialogue connector reassigns currentPipe
+    val hostPipeline = content.currentPipe?.getPipelinesFromInterface()?.firstOrNull()
+
+    dialogueSelectionPipeline.init(true)
     connector.getPipelinesFromInterface().forEach { it.init(true) }
 
-    var result = dialogueSelectionPipe.execute(content)
-    TraceStreamMerger.bubbleMerge(dialogueSelectionPipe, connector)
+    var result = dialogueSelectionPipeline.execute(content)
 
     val json = extractJson<dialogueClass>(result.text)
 
@@ -343,7 +343,19 @@ suspend fun shunt(content: MultimodalContent) : MultimodalContent
         throw Exception("dialogueConnector did not return valid json, or we were unable to extract it.")
     }
 
+
+
     val finalResult = connector.execute(json.dialogueType, content)
-    TraceStreamMerger.bubbleMerge(content.currentPipe!!, connector)
+
+    val dialoguePipeline = connector.get(json.dialogueType)
+
+    if(hostPipeline != null && dialoguePipeline != null)
+    {
+        TraceStreamMerger.bubbleMerge(
+            hostPipeline,
+            dialogueSelectionPipeline,
+            dialoguePipeline
+        )
+    }
     return finalResult
 }
