@@ -139,7 +139,6 @@ fun buildDialogueConnector() : Pair<Pipe, Connector>
         .setTemperature(0.8)
         .setTopP(.7)
         .applySystemPrompt()
-        .setReasoningPipe(obsessivePlannerBuilder())
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setSystemPrompt("""Looking at new page, find all instances of dialogue where a character
             |has more than one consecutive sentence of dialogue. In each place you find a segment of dialogue with more
@@ -192,7 +191,6 @@ fun buildDialogueConnector() : Pair<Pipe, Connector>
         .setTemperature(0.8)
         .setTopP(.7)
         .applySystemPrompt()
-        .setReasoningPipe(obsessivePlannerBuilder())
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setSystemPrompt("""Looking at new page, find all instances of dialogue. 
             |You must extend the character's dialogue by adding in additional exposition
@@ -254,7 +252,6 @@ fun buildDialogueConnector() : Pair<Pipe, Connector>
         .setTemperature(0.8)
         .setTopP(.7)
         .applySystemPrompt()
-        .setReasoningPipe(obsessivePlannerBuilder())
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setSystemPrompt("""Looking at new page, find all instances of dialogue. 
             |You must extend the character's dialogue by adding in additional exposition
