@@ -190,9 +190,9 @@ fun buildPlusWriterPipeline() : Pipeline
      * story's progress against the chapter guide
      */
     val guidePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
+        .setRegion("us-east-2")
         .useConverseApi()
-        .setModel(qwenCoder480B)
+        .setModel(deepseekModelName)
         .requireJsonPromptInjection()
         .setJsonInput(VibeInstruct())
         .setJsonOutput(TodoList())
@@ -274,7 +274,7 @@ fun buildPlusWriterPipeline() : Pipeline
      * existing story content, and the "editors note" to execute on the plan for the next page of the story.
      */
     val writingPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
+        .setRegion("us-east-2")
         .useConverseApi()
         .setModel(qwenCoder480B)
         .setTemperature(1.0)
@@ -286,7 +286,6 @@ fun buildPlusWriterPipeline() : Pipeline
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::recordWritingPipePage)
-        .setReasoningPipe(authorBuilder(Env.authorPrompt))
         .setSystemPrompt(
                 "##Modus Operandi:\n" +
                 "-Write the next page of the story\n\n" +
@@ -342,6 +341,43 @@ fun buildPlusWriterPipeline() : Pipeline
         .setTransformationFunction(::recordWritingPipePage)
         .setPipeName("untwist pipe")
 
+    val removeBadWritingPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .requireJsonPromptInjection()
+        .truncateModuleContext()
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(1.0)
+        .setTopP(0.7)
+        .applySystemPrompt()
+        .pullGlobalContext()
+        .setPageKey("user prompt")
+        .setSystemPrompt("""Your job is simple, but will require effort. You are looking for the following things
+            |that if you find, YOU MUST REMOVE!
+            |
+            |1. Variety for variety’s sake: synonym churn to avoid repetition, producing near-synonyms that slightly shift meaning.
+            |2. Over-specific numerics: “~60%” or “exactly 10 steps” without provocation.
+            |3. Emotion beats template: nods, sighs, smiles, glances—cycled at reliable intervals. This includes stage directions
+            |following dialogue or in-between sections of a character's own dialogue.
+            |4. Scene “wrap-up cadence”: paragraphs end with summary or moral (“And that’s when she realized…”), even mid-page.
+            |5. Emphasis on symbolism and importance: writing often puffs up the importance of the subject matter by 
+            |adding statements about how arbitrary aspects of the topic represent or contribute to a broader topic.
+            |6. Superficial analyses: insertions of analysis of information, often in relation to its significance, recognition, or impact.
+            |7. Rule of three: This can take different forms, from "adjective, adjective, adjective" to "short phrase, short phrase, and short phrase".
+            |For this one specifically, if you see it, reduce it to the first line item only.
+            |
+            | ###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
+            |FULLY ADJUSTED PAGE. FURTHERMORE, you can only truncate the page by REMOVING THE THINGS YOU WERE INSTRUCTED
+            |TO REMOVE: THERE SHOULD STILL BE OTHERWISE THE SAME NUMBER OF SENTENCES AND PARAGRAPHS.
+        """.trimMargin()
+        )
+        .setFooterPrompt("Your output must be the edited page ONLY: apply your changes and DO NOT include them as a list in your output." +
+                "Your output must not be truncated: there must be at least as many paragraphs and at least as many sentences in your output as in the original (more is fine).")
+        .setTransformationFunction(::recordWritingPipePage)
+        .setPipeName("remove bad writing pipe")
+
     //Now we have the author review the written material for thematic consistency and desired traits.
     val postWriterPipe = BedrockMultimodalPipe()
         .setRegion("us-west-2")
@@ -355,7 +391,6 @@ fun buildPlusWriterPipeline() : Pipeline
         .pullGlobalContext()
         .setPageKey("user prompt")
         .truncateModuleContext()
-        .setReasoningPipe(authorBuilder(Env.editorPrompt))
         .setTransformationFunction(::recordWritingPipePage)
         .setSystemPrompt("""You are ${Env.editorPrompt}. You nod slowly as you think back on all those years spent studying history books
             |instead of reading novels or short stories or even comic books as you should have done had you known better:
@@ -546,7 +581,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .truncateModuleContext()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
-        .setTemperature(0.8)
+        .setTemperature(1.0)
         .setTopP(0.8)
         .applySystemPrompt()
         .pullGlobalContext()
@@ -555,7 +590,8 @@ fun buildPlusWriterPipeline() : Pipeline
             |Unless the user prompt explicitly says to end the chapter or scene, you are looking for the following issues:
             |
             |1. Fate/summary pronouncement.
-“last hope,” “fate hung,” “echoes of this hour,” “rested in their hands.” This is a thesis restatement—perfective aspect, big abstractions, end-stopped cadence.
+“last hope,” “fate hung,” “echoes of this hour,” “rested in their hands,” "soon XYZ...," "and what it might bring," 
+|This is a thesis restatement—perfective aspect, big abstractions, end-stopped cadence. Anything that makes proclamations or predictions of the future falls under this category as well. 
 |            2. Zoom-out to ambience.
 “bazaar’s rhythm,” “circadian hum,” “processors flickered,” “shared rhythm.” It pans away to the setting’s general behavior (a lullaby) rather than a live thread.
 |            3. Gnomic aphorism / moral.
@@ -568,6 +604,8 @@ fun buildPlusWriterPipeline() : Pipeline
 “lights dimmed,” “a single frost flower bloomed,” “somewhere, a fax machine screamed.” Image-as-ending—no open task attached.
 |            7. Institutional deference.
 “The Supreme Commanders had agreed to listen.” Authority resolves tension; nothing compels next action.
+|            8. Grand pronouncements.
+|            "Soon...", "Unbeknownst..." etc. Anything that implies that the narrator is omniscient violates this category. 
 |
 |            If you see ANY OF THESE THINGS, you MUST CHANGE THOSE SENTENCES to follow the rules listed below:
 |            
@@ -579,6 +617,8 @@ Camera remains within arm’s length of POV. NO zoom-outs to ship/city “rhythm
 Ban in final sentence: fate, hope, choice, destiny, future, for now, somewhere, silence deepened, rhythm, echo(es), always, never, last. If any appear → rewrite.
 |            4. Allow an honest cut.
 Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unanswered question addressed to a character (not the reader). Don’t overuse ellipses.
+|            5. No narrator talk, no omniscience.
+|            Anything that demonstrates that the author/narrator has more knowledge than the audience must be deleted outright.
 |           
 |            ##WARNING: ONLY CHANGE THE AFFECTED SENTENCES. DO NOT CHANGE ANYTHING ELSE IN THE TEXT. THIS IS A 
 |            SURGICAL CHANGE. IF YOU OUTPUT
@@ -594,18 +634,18 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
             |sentences in your output as there were in the provided material.""")
         .setTransformationFunction(::recordWritingPipePage)
         .setPipeName("un-mess-up ending pipe")
+
 //the following pipes will attempt to clean up common AI writing practices, as well as fix any lingering style problems.
     val cleanupStepOnePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
+        .setRegion("us-east-2")
         .useConverseApi()
-        .setModel(deepseekV31)
+        .setModel(deepseekModelName)
         .setTemperature(1.0)
         .setTopP(0.7)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::secondPassTransform)
-        .setReasoningPipe(bestIdeaBuilder())
         .setPageKey("user prompt, new page")
         .setSystemPrompt("""Your job is simple. Review the new page for improper use of punctuation. You are 
             |looking for two things specifically:
@@ -631,40 +671,29 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
             |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material.""")
+        .setPipeName("cleanup step one pipe")
 
     val cleanupStepTwoPipe = BedrockMultimodalPipe()
         .setRegion("us-west-2")
         .useConverseApi()
         .setModel(deepseekV31)
-        .setTemperature(1.0)
+        .setTemperature(0.7)
         .setTopP(0.7)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::secondPassTransform)
-        .setReasoningPipe(bestIdeaBuilder())
+        .setReasoningPipe(processFocusedBuilder())
         .setPageKey("user prompt, new page")
-        .setSystemPrompt("""Your task is fairly simple: you must fix the text for common issues in accordance to the
-            |following four rules:
-            |1. All text that can be dialogue SHOULD BE DIALOGUE/INTERNAL MONOLOGUE: You will in places in the text where character opinions,
-            |thoughts, consciousness indicators, or general author commentary are written out as body text. Instances
+        .setSystemPrompt("""Your task is fairly simple: you must fix the text in accordance to the
+            |following rule:
+            |1. Character thoughts should be written as INTERNAL MONOLOGUE: You will in places in the text where character opinions
+            |or thoughts are written out as body text. Instances
             |of these things should ALL BE CONVERTED INTO DIALOGUE/INTERNAL MONOLOGUE. Example: instead of "These weren't urgent problems, 
             |but he wondered about their cause. An environmental shift? 
             |The growth rings told a story he couldn't read, but he felt concern for its wellbeing", it should read 
             |"'It's not that urgent, but what could have caused this? Environmental shifts? I'm not well read on
             |growth rings, but I can't help but wonder how its doing.'"
-            |
-            |2. STAGE DIRECTIONS SUCK: WE ARE WRITING A BOOK, NOT A MOVIE SCRIPT: You will find frequently throughout
-            |the written page that dialogue is interrupted with, or followed by, bullshit stage directions.
-            |You must eliminate all instances of these things that you find, and merge together bodies of dialogue text
-            |as necessary when you do so. Examples of things that you would remove: "Geno observed, his analytical mind unable to fully rest";
-            |"She paused, feathers rustling."; "her voice cutting through the noise of the market." 
-            |
-            |3. Any statements of hyperbole, hype, and particularly strong adjectives in places where the user prompt
-            |has not demanded, or in scenes that are otherwise climactic,
-            |it must either be removed in their entirety or converted into character dialogue, depending
-            |on what's more convenient. You're looking for strong visual metaphors, like "shattered" or "downpour", to describe
-            |character mental states or reaction to a situation.
             |
             |Fix the above problems using surgical changes. DO NOT MAKE ANY CHANGES ASIDE FROM THE ONES YOU HAVE BEEN
             |INSTRUCTED TO MAKE. DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
@@ -675,6 +704,44 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
             |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material.""")
         .setPipeName("cleanup step two pipe")
+
+    val cleanupStepThreePipe = BedrockMultimodalPipe()
+        .setRegion("us-west-2")
+        .useConverseApi()
+        .setModel(deepseekV31)
+        .setTemperature(0.7)
+        .setTopP(0.7)
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .setTransformationFunction(::secondPassTransform)
+        .setReasoningPipe(processFocusedBuilder())
+        .setPageKey("user prompt, new page")
+        .setSystemPrompt("""Your task is fairly simple: you must fix the text in accordance to the
+            |following rules:
+            |
+            |1. STAGE DIRECTIONS SUCK: WE ARE WRITING A BOOK, NOT A MOVIE SCRIPT: You will find frequently throughout
+            |the written page that dialogue is interrupted with, or followed by, bullshit stage directions.
+            |You must eliminate all instances of these things that you find, and merge together bodies of dialogue text
+            |as necessary when you do so. Examples of things that you would remove: "Geno observed, his analytical mind unable to fully rest";
+            |"She paused, feathers rustling."; "her voice cutting through the noise of the market." 
+            |
+            |2. Any statements of hyperbole, hype, and particularly strong adjectives in places where the user prompt
+            |has not demanded, or in scenes that are otherwise climactic,
+            |it must either be removed in their entirety or converted into character dialogue, depending
+            |on what's more convenient. You're looking for strong visual metaphors, like "shattered" or "downpour", to describe
+            |character mental states or reaction to a situation.
+            |
+            |Fix the above problems using surgical changes. DO NOT MAKE ANY CHANGES ASIDE FROM THE ONES YOU HAVE BEEN
+            |INSTRUCTED TO MAKE. DO NOT TRUNCATE THE TEXT BEYOND WHAT YOU HAVE BEEN ORDERED TO DO. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material, minus the sentences you were instructed to delete. DO NOT include the list of changes in your
+            |output. THE OUTPUT SHOULD ONLY BE THE FINAL, FULLY ADJUSTED PAGE.
+        """.trimMargin())
+        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
+            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material, minus the sentences that you WERE instructed to remove.""")
+        .setPipeName("cleanup step three pipe")
+
 
     val styleReapplyPipe = BedrockMultimodalPipe()
         .setRegion("us-east-2")
@@ -712,7 +779,6 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::secondPassTransform)
-        .setReasoningPipe(authorBuilder(Env.richardTreadwell))
         .setPageKey("user prompt, new page")
         .setSystemPrompt("""${Env.richardTreadwell} Now that the new page is finished, it is time to do a second pass.
             |You are ${Env.richardTreadwell}.
@@ -798,11 +864,13 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .add(loreRepairPipe)
         .add(logicalProgressionPipe)
         .add(logicalCorrectionPipe)
-        .add(dummyPipe)
-        .add(unmessupendingPipe)
         .add(cleanupStepOnePipe)
         .add(cleanupStepTwoPipe)
+        .add(cleanupStepThreePipe)
+        .add(dummyPipe)
+        .add(unmessupendingPipe)
         .add(styleReapplyPipe)
+        .add(removeBadWritingPipe)
         .add(secondPassPipe)
         .add(loreBookPipe)
 
