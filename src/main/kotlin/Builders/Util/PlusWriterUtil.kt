@@ -305,3 +305,74 @@ suspend fun preInvokeShunt(content: MultimodalContent) : Boolean
     content.text = result.text
     return true
 }
+
+//=========================================Generic Util functions for plus writer=======================================
+
+/**
+ * Extracts quoted text that contains two or more periods, typically dialogue with multiple sentences.
+ * 
+ * @param text The input text to search for quoted segments
+ * @return List of quoted text segments that contain 2+ periods, with quotes preserved
+ */
+fun extractQuotedTextWithMultiplePeriods(text: String): List<String>
+{
+    val quotedSegments = mutableListOf<String>()
+    val regex = "\"([^\"]*?)\"".toRegex()
+    
+    regex.findAll(text).forEach { match ->
+        val quotedText = match.value
+        val innerText = match.groupValues[1]
+        if (innerText.count { it == '.' } >= 2)
+        {
+            quotedSegments.add(quotedText)
+        }
+    }
+    
+    return quotedSegments
+}
+
+/**
+ * Appends text inside quoted segments, keeping the new text within the quotation marks.
+ * 
+ * @param text The input text containing quoted segments
+ * @param appendText The text to append inside each quoted segment
+ * @return Modified text with appendText added inside quotes
+ */
+fun appendTextInsideQuotes(text: String, appendText: String): String {
+    val regex = "\"([^\"]*?)\"".toRegex()
+    return regex.replace(text) { match ->
+        val innerText = match.groupValues[1]
+        "\"$innerText $appendText\""
+    }
+}
+
+/**
+ * Extracts sentences that contain em dashes (Unicode U+2014: —).
+ * 
+ * @param text The input text to parse for sentences with em dashes
+ * @return List of complete sentences that contain one or more em dashes
+ */
+fun extractSentencesWithEmDashes(text: String): List<String> {
+    val emDash = '\u2014' // Unicode em dash character: —
+    val sentences = text.split(Regex("(?<=[.!?])\\s+")).map { it.trim() }.filter { it.isNotEmpty() }
+    
+    return sentences.filter { sentence ->
+        sentence.contains(emDash)
+    }
+}
+
+/**
+ * Performs bulk string replacement using a map where keys are search strings and values are replacements.
+ * 
+ * @param text The input text to perform replacements on
+ * @param replacements Map where keys are substrings to find and values are replacement strings
+ * @return Modified text with all replacements applied
+ */
+fun bulkStringReplace(text: String, replacements: Map<String, String>): String {
+    var result = text
+    replacements.forEach { (searchFor, replaceWith) ->
+        result = result.replace(searchFor, replaceWith)
+    }
+    return result
+}
+
