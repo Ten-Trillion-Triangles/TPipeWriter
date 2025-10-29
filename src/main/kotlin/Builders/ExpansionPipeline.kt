@@ -427,6 +427,272 @@ val expansionPipeline = Pipeline()
             |sentences in your output as there were in the provided material.""")
         .setPipeName("cleanup step two pipe")
 
+    val cleanupStepThreePipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .setTemperature(0.7)
+        .setTopP(0.7)
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .setTransformationFunction(::secondPassTransform)
+        //.setReasoningPipe(processFocusedBuilder())
+        .setPageKey("user prompt, new page")
+        .setSystemPrompt("""Your task is fairly simple: you must fix the text in accordance to the
+            |following rules:
+            |
+            |1. STAGE DIRECTIONS SUCK: WE ARE WRITING A BOOK, NOT A MOVIE SCRIPT: You will find frequently throughout
+            |the written page that dialogue is interrupted with, or followed by, bullshit stage directions.
+            |You must eliminate all instances of these things that you find, and merge together bodies of dialogue text
+            |as necessary when you do so. Examples of things that you would remove: "Geno observed, his analytical mind unable to fully rest";
+            |"She paused, feathers rustling."; "her voice cutting through the noise of the market." 
+            |
+            |2. Any statements of hyperbole, hype, and particularly strong adjectives in places where the user prompt
+            |has not demanded, or in scenes that are otherwise climactic,
+            |it must either be removed in their entirety or converted into character dialogue, depending
+            |on what's more convenient. You're looking for strong visual metaphors, like "shattered" or "downpour", to describe
+            |character mental states or reaction to a situation.
+            |
+            |Fix the above problems using surgical changes. DO NOT MAKE ANY CHANGES ASIDE FROM THE ONES YOU HAVE BEEN
+            |INSTRUCTED TO MAKE. DO NOT TRUNCATE THE TEXT BEYOND WHAT YOU HAVE BEEN ORDERED TO DO. DO NOT include the list of changes in your
+            |output. THE OUTPUT SHOULD ONLY BE THE FINAL, FULLY ADJUSTED PAGE.
+        """.trimMargin())
+        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
+            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT BEYOND WHAT YOU HAVE BEEN ORDERED TO.""")
+        .setPipeName("cleanup step three pipe")
+
+    val benignSkiesMyDialoguePipe = BedrockMultimodalPipe()
+        .setRegion("us-west-2")
+        .useConverseApi()
+        .setModel(qwenCoder480B)
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .pullGlobalContext()
+        .setPageKey("new page, user prompt")
+        .setTemperature(0.8)
+        .setTopP(.7)
+        .applySystemPrompt()
+        .setPreValidationMiniBankFunction(::copyLorebookFromMain)
+        .setSystemPrompt("""Looking at new page, find all instances of dialogue where a character
+            |has more than one consecutive sentence of dialogue. In each place you find a segment of dialogue with more
+            |than one consecutive sentence, you must extend the character's dialogue by adding in additional exposition
+            |and interesting character moments that are in line with the character's proscribed personality. Make sure
+            |you pay attention to the user prompt as well, and check the lorebook to make sure your stuff complies with the established canon.
+            |Lengthen dialogue by incorporating new ideas through the use of the following dialogue structures:
+            |1. "...'X', rather than 'Y'" (where Y is something very different from X, possibly unrelated)
+            |2. "...'Y' instead of 'Z'" (where Z is something related to Y, but where the connection will require additional explanation).
+            |3. Introduce into character dialogue long tangents that are only partially related to the existing dialogue.
+            |4. Monologue-heavy turns with didactic mini-lectures: essays, moral judgements, minimal subtext.
+            |5. Meta-narration cohabiting with dialogue (author asides and editorial judgements inside of character dialogue).
+            |6. Massive listicles.
+            |7. Ideological rant as character voice: characters delivering monologues like they're sapient op-ed pieces.
+            |
+            |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story. 
+            |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material (there should be MORE).
+            |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
+            |NO TEXT CAN BE DELETED: ONLY ADDED.
+            |###WARNING: ABSOLUTELY DO NOT INCLUDE THE LIST OF YOUR CHANGES IN THE OUTPUT. 
+            |THE FINAL OUTPUT MUST BE ONLY THE FULLY MODIFIED PAGE.
+        """.trimMargin())
+        .setFooterPrompt("""Using the page you are going to fix as context, rewrite the page making only the ADDITIONS you
+            |have deemed valuable. Ensure that you follow
+            |all of the above rules. Do not truncate the text: there must be at least as many paragraphs and at least
+            |as many sentences in your output as there were in the provided material (there should be MORE).
+            |###IMPORTANT: DO NOT INCLUDE THE LIST OF YOUR CHANGES IN YOUR OUTPUT. THE OUTPUT MUST BE ONLY THE 
+            |FULLY MODIFIED PAGE.
+            |###WARNING: Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD CONTENT TO THE END OF THE PAGE.
+        """.trimMargin())
+        .setTransformationFunction(::recordWritingPipePage)
+        .applySystemPrompt()
+        .setPipeName("benign skies my dialogue pipe")
+        .autoInjectContext("New Page is the page of text you must work on.")
+
+    val polishMyDialoguePipe = BedrockMultimodalPipe()
+        .setRegion("us-west-2")
+        .useConverseApi()
+        .setModel(qwenCoder480B)
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .pullGlobalContext()
+        .setPageKey("new page, user prompt")
+        .autoInjectContext("New Page is the page of text you must work on.")
+        .setTemperature(0.8)
+        .setTopP(.7)
+        .applySystemPrompt()
+        .setPreValidationMiniBankFunction(::copyLorebookFromMain)
+        .setSystemPrompt("""Looking at new page, find all instances of dialogue. 
+            |You must extend the character's dialogue by adding in additional exposition
+            |and interesting character moments that are in line with the character's proscribed personality. 
+            |You must also
+            |add in new character dialogue responses 
+            |(that is, add new lines for other characters in between existing lines, so that
+            |each character in the scene gets more screen-time). Make sure
+            |you pay attention to the user prompt as well, 
+            |and check the lorebook to make sure your stuff complies with the established canon.
+            |Lengthen dialogue by incorporating new ideas through the use of the following techniques 
+            |(use as many as you feel are
+            |necessary: you should mix and match):
+            |1. Overlapping chatter: multiple speakers volley half-sentences; interruptions mid-thought; 
+            |jokes are tagged by laughter or mock-solemn “explains” after the fact.
+            |2. Rhetorical flourish: long, stylized clauses with parentheticals and em dashes; 
+            |mock-formal cadences.
+            |3. Call-and-response plotting: question/answer, repeat/alter, 
+            |lesson lands in the last exchange.
+            |4. Sparse punctuation: commas rare, periods frequent; 
+            |and/then chaining.
+            |5. Rhetorical questions as stepping stones; each is immediately answered and advanced.
+            |6. Socratic structure: question → short assent → layered explanation.
+            |
+            |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story.
+            |
+            |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material (there should be MORE).
+            |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
+            |NO TEXT CAN BE DELETED: ONLY ADDED.
+            |###WARNING: ABSOLUTELY DO NOT INCLUDE THE LIST OF YOUR CHANGES IN THE OUTPUT. 
+            |THE FINAL OUTPUT MUST BE ONLY THE FULLY MODIFIED PAGE.
+        """.trimMargin())
+        .setFooterPrompt("""Using the page you are going to fix as context, rewrite the page making only the ADDITIONS you
+            |have deemed valuable. Ensure that you follow
+            |all of the above rules. Do not truncate the text: there must be at least as many paragraphs and at least
+            |as many sentences in your output as there were in the provided material (there should be MORE).
+            |###IMPORTANT: DO NOT INCLUDE THE LIST OF YOUR CHANGES IN YOUR OUTPUT. THE OUTPUT MUST BE ONLY THE 
+            |FULLY MODIFIED PAGE.
+            |###WARNING: Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD CONTENT TO THE END OF THE PAGE.
+        """.trimMargin())
+        .setTransformationFunction(::recordWritingPipePage)
+        .applySystemPrompt()
+        .setPipeName("polish my dialogue pipe")
+        .autoInjectContext("New Page is the page of text you must work on.")
+
+    val certifyMyDialoguePipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .pullGlobalContext()
+        .setPageKey("new page, user prompt")
+        .setTemperature(0.8)
+        .setTopP(.7)
+        .applySystemPrompt()
+        .setPreValidationMiniBankFunction(::copyLorebookFromMain)
+        .setSystemPrompt("""Looking at new page, find all instances of dialogue. 
+            |You must extend the character's dialogue by adding in additional exposition
+            |and interesting character moments that are in line with the character's proscribed personality. 
+            |Make sure
+            |you pay attention to the user prompt as well, 
+            |and check the lorebook to make sure your stuff complies with the established canon.
+            |Lengthen dialogue by incorporating new ideas through the use of the following 
+            |dialogue structures (use as many as you feel are
+            |necessary: you should mix and match):
+            |1. Long, winding sentences with nested clauses and polysyndeton (chains of “and”) 
+            |that build pressure.
+            |2. Repetition/anaphora for emphasis.
+            |3. Characters explain the plot out loud (who died, who’s guilty, stakes, rules)
+            |4. Coercive binaries and scripted compliance tests.
+            |5. Mixture of legal/official register
+            |with melodramatic stakes.
+            |6. Group scenes become ritual quizzes: repeated ice-breakers, factual one-upmanship, nicknaming.
+            |7. Paragraph-length turns; occasional mono-block spiels that read like monologues.
+            |
+            |Use any of the following methods to enforce the desired vibe of the scene 
+            |(mix and match for best effect):
+            |1. Authority vs. panic: officials speak in clipped bureaucratic tones while saying 
+            |apocalyptic things; civilians oscillate between blank denial and sudden confession.
+            |2. Formal vocatives: frequent use of names/titles (“Mr Slater,” “Officer O’Brien”).
+            |3. Deadpan menace: calm assurances paired with threats.
+            |
+            |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story. 
+            |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material (there should be MORE).
+            |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
+            |NO TEXT CAN BE DELETED: ONLY ADDED.
+            |###WARNING: ABSOLUTELY DO NOT INCLUDE THE LIST OF YOUR CHANGES IN THE OUTPUT. 
+            |THE FINAL OUTPUT MUST BE ONLY THE FULLY MODIFIED PAGE.
+        """.trimMargin())
+        .setFooterPrompt("""Using the page you are going to fix as context, rewrite the page making only the ADDITIONS you
+            |have deemed valuable. Ensure that you follow
+            |all of the above rules. Do not truncate the text: there must be at least as many paragraphs and at least
+            |as many sentences in your output as there were in the provided material (there should be MORE).
+            |###IMPORTANT: DO NOT INCLUDE THE LIST OF YOUR CHANGES IN YOUR OUTPUT. THE OUTPUT MUST BE ONLY THE 
+            |FULLY MODIFIED PAGE.
+            |###WARNING: Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD CONTENT TO THE END OF THE PAGE.
+        """.trimMargin())
+        .setTransformationFunction(::recordWritingPipePage)
+        .applySystemPrompt()
+        .setPipeName("certify my dialogue pipe")
+        .autoInjectContext("New Page is the page of text you must work on.")
+
+    val removeBadWritingStepOnePipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .requireJsonPromptInjection()
+        .truncateModuleContext()
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(1.0)
+        .setTopP(0.7)
+        .applySystemPrompt()
+        .pullGlobalContext()
+        .setPageKey("user prompt")
+        .setSystemPrompt("""Your job is simple, but will require effort. You are looking for the following things
+            |that if you find, YOU MUST REMOVE!
+            |
+            |1. Variety for variety’s sake: synonym churn to avoid repetition, producing near-synonyms that slightly shift meaning.
+            |2. Over-specific numerics: “~60%” or “exactly 10 steps” without provocation.
+            |3. Emotion beats template: nods, sighs, smiles, glances—cycled at reliable intervals. This includes stage directions
+            |following dialogue or in-between sections of a character's own dialogue.
+            |4. Scene “wrap-up cadence”: paragraphs end with summary or moral (“And that’s when she realized…”), even mid-page.
+            |
+            | ###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
+            |FULLY ADJUSTED PAGE. FURTHERMORE, you can only truncate the page by REMOVING THE THINGS YOU WERE INSTRUCTED
+            |TO REMOVE: DO NOT TRUNCATE THE TEXT BEYOND WHAT YOU HAVE BEEN INSTRUCTED TO DO.
+        """.trimMargin()
+        )
+        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
+            |FULLY ADJUSTED PAGE. ###WARNING: ONLY TRUNCATE BY REMOVING THE MATERIAL YOU HAVE BEEN INSTRUCTED TO REMOVE. No other text
+            |should be removed.""")
+        .setTransformationFunction(::recordWritingPipePage)
+        .setPipeName("remove bad writing step one pipe")
+
+    val removeBadWritingStepTwoPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .requireJsonPromptInjection()
+        .truncateModuleContext()
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(1.0)
+        .setTopP(0.7)
+        .applySystemPrompt()
+        .pullGlobalContext()
+        .setPageKey("user prompt")
+        .setSystemPrompt("""Your job is simple, but will require effort. You are looking for the following things
+            |that if you find, YOU MUST REMOVE!
+            |
+            |1. Emphasis on symbolism and importance: writing often puffs up the importance of the subject matter by 
+            |adding statements about how arbitrary aspects of the topic represent or contribute to a broader topic.
+            |2. Superficial analyses: insertions of analysis of information, often in relation to its significance, recognition, or impact.
+            |3. Rule of three: This can take different forms, from "adjective, adjective, adjective" to "short phrase, short phrase, and short phrase".
+            |For this one specifically, if you see it, reduce it to the first line item only.
+            |
+            | ###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
+            |FULLY ADJUSTED PAGE. FURTHERMORE, you can only truncate the page by REMOVING THE THINGS YOU WERE INSTRUCTED
+            |TO REMOVE: DO NOT TRUNCATE THE TEXT BEYOND WHAT YOU HAVE BEEN INSTRUCTED TO DO.
+        """.trimMargin()
+        )
+        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
+            |FULLY ADJUSTED PAGE. ###WARNING: ONLY TRUNCATE BY REMOVING THE MATERIAL YOU HAVE BEEN INSTRUCTED TO REMOVE. No other text
+            |should be removed.""")
+        .setTransformationFunction(::recordWritingPipePage)
+        .setPipeName("remove bad writing step two pipe")
+
+
     val styleReapplyPipe = BedrockMultimodalPipe()
         .setRegion("us-east-2")
         .useConverseApi()
@@ -457,11 +723,17 @@ val expansionPipeline = Pipeline()
         .add(expanderPipe)
         .add(instructorPipe)
         .add(implementerPipe)
-        .add(shuntPipe)
-        //.add(dialoguePipe)
-        .add(finalEditPipe)
         .add(cleanupStepOnePipe)
         .add(cleanupStepTwoPipe)
+        .add(cleanupStepThreePipe)
+        //.add(shuntPipe)
+        .add(dialoguePipe)
+        .add(benignSkiesMyDialoguePipe)
+        //.add(certifyMyDialoguePipe)
+        //.add(polishMyDialoguePipe)
+        .add(finalEditPipe)
+        .add(removeBadWritingStepOnePipe)
+        .add(removeBadWritingStepTwoPipe)
         .add(styleReapplyPipe)
 
     runBlocking {

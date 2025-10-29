@@ -116,9 +116,11 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
             a serious business or council meeting; an arbitration meeting; 
             a police officer talking to witnesses or to a victim or perpetrator; etc.
             4. Formal-Rote: when characters are in the act of working, and the job in question is one 
-            where certain statements have certain specific correct responses. 
+            where certain statements have certain specific correct responses. Additionally, if a page has
+            little to no dialogue, it also qualifies as Formal-Rote (Formal-Rote is to be used when 
+            there is no need to edit the dialogue, you see).
             Examples include ship pilots navigating; doctors in an emergency room working; 
-            first responders speaking to dispatch; etc.
+            first responders speaking to dispatch; etc. OR IF THERE IS NO OR ALMOST NO DIALOGUE.
             ##NOTE: If the user prompt specifies one of the categories specifically, use the requested
             category, regardless of the text content.
             Depending on what type of dialogue the page predominantly has, assign the appropriate
@@ -138,6 +140,7 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .setTemperature(0.8)
         .setTopP(.7)
         .applySystemPrompt()
+        .setReasoningPipe(authorBuilder(Env.richardTreadwell))
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setSystemPrompt("""Looking at new page, find all instances of dialogue where a character
             |has more than one consecutive sentence of dialogue. In each place you find a segment of dialogue with more
@@ -154,7 +157,6 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
             |7. Ideological rant as character voice: characters delivering monologues like they're sapient op-ed pieces.
             |
             |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story. 
-            |MAKE SURE YOUR ADDITIONS COMPLY WITH THE STYLE GUIDE: ${settings.writingStyle}.
             |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material (there should be MORE).
             |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
@@ -190,6 +192,7 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .setTemperature(0.8)
         .setTopP(.7)
         .applySystemPrompt()
+        .setReasoningPipe(authorBuilder(Env.authorPrompt))
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setSystemPrompt("""Looking at new page, find all instances of dialogue. 
             |You must extend the character's dialogue by adding in additional exposition
@@ -216,7 +219,6 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
             |
             |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story.
             |Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD CONTENT TO THE END OF THE PAGE.
-            |MAKE SURE YOUR ADDITIONS COMPLY WITH THE STYLE GUIDE: ${settings.writingStyle}.
             |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material (there should be MORE).
             |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
@@ -241,9 +243,9 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
 
 
     val certifyMyDialoguePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
+        .setRegion("us-east-2")
         .useConverseApi()
-        .setModel(qwenCoder480B)
+        .setModel(deepseekModelName)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .pullGlobalContext()
@@ -263,10 +265,10 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
             |necessary: you should mix and match):
             |1. Long, winding sentences with nested clauses and polysyndeton (chains of “and”) 
             |that build pressure.
-            |2. Repetition/anaphora for emphasis (“Fear makes us… Fear makes us…”).
+            |2. Repetition/anaphora for emphasis.
             |3. Characters explain the plot out loud (who died, who’s guilty, stakes, rules)
-            |4. Coercive binaries (“say ‘yes’”) and scripted compliance tests.
-            |5. Mixture of legal/official register (“cooperate,” “responsibility,” “evaluate the trauma”) 
+            |4. Coercive binaries and scripted compliance tests.
+            |5. Mixture of legal/official register
             |with melodramatic stakes.
             |6. Group scenes become ritual quizzes: repeated ice-breakers, factual one-upmanship, nicknaming.
             |7. Paragraph-length turns; occasional mono-block spiels that read like monologues.
@@ -279,7 +281,6 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
             |3. Deadpan menace: calm assurances paired with threats.
             |
             |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story. 
-            |MAKE SURE YOUR ADDITIONS COMPLY WITH THE STYLE GUIDE: ${settings.writingStyle}.
             |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material (there should be MORE).
             |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:

@@ -69,7 +69,7 @@ fun obsessivePlannerBuilder(): Pipe
         reasoningMethod = ReasoningMethod.ComprehensivePlan,
         depth = ReasoningDepth.High,
         duration = ReasoningDuration.Long,
-        reasoningInjector = ReasoningInjector.AfterUserPrompt,
+        reasoningInjector = ReasoningInjector.SystemPrompt,
         numberOfRounds = 1
     )
 
