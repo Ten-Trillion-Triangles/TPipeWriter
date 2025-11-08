@@ -16,5 +16,7 @@
     <mapping directory="$PROJECT_DIR$/../TPipe/TPipe/src/main" vcs="Perforce" />
     <mapping directory="$PROJECT_DIR$/../TPipe/TPipe/src/test" vcs="Perforce" />
     <mapping directory="$PROJECT_DIR$" vcs="Perforce" />
+    <mapping directory="$PROJECT_DIR$/src/main" vcs="Perforce" />
+    <mapping directory="$PROJECT_DIR$/src/test" vcs="Perforce" />
   </component>
 </project>
