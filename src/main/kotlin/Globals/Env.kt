@@ -274,7 +274,7 @@ object Env {
         bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
         bedrockEnv.bindInferenceProfile("amazon.nova-pro-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-pro-v1:0")
         bedrockEnv.bindInferenceProfile("amazon.nova-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0")
-        bedrockEnv.bindInferenceProfile(claudeModelId, "arn:aws:bedrock:us-east-1:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
+        bedrockEnv.bindInferenceProfile(claudeModelId, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
 
 //=============================================Construct Pipes =========================================================
 
