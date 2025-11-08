@@ -93,6 +93,7 @@ object Env {
     var expansionPipeline = Pipeline()
     var plusWriterPipe = Pipeline()
     var writingPipelineSettings = mutableMapOf<String, List<ModelSettings>>()
+    var pitchSlideWriterPipeline = Pipeline()
 
     var authorPrompt = """You are N'zelquin G'zeeloth. You were raised in the swamps of southern N'heelo 
         |on the planet Wahatrats in the universe called M'zelnth.

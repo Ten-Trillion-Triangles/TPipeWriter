@@ -157,7 +157,6 @@ fun buildPlusWriterPipeline() : Pipeline
         """.trimMargin())
         .setContextWindowSize(120000)
         .setPreInitFunction(::storeUserPrompt)
-
         .setValidatorFunction(::isValidGptOssResponse)
         .setPipeName("pre guide pipe")
         .applySystemPrompt()
