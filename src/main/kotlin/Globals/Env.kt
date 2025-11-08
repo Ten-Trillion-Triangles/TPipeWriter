@@ -530,7 +530,7 @@ object Env {
         //Declare required settings for aws bedrock.
         val bedrockSettings = BedrockConfiguration(
             "us-east-2",
-            "qwen.qwen3-coder-480b-a35b-v1:0")
+            deepSeekModelId)
 
         //Declare settings to define how reasoning will function.
         val reasoningSettings = ReasoningSettings(
@@ -562,7 +562,7 @@ object Env {
             .setTopP(.9)
             .setContextWindowSize(maxTokenBudgetDeepSeek)
             .setMaxTokens(maxTokens + 2000)
-            .setModel("qwen.qwen3-coder-480b-a35b-v1:0")
+            .setModel("arn:aws:bedrock:us-west-2::foundation-model/qwen.qwen3-coder-480b-a35b-v1:0")
             .truncateModuleContext()
             .requireJsonPromptInjection()
             .setPromptMode(PromptMode.chat)
@@ -577,8 +577,9 @@ object Env {
             .setTransformationFunction(::recordDiscussionContext)
             .setPreValidationFunction (::recordUserDiscussionContext)
             .pullPipelineContext()
-            .setReasoningPipe(configuredPipe)
+            //.setReasoningPipe(configuredPipe)
             .setPipeName("Chat Pipe")
+            .setReasoning()
 
         discussionPipeline.add(discussionPipe)
 
