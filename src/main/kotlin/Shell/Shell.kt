@@ -261,6 +261,7 @@ fun parseInput()
             }
             "guide" -> selectGuideMode()
             "author" -> selectAuthorMode()
+            "pitch" -> callPitchSubShell()
             else -> println("Unknown command: $extractedSlashCommand. Type /help for available commands.")
         }
 

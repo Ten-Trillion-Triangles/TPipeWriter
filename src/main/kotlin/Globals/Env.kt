@@ -1,6 +1,7 @@
 package Globals
 
 import Builders.buildNccWriter
+import Builders.buildPitchSlideWriterPipeline
 import Builders.buildPlusWriterPipeline
 import Defaults.BedrockConfiguration
 import Defaults.reasoning.ReasoningBuilder
@@ -93,7 +94,7 @@ object Env {
     var expansionPipeline = Pipeline()
     var plusWriterPipe = Pipeline()
     var writingPipelineSettings = mutableMapOf<String, List<ModelSettings>>()
-    var pitchSlideWriterPipeline = Pipeline()
+    var pitchSlideWriterPipeline = buildPitchSlideWriterPipeline()
 
     var authorPrompt = """You are N'zelquin G'zeeloth. You were raised in the swamps of southern N'heelo 
         |on the planet Wahatrats in the universe called M'zelnth.
