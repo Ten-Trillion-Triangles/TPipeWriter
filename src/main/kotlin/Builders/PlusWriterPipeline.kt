@@ -247,7 +247,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .requireJsonPromptInjection()
         .setJsonInput(TodoList())
         .setJsonOutput(TodoList())
-        .setPageKey("user prompt")
+        .setPageKey("user prompt, page plan")
         .setSystemPrompt("""Your job is extremely simple. Look at the provided page plan, and ask the question:
             |Is the planned sequence an action sequence? Or is it a primarily descriptive sequence? These are the
             |only two types of sequences that exist, so anything you think is something else, is actually one or the other:
