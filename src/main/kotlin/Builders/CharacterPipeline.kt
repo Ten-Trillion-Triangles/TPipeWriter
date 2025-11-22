@@ -6,6 +6,7 @@ import Shell.loadSettings
 import Util.enablePipelineStreaming
 import bedrockPipe.BedrockMultimodalPipe
 import com.TTT.Context.ConverseHistory
+import com.TTT.Context.ConverseRole
 import com.TTT.Debug.withTracing
 import com.TTT.Pipe.TokenBudgetSettings
 import com.TTT.Pipeline.Pipeline
@@ -85,8 +86,14 @@ fun buildCharacterPipeline(character: String) : Pipeline
 
     val reasoningPipe = authorBuilder(character)
 
-    val budgetSettings = TokenBudgetSettings(
-        maxTokens = 30000,
+    val writerBudgetSettings = TokenBudgetSettings(
+        maxTokens = 8000,
+        contextWindowSize = 980000,
+        allowUserPromptTruncation = true,
+        )
+
+    val standardBudgetSettings = TokenBudgetSettings(
+        maxTokens = 8000,
         contextWindowSize = 120000,
         allowUserPromptTruncation = true,
         )
@@ -95,15 +102,15 @@ fun buildCharacterPipeline(character: String) : Pipeline
         .setRegion("us-west-2")
         .useConverseApi()
         .enableTracing()
-        .setModel(qwenCoder480B)
+        .setModel(PalmyraX5)
         .setTemperature(1.0)
         .setTopP(.8)
         .truncateModuleContext()
         .autoTruncateContext()
-        .setTokenBudget(budgetSettings)
+        .setTokenBudget(writerBudgetSettings)
         .requireJsonPromptInjection()
         .setJsonInput(ConverseHistory())
-        .wrapContentWithConverse()
+        .wrapContentWithConverse(ConverseRole.assistant)
         .setReasoningPipe(reasoningPipe)
         .setSystemPrompt("""$character
             |
@@ -120,7 +127,7 @@ fun buildCharacterPipeline(character: String) : Pipeline
 
     runBlocking {
         enablePipelineStreaming(chatPipeline)
-        chatPipeline.init()
+        chatPipeline.init(true)
     }
 
     return chatPipeline
