@@ -1,6 +1,7 @@
 package Shell
 
 import Builders.buildCharacterPipeline
+import Builders.buildCharacterPipelineWithStory
 import Globals.Env
 import Globals.Prompts
 import bedrockPipe.BedrockMultimodalPipe
@@ -110,6 +111,12 @@ private fun processCharacterChatInput(input: String, allowExit: Boolean): Boolea
             setActiveCharacter(name)
             return false
         }
+
+        lower == "story" -> {
+            activeCharacterPipeline = buildCharacterPipelineWithStory(activeCharacterName!!)
+            return false
+        }
+
         activeCharacterName == null && Prompts.promptMap.keys.any { it.equals(input, ignoreCase = true) } -> {
             setActiveCharacter(input)
             return false
