@@ -376,3 +376,62 @@ fun bulkStringReplace(text: String, replacements: Map<String, String>): String {
     return result
 }
 
+/**
+ * Transformation function to store the chapter goals.
+ */
+suspend fun recordChapterGoals(content: MultimodalContent) : MultimodalContent
+{
+    val goals = content.text //Fetch the llm's response.
+    val newContext = ContextWindow() //Construct new context window object to store into our bank.
+    newContext.contextElements.add(goals) //Write the goals down.
+    ContextBank.emplaceWithMutex("chapter goals", newContext) //Store the plan our context bank.
+    return content //Required to compile the function correctly. But isn't actually changed here.
+}
+
+/**
+ * Transformation function to store simulated user action.
+ */
+suspend fun recordUserAction(content: MultimodalContent) : MultimodalContent
+{
+    val goals = content.text //Fetch the llm's response.
+    val newContext = ContextWindow() //Construct new context window object to store into our bank.
+    newContext.contextElements.add(goals) //Write the goals down.
+    ContextBank.emplaceWithMutex("user action", newContext) //Store the plan our context bank.
+    return content //Required to compile the function correctly. But isn't actually changed here.
+}
+
+/**
+ * Transformation function to store simulated main.
+ */
+suspend fun recordMainSim(content: MultimodalContent) : MultimodalContent
+{
+    val goals = content.text //Fetch the llm's response.
+    val newContext = ContextWindow() //Construct new context window object to store into our bank.
+    newContext.contextElements.add(goals) //Write the goals down.
+    ContextBank.emplaceWithMutex("main", newContext) //Store the plan our context bank.
+    return content //Required to compile the function correctly. But isn't actually changed here.
+}
+
+/**
+ * SimulateUpdate of lorebook.
+ */
+suspend fun recordLoreBook2(content: MultimodalContent) : MultimodalContent
+{
+    val goals = content.text //Fetch the llm's response.
+    val newContext = ContextWindow() //Construct new context window object to store into our bank.
+    newContext.contextElements.add(goals) //Write the goals down.
+    ContextBank.emplaceWithMutex("main", newContext) //Store the plan our context bank.
+    return content //Required to compile the function correctly. But isn't actually changed here.
+}
+
+/**
+ * Transformation function to store the plot summary.
+ */
+suspend fun recordPlotSummary(content: MultimodalContent) : MultimodalContent
+{
+    val plot = content.text //Fetch the llm's response.
+    val newContext = ContextWindow() //Construct new context window object to store into our bank.
+    newContext.contextElements.add(plot) //Write the plot summary down.
+    ContextBank.emplaceWithMutex("plot summary", newContext) //Store the plan our context bank.
+    return content //Required to compile the function correctly. But isn't actually changed here.
+}
