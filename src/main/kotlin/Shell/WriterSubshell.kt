@@ -10,6 +10,7 @@ import com.TTT.Debug.TraceDetailLevel
 import com.TTT.Debug.TraceFormat
 import com.TTT.Enums.ContextWindowSettings
 import com.TTT.Pipe.MultimodalContent
+import com.TTT.Pipe.Pipe
 import com.TTT.Pipe.TruncationSettings
 import com.TTT.Pipeline.Connector
 import com.TTT.Util.getHomeFolder
@@ -310,6 +311,15 @@ fun showWriterStatus(writingStrength: String, contextConfigured: Boolean, writer
 }
 
 /**
+ * Debug function that pushes back to our trace file in real time.
+ */
+fun debugPipeCallback(pipe: Pipe, content: MultimodalContent)
+{
+    val trace = Env.plusWriterPipe.getTraceReport(TraceFormat.HTML)
+    writeStringToFile("${getHomeFolder()}/TPipeWriter/Trace.html", trace)
+}
+
+/**
  * Execute the writer pipeline with specified settings.
  */
 fun executeWriterPipeline(
@@ -336,8 +346,10 @@ fun executeWriterPipeline(
         writerLevelConnector.enableTracing(traceConfig)
         
         runBlocking {
+            writerLevelConnector.get(writingStrength)?.setPipeCompletionCallback(::debugPipeCallback)
             val result = writerLevelConnector.execute(writingStrength, MultimodalContent(text = finalPrompt))
-            
+
+
             if(result.text.isNotEmpty())
             {
                 try {
