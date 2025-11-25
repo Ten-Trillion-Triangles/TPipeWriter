@@ -113,7 +113,8 @@ private fun processCharacterChatInput(input: String, allowExit: Boolean): Boolea
         }
 
         lower == "story" -> {
-            activeCharacterPipeline = buildCharacterPipelineWithStory(activeCharacterName!!)
+            val charData = Prompts.promptMap[activeCharacterName] ?: ""
+            activeCharacterPipeline = buildCharacterPipelineWithStory(charData)
             return false
         }
 
