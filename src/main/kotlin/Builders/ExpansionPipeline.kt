@@ -181,7 +181,7 @@ val expansionPipeline = Pipeline()
         val instructorPipe = BedrockMultimodalPipe()
             .setRegion("us-east-2")
             .useConverseApi()
-            .setModel(deepseekModelName)
+            .setModel(qwenCoder480B)
             .requireJsonPromptInjection()
             .setJsonOutput(RequestList())
             .truncateModuleContext()
@@ -191,6 +191,7 @@ val expansionPipeline = Pipeline()
             .setPageKey("main, user prompt, new page, chapter guide")
             .pullGlobalContext()
             .setContextWindowSize(120000)
+            .setReasoningPipe(authorBuilder(Env.authorPrompt))
             .autoInjectContext("""user prompt are the instructions from the user. new page
                 |is the page you are currently working on. chapter guide is the guide for the current chapter.
                 |You have been provided with the lorebook: this is the repository of information on characters
@@ -240,6 +241,7 @@ val expansionPipeline = Pipeline()
             .requireJsonPromptInjection()
             .setJsonInput(RequestList())
             .setTransformationFunction(::recordWritingPipePage)
+            .setReasoningPipe(authorBuilder(Env.authorPrompt))
             .autoInjectContext("The following is the context for the story you've written so far. First is " +
                     "\"new page\", which was the page you wrote prior that you now need to edit. The second is " +
                     "\"main\", which is the current story you've written prior to your latest page. Third is " +
@@ -278,6 +280,7 @@ val expansionPipeline = Pipeline()
         .setTemperature(0.9)
         .setTopP(.9)
         .applySystemPrompt()
+        .setReasoningPipe(authorBuilder(Env.editorPrompt))
         .setSystemPrompt("""Looking at new page, find all instances of dialogue where a character
             |has more than one consecutive sentence of dialogue. In each place you find a segment of dialogue with more
             |than one consecutive sentence, you must extend the character's dialogue by adding in additional exposition
@@ -326,6 +329,7 @@ val expansionPipeline = Pipeline()
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::secondPassTransform)
         .setPageKey("user prompt, new page")
+        .setReasoningPipe(authorBuilder(Env.richardTreadwell))
         .setSystemPrompt("""${Env.richardTreadwell} and ${Env.editorPrompt}. Using these character personalities,
             |review the written page. Find broad, sweeping changes that can be made to improve it.
             |Then, as ${Env.authorPrompt}, you must make an apeshit number changes to deliver the optimal version of this page. 
@@ -696,13 +700,14 @@ val expansionPipeline = Pipeline()
     val styleReapplyPipe = BedrockMultimodalPipe()
         .setRegion("us-east-2")
         .useConverseApi()
-        .setModel(deepseekModelName)
+        .setModel(qwenCoder480B)
         .setTemperature(1.0)
-        .setTopP(0.7)
+        .setTopP(0.9)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::secondPassTransform)
+        .setReasoningPipe(authorBuilder(Env.editorPrompt))
         .setPageKey("user prompt, new page")
         .setSystemPrompt("""Your job is straightforward: you must do one final pass over of the new page to ensure
             |the style guide is adhered to properly. Here is your style guide: ${settings.writingStyle}. 
@@ -723,17 +728,17 @@ val expansionPipeline = Pipeline()
         .add(expanderPipe)
         .add(instructorPipe)
         .add(implementerPipe)
-        .add(cleanupStepOnePipe)
-        .add(cleanupStepTwoPipe)
-        .add(cleanupStepThreePipe)
+        //.add(cleanupStepOnePipe)
+        //.add(cleanupStepTwoPipe)
+        //.add(cleanupStepThreePipe)
         //.add(shuntPipe)
         .add(dialoguePipe)
-        .add(benignSkiesMyDialoguePipe)
+        //.add(benignSkiesMyDialoguePipe)
         //.add(certifyMyDialoguePipe)
         //.add(polishMyDialoguePipe)
         .add(finalEditPipe)
-        .add(removeBadWritingStepOnePipe)
-        .add(removeBadWritingStepTwoPipe)
+        //.add(removeBadWritingStepOnePipe)
+        //.add(removeBadWritingStepTwoPipe)
         .add(styleReapplyPipe)
 
     runBlocking {

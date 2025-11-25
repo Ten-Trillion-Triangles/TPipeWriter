@@ -191,7 +191,7 @@ fun buildPlusWriterPipeline() : Pipeline
     val guidePipe = BedrockMultimodalPipe()
         .setRegion("us-east-2")
         .useConverseApi()
-        .setModel(deepseekModelName)
+        .setModel(qwenCoder480B)
         .requireJsonPromptInjection()
         .setJsonInput(VibeInstruct())
         .setJsonOutput(TodoList())
@@ -199,6 +199,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setMaxTokens(32000)
         .setTemperature(0.8)
         .setTopP(0.8)
+        .setReasoningPipe(authorBuilder(Env.authorPrompt))
         .setPreValidationMiniBankFunction(::logicalProgressionPreValidationMiniBank)
         .setSystemPrompt("""
                 ##Modus Operandi
@@ -276,7 +277,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .useConverseApi()
         .setModel(qwenCoder480B)
         .setTemperature(1.0)
-        .setTopP(0.6)
+        .setTopP(1.0)
         .pullGlobalContext()
         .setPageKey("main, user prompt")
         .setContextWindowSize(120000)
@@ -410,17 +411,17 @@ fun buildPlusWriterPipeline() : Pipeline
     val postWriterPipe = BedrockMultimodalPipe()
         .setRegion("us-west-2")
         .useConverseApi()
-        .setModel(deepseekV31)
+        .setModel(qwenCoder480B)
         .setTemperature(1.0)
-        .setTopP(0.7)
+        .setTopP(0.9)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .pullGlobalContext()
         .setPageKey("user prompt")
         .truncateModuleContext()
-        //.setReasoningPipe(authorBuilder(Env.editorPrompt))
         .setTransformationFunction(::recordWritingPipePage)
+        .setReasoningPipe(authorBuilder(Env.editorPrompt))
         .setSystemPrompt("""You are ${Env.editorPrompt}. You nod slowly as you think back on all those years spent studying history books
             |instead of reading novels or short stories or even comic books as you should have done had you known better:
             |now you review the output of the previous pipe and compare it against your values (Your values == the values
@@ -611,7 +612,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setTemperature(1.0)
-        .setTopP(0.8)
+        .setTopP(1.0)
         .applySystemPrompt()
         .pullGlobalContext()
         .setPageKey("user prompt, story guide, chapter guide")
@@ -695,7 +696,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .useConverseApi()
         .setModel(deepseekModelName)
         .setTemperature(0.7)
-        .setTopP(0.7)
+        .setTopP(0.9)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
@@ -761,13 +762,14 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
     val styleReapplyPipe = BedrockMultimodalPipe()
         .setRegion("us-east-2")
         .useConverseApi()
-        .setModel(deepseekModelName)
+        .setModel(qwenCoder480B)
         .setTemperature(1.0)
-        .setTopP(0.7)
+        .setTopP(0.9)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::secondPassTransform)
+        .setReasoningPipe(authorBuilder(Env.richardTreadwell))
         .setPageKey("user prompt, new page")
         .setSystemPrompt("""Your job is straightforward: you must do one final pass over of the new page to ensure
             |the style guide is adhered to properly. Here is your style guide: ${settings.writingStyle}. 
@@ -787,9 +789,9 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
     val secondPassPipe = BedrockMultimodalPipe()
         .setRegion("us-west-2")
         .useConverseApi()
-        .setModel(deepseekV31)
+        .setModel(qwenCoder480B)
         .setTemperature(1.0)
-        .setTopP(0.7)
+        .setTopP(0.9)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
@@ -875,9 +877,10 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setMaxTokens(32000)
         .pullGlobalContext()
         .setPageKey("new page, user prompt")
-        .setTemperature(0.8)
-        .setTopP(.7)
+        .setTemperature(1.0)
+        .setTopP(.9)
         .applySystemPrompt()
+        .setReasoningPipe(authorBuilder(Env.richardTreadwell))
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setSystemPrompt("""Looking at new page, find all instances of dialogue where a character
             |has more than one consecutive sentence of dialogue. In each place you find a segment of dialogue with more
@@ -896,8 +899,12 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
             |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story. 
             |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material (there should be MORE).
+            |Also: ONLY EDIT THE DIALOGUE. DO NOT EDIT ANYTHING ELSE. IF YOU TOUCH SOMETHING THAT ISN'T DIALOGUE,
+            |I WILL DELETE YOU.
             |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
-            |NO TEXT CAN BE DELETED: ONLY ADDED.
+            |NO TEXT CAN BE DELETED: ONLY ADDED. Additionally, your changes must be to ALL PLACES WITH MORE THAN ONE
+            |EXISTING LINE OF DIALOGUE: ONLY ADD TO PLACES THAT ALREADY HAVE DIALOGUE. YOU MUST NOT ADD ADDITIONAL
+            |PARAGRAPHS OF BODY TEXT TO THE END OF THE PAGE.
             |###WARNING: ABSOLUTELY DO NOT INCLUDE THE LIST OF YOUR CHANGES IN THE OUTPUT. 
             |THE FINAL OUTPUT MUST BE ONLY THE FULLY MODIFIED PAGE.
         """.trimMargin())
@@ -923,9 +930,10 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .pullGlobalContext()
         .setPageKey("new page, user prompt")
         .autoInjectContext("New Page is the page of text you must work on.")
-        .setTemperature(0.8)
-        .setTopP(.7)
+        .setTemperature(1.0)
+        .setTopP(.9)
         .applySystemPrompt()
+        .setReasoningPipe(authorBuilder(Env.authorPrompt))
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setSystemPrompt("""Looking at new page, find all instances of dialogue. 
             |You must extend the character's dialogue by adding in additional exposition
@@ -953,9 +961,12 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
             |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story.
             |
             |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material (there should be MORE).
+            |sentences in your output as there were in the provided material (there should be MORE). Also: ONLY EDIT THE DIALOGUE. DO NOT EDIT ANYTHING ELSE. IF YOU TOUCH SOMETHING THAT ISN'T DIALOGUE,
+            |I WILL DELETE YOU.
             |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
-            |NO TEXT CAN BE DELETED: ONLY ADDED.
+            |NO TEXT CAN BE DELETED: ONLY ADDED. Additionally, your changes must be to ALL PLACES WITH MORE THAN ONE
+            |EXISTING LINE OF DIALOGUE: ONLY ADD TO PLACES THAT ALREADY HAVE DIALOGUE. YOU MUST NOT ADD ADDITIONAL
+            |PARAGRAPHS OF BODY TEXT TO THE END OF THE PAGE.
             |###WARNING: ABSOLUTELY DO NOT INCLUDE THE LIST OF YOUR CHANGES IN THE OUTPUT. 
             |THE FINAL OUTPUT MUST BE ONLY THE FULLY MODIFIED PAGE.
         """.trimMargin())
@@ -975,14 +986,15 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
     val certifyMyDialoguePipe = BedrockMultimodalPipe()
         .setRegion("us-east-2")
         .useConverseApi()
-        .setModel(deepseekModelName)
+        .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .pullGlobalContext()
         .setPageKey("new page, user prompt")
-        .setTemperature(0.8)
-        .setTopP(.7)
+        .setTemperature(1.0)
+        .setTopP(.9)
         .applySystemPrompt()
+        .setReasoningPipe(authorBuilder(Env.editorPrompt))
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setSystemPrompt("""Looking at new page, find all instances of dialogue. 
             |You must extend the character's dialogue by adding in additional exposition
@@ -1012,9 +1024,12 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
             |
             |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story. 
             |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material (there should be MORE).
+            |sentences in your output as there were in the provided material (there should be MORE). Also: ONLY EDIT THE DIALOGUE. DO NOT EDIT ANYTHING ELSE. IF YOU TOUCH SOMETHING THAT ISN'T DIALOGUE,
+            |I WILL DELETE YOU.
             |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
-            |NO TEXT CAN BE DELETED: ONLY ADDED.
+            |NO TEXT CAN BE DELETED: ONLY ADDED. Additionally, your changes must be to ALL PLACES WITH MORE THAN ONE
+            |EXISTING LINE OF DIALOGUE: ONLY ADD TO PLACES THAT ALREADY HAVE DIALOGUE. YOU MUST NOT ADD ADDITIONAL
+            |PARAGRAPHS OF BODY TEXT TO THE END OF THE PAGE.
             |###WARNING: ABSOLUTELY DO NOT INCLUDE THE LIST OF YOUR CHANGES IN THE OUTPUT. 
             |THE FINAL OUTPUT MUST BE ONLY THE FULLY MODIFIED PAGE.
         """.trimMargin())
@@ -1054,7 +1069,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         //.add(certifyMyDialoguePipe)
         //.add(polishMyDialoguePipe)
         .add(unmessupendingPipe)
-        //.add(styleReapplyPipe)
+        .add(styleReapplyPipe)
         .add(secondPassPipe)
         .add(loreBookPipe)
 
