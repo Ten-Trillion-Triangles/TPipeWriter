@@ -421,7 +421,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPageKey("user prompt")
         .truncateModuleContext()
         .setTransformationFunction(::recordWritingPipePage)
-        .setReasoningPipe(authorBuilder(Env.editorPrompt))
+        .setReasoningPipe(authorBuilder(Env.editorPrompt).apply { setReasoningPipe(authorBuilder(Env.authorPrompt)) })
         .setSystemPrompt("""You are ${Env.editorPrompt}. You nod slowly as you think back on all those years spent studying history books
             |instead of reading novels or short stories or even comic books as you should have done had you known better:
             |now you review the output of the previous pipe and compare it against your values (Your values == the values
