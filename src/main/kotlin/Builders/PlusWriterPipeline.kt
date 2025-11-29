@@ -285,7 +285,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::recordWritingPipePage)
-        //.setReasoningPipe(authorBuilder(Env.authorPrompt))
+        .setReasoningPipe(authorBuilder(Env.authorPrompt))
         .setSystemPrompt(
                 "##Modus Operandi:\n" +
                 "-Write the next page of the story\n\n" +
@@ -690,7 +690,8 @@ fun buildPlusWriterPipeline() : Pipeline
         .applySystemPrompt()
         .pullGlobalContext()
         .setPageKey("user prompt, story guide, chapter guide")
-        .setReasoningPipe(explicitCotBuilder())
+        .setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
+        //.setReasoningPipe(explicitCotBuilder())
         .setSystemPrompt("""Your job is relatively simple. Look at the last 2 to 4 sentences of the written page.
             |Unless the user prompt explicitly says to end the chapter or scene, you are looking for the following issues:
             |

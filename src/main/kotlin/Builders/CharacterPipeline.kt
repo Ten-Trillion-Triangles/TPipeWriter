@@ -210,7 +210,6 @@ fun buildCharacterPipelineWithStory(character: String) : Pipeline
     val writerBudgetSettings = TokenBudgetSettings(
         maxTokens = 8000,
         contextWindowSize = 990000,
-        userPromptSize = 400000,
         allowUserPromptTruncation = true,
     )
 

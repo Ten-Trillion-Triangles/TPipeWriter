@@ -23,6 +23,7 @@ import com.TTT.Enums.ContextWindowSettings
 import com.TTT.Enums.PromptMode
 import com.TTT.Pipe.MultimodalContent
 import com.TTT.Pipe.Pipe
+import com.TTT.Pipe.TokenBudgetSettings
 import com.TTT.Pipeline.Pipeline
 import com.TTT.Structs.PipeSettings
 import com.TTT.Util.constructPipeFromTemplate
@@ -562,23 +563,24 @@ object Env {
 
         //Declare required settings for aws bedrock.
         val bedrockSettings = BedrockConfiguration(
-            "us-east-2",
-            deepSeekModelId)
+            "us-west-2",
+            "writer.palmyra-x5-v1:0")
 
         //Declare settings to define how reasoning will function.
         val reasoningSettings = ReasoningSettings(
-            reasoningMethod = ReasoningMethod.RolePlay,
+            reasoningMethod = ReasoningMethod.ExplicitCot,
             roleCharacter = """$richardTreadwell""",
-            depth = ReasoningDepth.Med,
-            duration = ReasoningDuration.Med,
-            reasoningInjector = ReasoningInjector.AfterUserPromptWithConverse
+            depth = ReasoningDepth.High,
+            duration = ReasoningDuration.Long,
+            reasoningInjector = ReasoningInjector.AfterUserPromptWithConverse,
+            numberOfRounds = 1
         )
 
         // Configure pipe parameters
         val pipeSettings = PipeSettings(
             temperature = 0.7,
-            maxTokens = 4000,
-            contextWindowSize = 100000
+            maxTokens = 8000,
+            contextWindowSize = 990000
         )
 
         // Create reasoning pipe
@@ -588,16 +590,23 @@ object Env {
             pipeSettings)
             .setPipeName("Thinking Pipe") as BedrockPipe
 
+        val budgetSettings = TokenBudgetSettings(
+            maxTokens = 8000,
+            contextWindowSize = 990000,
+            )
+
         val discussionPipe = BedrockMultimodalPipe()
             .useConverseApi()
+            .enableStreaming()
             .setRegion("us-west-2")
             .setTemperature(1.0)
             .setTopP(.9)
             .setContextWindowSize(maxTokenBudgetDeepSeek)
-            .setMaxTokens(maxTokens + 2000)
-            .setModel("arn:aws:bedrock:us-west-2::foundation-model/qwen.qwen3-coder-480b-a35b-v1:0")
+            .setMaxTokens(8000)
+            .setModel("writer.palmyra-x5-v1:0")
             .truncateModuleContext()
             .requireJsonPromptInjection()
+            .setTokenBudget(budgetSettings)
             .setPromptMode(PromptMode.chat)
             .setJsonInput(blankChatResponse)
             .setSystemPrompt(discussionSystemPrompt)
@@ -610,7 +619,7 @@ object Env {
             .setTransformationFunction(::recordDiscussionContext)
             .setPreValidationFunction (::recordUserDiscussionContext)
             .pullPipelineContext()
-            //.setReasoningPipe(configuredPipe)
+            .setReasoningPipe(configuredPipe)
             .setPipeName("Chat Pipe")
             .setReasoning()
 
