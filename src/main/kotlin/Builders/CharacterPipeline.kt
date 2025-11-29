@@ -228,7 +228,7 @@ fun buildCharacterPipelineWithStory(character: String) : Pipeline
         .setTemperature(1.0)
         .setTopP(.8)
         .pullGlobalContext()
-        .setPageKey("main")
+        .setPageKey("main, story guide, chapter guide,")
         .truncateModuleContext()
         .autoTruncateContext()
         .setTokenBudget(writerBudgetSettings)
@@ -247,6 +247,8 @@ fun buildCharacterPipelineWithStory(character: String) : Pipeline
             |times and answer as $character would in all tasks given to you.""")
         .autoInjectContext("""The "main" key has a story the user wishes you to help them with. If they
             |make any requests regarding the story, examine the context data you have located at the "main" key.
+            |The "story guide" key is the guide for the story as a whole. The "chapter guide" key is the guide
+            |for the current chapter.
         """.trimMargin())
 
     val chatPipeline = Pipeline()
