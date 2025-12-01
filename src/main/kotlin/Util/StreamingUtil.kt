@@ -17,19 +17,11 @@ fun enablePipelineStreaming(pipeline: Pipeline) {
     pipeline.getPipes().forEach { pipe ->
         when (pipe) {
             is BedrockMultimodalPipe -> {
-                pipe.enableStreaming()
-                pipe.setStreamingCallback(callback)
-                val abstractPipe = pipe.reasoningPipe as? BedrockMultimodalPipe
-                abstractPipe?.enableStreaming()
-                abstractPipe?.setStreamingCallback(callback)
+                pipe.enableStreaming(callback, true)
                 enabledCount++
             }
             is BedrockPipe -> {
-                pipe.enableStreaming()
-                pipe.setStreamingCallback(callback)
-                val abstractPipe = pipe.reasoningPipe as? BedrockPipe
-                abstractPipe?.enableStreaming()
-                abstractPipe?.setStreamingCallback(callback)
+                pipe.enableStreaming(callback, true)
                 enabledCount++
             }
         }

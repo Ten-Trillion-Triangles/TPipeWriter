@@ -36,11 +36,24 @@ data class TodoList(
     var guideOutput: MutableList<String> = mutableListOf()
 )
 
-
-
 @kotlinx.serialization.Serializable
 data class VibeInstruct(
     var thematicDesign: MutableList<String> = mutableListOf()
+)
+
+//Inner container for surgical changes.
+@kotlinx.serialization.Serializable
+data class SurgicalChanges(
+    var subStringToChange: String = "",
+    var replacementSubString: String = ""
+)
+
+/**
+ * Data class used to enable an llm instruct which strings are bad, and what to replace them with.
+ */
+@kotlinx.serialization.Serializable
+data class SurgicalChangeList(
+    var changeList: MutableList<SurgicalChanges> = mutableListOf()
 )
 
 

@@ -333,6 +333,8 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
  */
 suspend fun shunt(content: MultimodalContent) : MultimodalContent
 {
+    val originalText = content.text
+
     val (dialogueSelectionPipeline, connector) = buildDialogueConnector()
     connector.enableTracing()
     dialogueSelectionPipeline.enableTracing()
@@ -353,6 +355,11 @@ suspend fun shunt(content: MultimodalContent) : MultimodalContent
     }
 
 
+    if(json.dialogueType == DialogueType.FormalRote)
+    {
+        content.text = originalText
+        return content
+    }
 
     val finalResult = connector.execute(json.dialogueType, content)
 
