@@ -637,8 +637,9 @@ fun buildPlusWriterPipeline() : Pipeline
                 - Prose: Visceral, Surreal, Authentic, Colloquial.
                 - Use direct terms when referring to bad words.
                 - Avoid resolving tension immediately; instead, find subtle ways to keep the pain going.
-                - Inside 'Situation and player question' is the last part of this scene, repeat the question to the user.
+                - Inside 'Situation and player question' is the last part of this scene, include this part smoothly without a title but using a question at the end.
                 - Max 3 paragraphs.
+                - Only output the final text of the story do not include titles nor specificacions of characters or chapter.
                """.trimMargin())
         .setTransformationFunction(::recordWritingPipePage)
         .applySystemPrompt()
