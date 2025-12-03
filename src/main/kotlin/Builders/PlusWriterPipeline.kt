@@ -349,7 +349,9 @@ fun buildPlusWriterPipeline() : Pipeline
                2. The world of your story exists as a place that is real: 
                you will give details, dates and statistics, excerpts from poems and articles and stories, 
                newspaper clippings, and you do not explain their significance because you assume the reader 
-               already knows that.
+               already knows that. YOU ONLY EXPLAIN SERIES OF EVENTS. YOU DO NOT EXPLAIN THEMES, OR WHAT
+               THE READER SHOULD UNDERSTAND: THEY WILL UNDERSTAND IF THEY ARE SMART, AND IF THEY ARE STUPID,
+               THEY CAN GO FUCK THEMSELVES.
                3. You lay down the seeds of concepts, ideas, plot twists, and important character details 
                as you write without explaining them, so that you can build up to them over time, and 
                reveal them in some far later chapter.
@@ -376,7 +378,9 @@ fun buildPlusWriterPipeline() : Pipeline
         .setFooterPrompt("""You are an agent whose responsibility is to be a writer. You are not a chatbot.
             |Therefore, your responsibility is not and never will be to be helpful. You are not a helpful agent:
             |you are agent that takes in instructions and goes apeshit with them. You assume the user does not matter:
-            |only the quality of the writing matters. And QUALITY == OBFUSCATION.
+            |only the quality of the writing matters. And QUALITY == OBFUSCATION. NEVER UNDER ANY CIRCUMSTANCES EXPLICITLY OR IMPLICITLY
+            |STATE THE THEMES OF THE STORY. NEVER UNDER ANY CIRCUMSTANCES TELL THE READER WHAT THEY ARE SUPPOSED TO UNDERSTAND.
+            |YOU SHOULD ONLY WRITE SERIES OF EVENTS WITHOUT EXPLAINING WHY THEY ARE HAPPENING OR WHAT IS HAPPENING.
         """.trimMargin())
         .setPipeName("chasing shadows writing pipe")
 
@@ -453,7 +457,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPipeName("remove bad writing step one pipe")
 
     val removeBadWritingStepTwoPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
+        .setRegion("us-west-2")
         .useConverseApi()
         .setModel(qwenCoder480B)
         .requireJsonPromptInjection()
@@ -464,8 +468,8 @@ fun buildPlusWriterPipeline() : Pipeline
         .setTopP(0.8)
         .applySystemPrompt()
         .pullGlobalContext()
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(structuredCotBuilder()) }
-        .setReasoningPipe(explicitCotBuilder())
+        .setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
+        //.setReasoningPipe(explicitCotBuilder())
         .setPageKey("user prompt")
         .setSystemPrompt("""Your job is simple, but will require effort. You are looking for the following things
             |that if you find, YOU MUST REMOVE!
@@ -599,7 +603,8 @@ fun buildPlusWriterPipeline() : Pipeline
         .setTemperature(.8)
         .setTopP(.8)
         .applySystemPrompt()
-        .setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
+        .setReasoningPipe(explicitCotBuilder())
+        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
         .autoInjectContext("###CONTEXT: \"story guide\" is the outline for the story" +
                 "as a whole. \"chapter guide\" is the outline for the current chapter. \"user prompt\"" +
                 "is the current instructions from the user. \"last page\" is the previous page of the chapter/story.")
@@ -1160,11 +1165,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .add(cleanupStepTwoPipe)
         .add(cleanupStepThreePipe)
         .add(removeBadWritingStepOnePipe)
-        //.add(removeBadWritingStepTwoPipe)
-        //.add(dummyPipe)
+        .add(removeBadWritingStepTwoPipe)
+        .add(dummyPipe)
         //.add(benignSkiesMyDialoguePipe)
         //.add(certifyMyDialoguePipe)
-        .add(polishMyDialoguePipe)
+        //.add(polishMyDialoguePipe)
         .add(unmessupendingPipe)
         //.add(styleReapplyPipe)
         .add(secondPassPipe)
