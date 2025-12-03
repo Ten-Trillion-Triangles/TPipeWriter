@@ -200,14 +200,15 @@ fun processFocusedBuilder() : Pipe
     return pipe
 }
 
-fun explicitCotBuilder() : Pipe
+fun explicitCotBuilder(focusPoints: MutableMap<Int, String> = mutableMapOf()) : Pipe
 {
     val reasoningSettings = ReasoningSettings(
         reasoningMethod = ReasoningMethod.ExplicitCot,
         depth = ReasoningDepth.High,
         duration = ReasoningDuration.Long,
         reasoningInjector = ReasoningInjector.AfterUserPrompt,
-        numberOfRounds = 1
+        numberOfRounds = 1,
+        focusPoints = focusPoints
     )
 
     val bedrockSettings = BedrockConfiguration(
