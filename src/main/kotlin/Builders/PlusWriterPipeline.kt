@@ -249,9 +249,9 @@ fun buildPlusWriterPipeline() : Pipeline
     //Now we will introduce the murderPipe, whose job it is to murder undesirable JSON array elems.
 
     val murderPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
+        .setRegion("us-west-2")
         .useConverseApi()
-        .setModel(deepseekModelName)
+        .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.3)
         .pullGlobalContext()
@@ -262,6 +262,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setJsonInput(TodoList())
         .setJsonOutput(TodoList())
         .setPageKey("user prompt, page plan")
+        .setReasoningPipe(authorBuilder(Env.richardTreadwell))
         .setSystemPrompt("""Your job is extremely simple. Look at the provided page plan, and ask the question:
             |Is the planned sequence an action sequence? Or is it a primarily descriptive sequence? These are the
             |only two types of sequences that exist, so anything you think is something else, is actually one or the other:
@@ -319,12 +320,39 @@ fun buildPlusWriterPipeline() : Pipeline
         |any time soon.""")
         .setPipeName("writing pipe")
 
+    val preWriterReasoningPipe = BedrockMultimodalPipe()
+        .setRegion("us-west-2")
+        .useConverseApi()
+        .setModel(qwenCoder480B)
+        .setTemperature(1.0)
+        .setTopP(0.8)
+        .pullGlobalContext()
+        .setPageKey("main, user prompt")
+        .setContextWindowSize(120000)
+        .truncateModuleContext()
+        .setMaxTokens(32000)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .requireJsonPromptInjection()
+        .setJsonInput(TodoList())
+        .setJsonOutput(TodoList())
+        .setReasoningPipe(explicitCotBuilder(focusPoints = mutableMapOf(1 to "")))
+        .setSystemPrompt("""""")
+        .autoInjectContext("You will be provided with a set of json context. " +
+                "The JSON context you received is the plan you wrote for next page of your book." +
+                "\"main\" is the story you've written so far including a lorebook that has your notes on important" +
+                "parts of the plot, events, characters, and themes of your story. \"user prompt\" is the instructions" +
+                " your editor has given you that they want you to make. Ensure you prioritize the plan first," +
+                " your editor's instructions second, and adhering to the existing lore of the story third." +
+                " The following is the json schema for the context: ")
+        .setFooterPrompt("""""")
+        .setPipeName("pre writer reasoning pipe")
+
     val chasingShadowsWritingPipe = BedrockMultimodalPipe()
         .setRegion("us-west-2")
         .useConverseApi()
         .setModel(qwenCoder480B)
         .setTemperature(1.0)
-        .setTopP(1.0)
+        .setTopP(0.8)
         .pullGlobalContext()
         .setPageKey("main, user prompt")
         .setContextWindowSize(120000)
@@ -332,7 +360,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::recordWritingPipePage)
-        //.setReasoningPipe(explicitCotBuilder())
+        //.setReasoningPipe(authorBuilder(Env.writingControlPrompt))
         .setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
         .setSystemPrompt(
             """You will now write the next page of the story. Your first priority is to follow all instructions 
@@ -708,8 +736,8 @@ fun buildPlusWriterPipeline() : Pipeline
         .applySystemPrompt()
         .pullGlobalContext()
         .setPageKey("user prompt, story guide, chapter guide")
-        .setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
-        //.setReasoningPipe(explicitCotBuilder())
+        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
+        .setReasoningPipe(explicitCotBuilder())
         .setSystemPrompt("""Your job is relatively simple. Look at the last 2 to 4 sentences of the written page.
             |Unless the user prompt explicitly says to end the chapter or scene, you are looking for the following issues:
             |
@@ -1154,6 +1182,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .add(guidePipe)
         .add(murderPipe)
         //.add(writingPipe)
+        .add(preWriterReasoningPipe)
         .add(chasingShadowsWritingPipe)
         .add(untwistPipe)
         .add(postWriterPipe)
@@ -1165,7 +1194,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .add(cleanupStepTwoPipe)
         .add(cleanupStepThreePipe)
         .add(removeBadWritingStepOnePipe)
-        .add(removeBadWritingStepTwoPipe)
+        //.add(removeBadWritingStepTwoPipe)
         .add(dummyPipe)
         //.add(benignSkiesMyDialoguePipe)
         //.add(certifyMyDialoguePipe)
