@@ -22,7 +22,7 @@ fun authorBuilder(
     rounds: Int = 1,
     focusPoints: MutableMap<Int, String> = mutableMapOf(),
     region: String = "us-west-2",
-    model: String = "qwen.qwen3-coder-480b-a35b-v1:0",
+    model: String = "writer.palmyra-x5-v1:0",
     maxTokens: Int = 8000,
     temperature: Double = 1.0,
     topP: Double = .7
