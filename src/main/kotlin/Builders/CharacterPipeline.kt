@@ -229,7 +229,7 @@ fun buildCharacterPipelineWithStory(character: String) : Pipeline
         .setTemperature(1.0)
         .setTopP(.8)
         .pullGlobalContext()
-        .setPageKey("main, story guide, chapter guide,")
+        .setPageKey("main")
         .truncateModuleContext()
         .autoTruncateContext()
         .setTokenBudget(writerBudgetSettings)
