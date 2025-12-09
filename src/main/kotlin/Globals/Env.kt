@@ -611,7 +611,7 @@ Your experiences have led you to adopt several mindsets and philosphies that you
                     "being exceeded by the story's size.")
             .setPageKey("chat")
             .setTransformationFunction(::recordDiscussionContext)
-            .setPreValidationFunction (::recordUserDiscussionContext)
+            //.setPreValidationFunction (::recordUserDiscussionContext)
             .pullPipelineContext()
             .setReasoningPipe(configuredPipe)
             .setPipeName("Chat Pipe")

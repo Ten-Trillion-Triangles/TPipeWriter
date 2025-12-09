@@ -205,8 +205,6 @@ fun buildCharacterPipelineWithStory(character: String) : Pipeline
     bedrockEnv.bindInferenceProfile(llama405B, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama3-1-405b-instruct-v1:0")
     bedrockEnv.bindInferenceProfile(PalmyraX5, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.writer.palmyra-x5-v1:0")
 
-    val reasoningPipe = authorBuilder(character)
-
     val writerBudgetSettings = TokenBudgetSettings(
         maxTokens = 8000,
         contextWindowSize = 990000,
@@ -219,6 +217,10 @@ fun buildCharacterPipelineWithStory(character: String) : Pipeline
         allowUserPromptTruncation = true,
     )
 
+    val reasoningPipe = authorBuilder(character)
+        .setTokenBudget(writerBudgetSettings)
+        .setPipeName("Thinking pipe")
+
     val chatPipe = BedrockMultimodalPipe()
         .setRegion("us-west-2")
         .useConverseApi()
@@ -227,7 +229,7 @@ fun buildCharacterPipelineWithStory(character: String) : Pipeline
         .setTemperature(1.0)
         .setTopP(.8)
         .pullGlobalContext()
-        .setPageKey("main, story guide, chapter guide,")
+        .setPageKey("main")
         .truncateModuleContext()
         .autoTruncateContext()
         .setTokenBudget(writerBudgetSettings)
