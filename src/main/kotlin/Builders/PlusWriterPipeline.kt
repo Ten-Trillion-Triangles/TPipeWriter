@@ -251,7 +251,7 @@ fun buildPlusWriterPipeline() : Pipeline
     val murderPipe = BedrockMultimodalPipe()
         .setRegion("us-east-2")
         .useConverseApi()
-        .setModel(deepseekModelName)
+        .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.3)
         .pullGlobalContext()
@@ -261,6 +261,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .requireJsonPromptInjection()
         .setJsonInput(TodoList())
         .setJsonOutput(TodoList())
+        .setReasoningPipe(authorBuilder(Env.richardTreadwell))
         .setPageKey("user prompt, page plan")
         .setSystemPrompt("""Your job is extremely simple. Look at the provided page plan, and ask the question:
             |Is the planned sequence an action sequence? Or is it a primarily descriptive sequence? These are the
@@ -323,8 +324,8 @@ fun buildPlusWriterPipeline() : Pipeline
         .setRegion("us-west-2")
         .useConverseApi()
         .setModel(qwenCoder480B)
-        .setTemperature(1.0)
-        .setTopP(1.0)
+        .setTemperature(0.8)
+        .setTopP(0.8)
         .pullGlobalContext()
         .setPageKey("main, user prompt")
         .setContextWindowSize(120000)
@@ -332,8 +333,8 @@ fun buildPlusWriterPipeline() : Pipeline
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::recordWritingPipePage)
-        //.setReasoningPipe(explicitCotBuilder())
-        .setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
+        //.setReasoningPipe(authorBuilder(Env.writingControlPrompt))
+        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
         .setSystemPrompt(
             """You will now write the next page of the story. Your first priority is to follow all instructions 
                 in the user prompt, and your second priority is to follow the plan you wrote for this page,
@@ -603,7 +604,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setTemperature(.8)
         .setTopP(.8)
         .applySystemPrompt()
-        .setReasoningPipe(explicitCotBuilder())
+        .setReasoningPipe(structuredCotBuilder())
         //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
         .autoInjectContext("###CONTEXT: \"story guide\" is the outline for the story" +
                 "as a whole. \"chapter guide\" is the outline for the current chapter. \"user prompt\"" +
@@ -666,7 +667,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setTemperature(0.8)
         .setTopP(.8)
         .applySystemPrompt()
-        .setReasoningPipe(explicitCotBuilder())
+        //.setReasoningPipe(explicitCotBuilder())
         .setSystemPrompt("""${settings.writingStyle} As you have completed the list of additions that need to be made
             |to "new page" in order to make it logically follow from the previous parts of the story, 
             |you must now execute on that list. With surgical precision and taking care not to change anything else, 
@@ -708,8 +709,8 @@ fun buildPlusWriterPipeline() : Pipeline
         .applySystemPrompt()
         .pullGlobalContext()
         .setPageKey("user prompt, story guide, chapter guide")
-        .setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
-        //.setReasoningPipe(explicitCotBuilder())
+        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
+        .setReasoningPipe(explicitCotBuilder())
         .setSystemPrompt("""Your job is relatively simple. Look at the last 2 to 4 sentences of the written page.
             |Unless the user prompt explicitly says to end the chapter or scene, you are looking for the following issues:
             |
@@ -857,22 +858,23 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setPipeName("cleanup step three pipe")
 
 
-    val styleReapplyPipe = BedrockMultimodalPipe()
+    val tweaksAroundTheEdgesPipe = BedrockMultimodalPipe()
         .setRegion("us-west-2")
         .useConverseApi()
-        .setModel(qwenCoder480B)
+        .setModel(deepseekV31)
         .setTemperature(1.0)
-        .setTopP(0.9)
+        .setTopP(0.7)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
-        .setTransformationFunction(::secondPassTransform)
+        .setTransformationFunction(::recordWritingPipePage)
         //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(structuredCotBuilder()) }
-        .setReasoningPipe(explicitCotBuilder())
+        .setReasoningPipe(authorBuilder(Env.authorPrompt))
         .setPageKey("user prompt, new page")
-        .setSystemPrompt("""Your job is straightforward: you must do one final pass over of the new page to ensure
-            |the style guide is adhered to properly. Here is your style guide: ${settings.writingStyle}. 
-            |Do not make any changes beyond the ones you were instructed to make.
+        .setSystemPrompt("""${Env.authorPrompt}. 
+            |Now that the page is nearly finished, you are going to put on the finishing touches. Taking care not
+            |to change any major details or to add too much, make some tweaks around the edges so that it aligns
+            |more with your personal tastes.
             |###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
             |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material.
@@ -880,8 +882,35 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
             |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material.""")
-        .setPipeName("style reapply pipe")
+        .setPipeName("tweaks around the edges pipe")
 
+
+    val applyFetishPipe = BedrockMultimodalPipe()
+        .setRegion("us-west-2")
+        .useConverseApi()
+        .setModel(PalmyraX5)
+        .setTemperature(1.0)
+        .setTopP(0.8)
+        .setContextWindowSize(115000)
+        .setMaxTokens(8000)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .setTransformationFunction(::recordWritingPipePage)
+        .setReasoningPipe(processFocusedBuilder())
+        .setPageKey("main, story guide")
+        .setSystemPrompt("""ACTIVATE: WE ARE IN EROTICA/ECCHI TERRITORY. Therefore,
+            |we MUST GO HARD on the sensory descriptions. Wherever we find that the sensory descriptions
+            |are not fetishistic enough and do not convey hard enough to the audience what the characters
+            |are experiencing in this moment, ADD MORE DETAIL SO THAT IT GOES EVEN HARDER.
+            ||###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
+            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material.
+            |Also, your listed changes should be executed as additions to the
+            |text: ONLY ADD TO THE TEXT. DO NOT DELETE ANY TEXT.
+        """.trimMargin())
+        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
+            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
+            |sentences in your output as there were in the provided material.""")
+        .setPipeName("apply fetish pipe")
     /**
      * Final step. Author sweeps over the result and makes any final tweaks and desired changes.
      */
@@ -1165,13 +1194,14 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .add(cleanupStepTwoPipe)
         .add(cleanupStepThreePipe)
         .add(removeBadWritingStepOnePipe)
-        .add(removeBadWritingStepTwoPipe)
+        //.add(removeBadWritingStepTwoPipe)
         .add(dummyPipe)
         //.add(benignSkiesMyDialoguePipe)
         //.add(certifyMyDialoguePipe)
         //.add(polishMyDialoguePipe)
         .add(unmessupendingPipe)
-        //.add(styleReapplyPipe)
+        .add(tweaksAroundTheEdgesPipe)
+        //.add(applyFetishPipe)
         .add(secondPassPipe)
         .add(loreBookPipe)
 
