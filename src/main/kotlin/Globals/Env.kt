@@ -16,6 +16,7 @@ import Util.cleanJsonString
 import Util.enablePipelineStreaming
 import bedrockPipe.BedrockMultimodalPipe
 import bedrockPipe.BedrockPipe
+import bedrockPipe.BedrockPriorityTier
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
 import com.TTT.Context.LoreBook
@@ -312,6 +313,8 @@ SCREW THEM!
         val novaModelId = "amazon.nova-pro-v1:0"
         val gptModelId = "openai.gpt-oss-20b-1:0"
         val novaLiteId = "amazon.nova-lite-v1:0"
+        val nova2LiteId = "amazon.nova-2-lite-v1:0"
+        val nova2ProId = "amazon.nova-2-pro-preview-v1:0"
         val claudeModelId = "anthropic.claude-sonnet-4-20250514-v1:0"
         val region = "us-east-2"
         val maxTokenBudgetDeepSeek = 106 //Tokens in the thousands. 106K tokens.
@@ -322,6 +325,8 @@ SCREW THEM!
         bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
         bedrockEnv.bindInferenceProfile("amazon.nova-pro-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-pro-v1:0")
         bedrockEnv.bindInferenceProfile("amazon.nova-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0")
+        bedrockEnv.bindInferenceProfile(nova2LiteId, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-2-lite-v1:0")
+        bedrockEnv.bindInferenceProfile(nova2ProId, "arn:aws:bedrock:us-east-1:521369004927:inference-profile/global.amazon.nova-2-pro-preview-v1:0")
         bedrockEnv.bindInferenceProfile(claudeModelId, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
 
 //=============================================Construct Pipes =========================================================
@@ -577,8 +582,8 @@ SCREW THEM!
 
         //Declare required settings for aws bedrock.
         val bedrockSettings = BedrockConfiguration(
-            "us-west-2",
-            "writer.palmyra-x5-v1:0")
+            "us-east-2",
+            nova2LiteId)
 
         //Declare settings to define how reasoning will function.
         val reasoningSettings = ReasoningSettings(
@@ -587,12 +592,13 @@ SCREW THEM!
             depth = ReasoningDepth.High,
             duration = ReasoningDuration.Long,
             reasoningInjector = ReasoningInjector.AfterUserPromptWithConverse,
-            numberOfRounds = 1
+            numberOfRounds = 2
         )
 
         // Configure pipe parameters
         val pipeSettings = PipeSettings(
-            temperature = 0.7,
+            temperature = 0.5,
+            topP = .6,
             maxTokens = 8000,
             contextWindowSize = 990000
         )
@@ -604,20 +610,24 @@ SCREW THEM!
             pipeSettings)
             .setPipeName("Thinking Pipe") as BedrockPipe
 
+        configuredPipe.setServiceTier(BedrockPriorityTier.Flex)
+
         val budgetSettings = TokenBudgetSettings(
-            maxTokens = 8000,
+            maxTokens = 9000,
             contextWindowSize = 990000,
             )
 
+
+
         val discussionPipe = BedrockMultimodalPipe()
             .useConverseApi()
+            .setServiceTier(BedrockPriorityTier.Flex)
             .enableStreaming()
-            .setRegion("us-west-2")
-            .setTemperature(1.0)
-            .setTopP(.9)
-            .setContextWindowSize(maxTokenBudgetDeepSeek)
-            .setMaxTokens(8000)
-            .setModel("writer.palmyra-x5-v1:0")
+            .setRegion("us-east-2")
+            .setTemperature(.6)
+            .setTopP(.6)
+            .setMaxTokens(10000)
+            .setModel(nova2LiteId)
             .truncateModuleContext()
             .requireJsonPromptInjection()
             .setTokenBudget(budgetSettings)
@@ -635,7 +645,6 @@ SCREW THEM!
             .pullPipelineContext()
             .setReasoningPipe(configuredPipe)
             .setPipeName("Chat Pipe")
-            .setReasoning()
 
         discussionPipeline.add(discussionPipe)
 
@@ -906,5 +915,3 @@ suspend fun genericBranchFunction(original: MultimodalContent, changed: Multimod
 
     return changed //Not implemented yet so just auto-fail.
 }
-
-
