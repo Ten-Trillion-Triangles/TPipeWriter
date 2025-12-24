@@ -137,8 +137,8 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .setMaxTokens(32000)
         .pullGlobalContext()
         .setPageKey("new page, user prompt")
-        .setTemperature(1.0)
-        .setTopP(.9)
+        .setTemperature(0.8)
+        .setTopP(.8)
         .applySystemPrompt()
         //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
@@ -189,8 +189,8 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .pullGlobalContext()
         .setPageKey("new page, user prompt")
         .autoInjectContext("New Page is the page of text you must work on.")
-        .setTemperature(1.0)
-        .setTopP(.9)
+        .setTemperature(0.8)
+        .setTopP(.8)
         .applySystemPrompt()
         //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
@@ -251,7 +251,7 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .pullGlobalContext()
         .setPageKey("new page, user prompt")
         .setTemperature(0.8)
-        .setTopP(.7)
+        .setTopP(.8)
         .applySystemPrompt()
         //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
