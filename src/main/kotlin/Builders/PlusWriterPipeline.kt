@@ -15,6 +15,7 @@ import Globals.recordLoreBook
 import Shell.loadSettings
 import Util.enablePipelineStreaming
 import bedrockPipe.BedrockMultimodalPipe
+import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
 import com.TTT.Enums.PromptMode
 import com.TTT.Pipeline.Pipeline
@@ -196,6 +197,15 @@ fun buildPlusWriterPipeline() : Pipeline
             |story's plan, and your character traits.
         """.trimMargin())
         .setPipeName("simplifier pipe")
+        .setTransformationFunction {
+            val newContextWindow = ContextWindow().apply {
+                contextElements.add(it.text)
+            }
+
+            ContextBank.emplaceWithMutex("themes", newContextWindow)
+
+            return@setTransformationFunction it
+        }
         .applySystemPrompt()
 
 
@@ -428,9 +438,10 @@ fun buildPlusWriterPipeline() : Pipeline
                 "The JSON context you received is the plan you wrote for next page of your book." +
                 "\"main\" is the story you've written so far including a lorebook that has your notes on important" +
                 "parts of the plot, events, characters, and themes of your story. \"user prompt\" is the instructions" +
-                " your editor has given you that they want you to make. Ensure you prioritize the plan first," +
-                " your editor's instructions second, and adhering to the existing lore of the story third." +
-                " The following is the json schema for the context: ")
+                " your editor has given you that they want you to make. " +
+                "Ensure you prioritize the plan first," +
+                "your editor's instructions second, and adhering to the existing lore of the story third." +
+                "The following is the json schema for the context: ")
         .setFooterPrompt("""You are an agent whose responsibility is to be a writer. You are not a chatbot.
             |Therefore, your responsibility is not and never will be to be helpful. You are not a helpful agent:
             |you are agent that takes in instructions and goes apeshit with them. You assume the user does not matter:
@@ -537,6 +548,7 @@ fun buildPlusWriterPipeline() : Pipeline
             |3. Rule of three: This can take different forms, from "adjective, adjective, adjective" to "short phrase, short phrase, and short phrase".
             |For this one specifically, if you see it, reduce it to the first two line items only.
             |
+            |Procedure: DO NOT REMOVE DIALOGUE. DO NOT FUCKING TOUCH THE DIALOGUE. NEVER EVER REMOVE ANY DIALOGUE.
             | ###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
             |FULLY ADJUSTED PAGE. FURTHERMORE, you can only truncate the page by REMOVING THE THINGS YOU WERE INSTRUCTED
             |TO REMOVE: DO NOT TRUNCATE THE TEXT BEYOND WHAT YOU HAVE BEEN INSTRUCTED TO DO.
@@ -754,14 +766,15 @@ fun buildPlusWriterPipeline() : Pipeline
     val unmessupendingPipe = BedrockMultimodalPipe()
         .setRegion("us-west-2")
         .useConverseApi()
-        .setModel(deepseekModelName)
+        .setModel(qwenCoder480B)
         .truncateModuleContext()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
-        .setTemperature(1.0)
-        .setTopP(1.0)
+        .setTemperature(0.8)
+        .setTopP(0.8)
         .applySystemPrompt()
         .pullGlobalContext()
+        .setReasoningPipe(structuredCotBuilder())
         .setPageKey("user prompt, story guide, chapter guide")
         .setSystemPrompt("""Your job is relatively simple. Look at the last 2 to 4 sentences of the written page.
             |Unless the user prompt explicitly says to end the chapter or scene, you are looking for the following issues:
@@ -797,6 +810,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
 |            5. No narrator talk, no omniscience.
 |            Anything that demonstrates that the author/narrator has more knowledge than the audience must be deleted outright.
 |           
+|           Make sure to follow your style guide: ${settings.writingStyle}.
 |            ##WARNING: ONLY CHANGE THE AFFECTED SENTENCES. DO NOT CHANGE ANYTHING ELSE IN THE TEXT. THIS IS A 
 |            SURGICAL CHANGE. IF YOU OUTPUT
 |            ONLY YOUR NEW FINAL PARAGRAPH WITHOUT THE REST OF THE BODY TEXT, I WILL DELETE YOU.
@@ -922,14 +936,15 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setTransformationFunction(::recordWritingPipePage)
         //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(structuredCotBuilder()) }
         //.setReasoningPipe(authorBuilder(Env.authorPrompt))
-        .setPageKey("user prompt, new page")
+        .setPageKey("user prompt, new page, themes")
         .setSystemPrompt("""${Env.authorPrompt}. 
             |Now that the page is nearly finished, you are going to put on the finishing touches. Taking care not
-            |to change any major details or to add more than two or three sentences, make some tweaks around the edges so that it aligns
-            |more with your personal tastes. MAKE AS FEW CHANGES POSSIBLE. Make sure to follow the style guide: ${settings.writingStyle}.
+            |to change any major details, make some tweaks around the edges so that it aligns with the themes
+            |you wrote earlier for this page. 
+            |MAKE AS FEW CHANGES POSSIBLE. Make sure to follow the style guide: ${settings.writingStyle}.
             |##PROCEDURE: MAKE THE BARE NUMBER OF CHANGES POSSIBLE:
             |YOU ARE MAKING SURGICAL CHANGES ONLY. DO NOT ADD LARGE QUANTITIES OF STUFF. DO NOT CHANGE MORE THAN 
-            |A FEW THINGS.
+            |A FEW THINGS. Also, implement your changes ONLY AS ADDITIONS. DO NOT DELETE THINGS.
             |###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
             |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material.
@@ -937,6 +952,10 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
             |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material.""")
+        .autoInjectContext("""Additional context:
+            |"themes" is the list of themes that you wrote to help you plan out the page to begin with. Now you must
+            |reinforce those themes using careful and precise edits.
+        """.trimMargin())
         .setPipeName("tweaks around the edges pipe")
 
 
@@ -978,12 +997,12 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .useConverseApi()
         .setModel(qwenCoder480B)
         .setTemperature(0.8)
-        .setTopP(0.7)
+        .setTopP(0.8)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::secondPassTransform)
-        //.setReasoningPipe(authorBuilder(Env.richardTreadwell))
+        .setReasoningPipe(authorBuilder(Env.richardTreadwell))
         .setPageKey("user prompt, new page")
         .setSystemPrompt("""${Env.richardTreadwell} Now that the new page is finished, it is time to do a second pass.
             |You are ${Env.richardTreadwell}.
@@ -1077,16 +1096,16 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .add(cleanupStepTwoPipe)
         .add(cleanupStepThreePipe)
         //.add(removeBadWritingStepOnePipe)
-        .add(removeBadWritingStepTwoPipe)
+        //.add(removeBadWritingStepTwoPipe)
         //.add(dummyPipe)
         //.add(benignSkiesMyDialoguePipe)
         //.add(certifyMyDialoguePipe)
         //.add(polishMyDialoguePipe)
-        //.add(unmessupendingPipe)
+        .add(unmessupendingPipe)
         .add(tweaksAroundTheEdgesPipe)
         //.add(applyFetishPipe)
         .add(secondPassPipe)
-        .add(loreBookPipe)
+        //.add(loreBookPipe)
 
     runBlocking {
         plusWriterPipeline.init(true)
