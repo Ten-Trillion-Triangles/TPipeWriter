@@ -628,8 +628,9 @@ and the sensual and erotic aspects.
             .setTransformationFunction(::recordDiscussionContext)
             //.setPreValidationFunction (::recordUserDiscussionContext)
             .pullPipelineContext()
-            .setReasoningPipe(configuredPipe)
+            //.setReasoningPipe(configuredPipe)
             .setPipeName("Chat Pipe")
+            .setReasoning("high")
 
         discussionPipeline.add(discussionPipe)
 
