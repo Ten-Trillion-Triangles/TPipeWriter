@@ -189,6 +189,8 @@ fun buildCharacterPipelineWithStory(character: String) : Pipeline
      * Palmyra by Writer */
     val PalmyraX5 = "writer.palmyra-x5-v1:0"
 
+    val nova2 = "amazon.nova-2-lite-v1:0"
+
     val settings = loadSettings()
 
     /**
@@ -204,6 +206,7 @@ fun buildCharacterPipelineWithStory(character: String) : Pipeline
     bedrockEnv.bindInferenceProfile(llama70B, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama3-3-70b-instruct-v1:0")
     bedrockEnv.bindInferenceProfile(llama405B, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama3-1-405b-instruct-v1:0")
     bedrockEnv.bindInferenceProfile(PalmyraX5, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.writer.palmyra-x5-v1:0")
+    bedrockEnv.bindInferenceProfile("amazon.nova-2-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-2-lite-v1:0")
 
     val writerBudgetSettings = TokenBudgetSettings(
         maxTokens = 8000,
