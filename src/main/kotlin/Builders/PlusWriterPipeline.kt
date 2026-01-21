@@ -256,6 +256,10 @@ fun buildPlusWriterPipeline() : Pipeline
         .setTransformationFunction(::recordAuthorPlan)
         .setPipeName("guide pipe")
         .applySystemPrompt()
+        .setExceptionFunction { content, exception ->
+            val tokens = content.currentPipe?.getTokenUsage()?.getUsageBreakdown()
+            println(tokens)
+        }
 
 
     //Now we will introduce the murderPipe, whose job it is to murder undesirable JSON array elems.
@@ -1290,5 +1294,17 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
 
     enablePipelineStreaming(plusWriterPipeline)
 
-    return plusWriterPipeline
+    return plusWriterPipeline.apply {
+        getPipes().forEach {
+            it.enableComprehensiveTokenTracking()
+        }
+
+        setPipeCompletionCallback { pipe, content ->
+            println()
+        }
+
+        setPipeCompletionCallback { pipe, content ->
+            println()
+        }
+    }
 }

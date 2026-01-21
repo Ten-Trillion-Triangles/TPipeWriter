@@ -250,6 +250,10 @@ fun parseInput()
                 commandState = CommandState.Writer
                 manageChapters()
             }
+            "tokens" -> {
+                commandState = CommandState.Writer
+                tokenCountingSubshell()
+            }
             "clear-chat" -> clearChatHistory()
             "rewrite" -> {
                 commandState = CommandState.Writer
@@ -1238,6 +1242,7 @@ fun printHelp()
         |/import-lorebook   - Import lorebook from JSON file
         |/import-nai        - Import Novel AI story from JSON file
         |/chapters          - Enter chapter management sub-shell
+        |/tokens            - Enter token counting sub-shell for analysis
         |/rewrite           - Rewrite existing chapters with lore and style fixes
         |/style             - Show current writing style
         |/guide             - Open the guide settings menu.

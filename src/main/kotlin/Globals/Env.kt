@@ -260,6 +260,13 @@ and the sensual and erotic aspects.
     var authorReasoning: Pipe? = null
 
 
+    val deepSeekModelId = "deepseek.r1-v1:0"
+    val novaModelId = "amazon.nova-pro-v1:0"
+    val gptModelId = "openai.gpt-oss-20b-1:0"
+    val novaLiteId = "amazon.nova-lite-v1:0"
+    val nova2LiteId = "amazon.nova-2-lite-v1:0"
+    val nova2ProId = "amazon.nova-2-pro-preview-v1:0"
+    val claudeModelId = "anthropic.claude-sonnet-4-20250514-v1:0"
 
 
 
@@ -294,13 +301,6 @@ and the sensual and erotic aspects.
         writerPipeline.useGlobalContext("main") //Ensure it's using the global context so we can read from it correctly.
 
         //Declare region and arn for deepseek in preparation to start creating Bedrock pipes.
-        val deepSeekModelId = "deepseek.r1-v1:0"
-        val novaModelId = "amazon.nova-pro-v1:0"
-        val gptModelId = "openai.gpt-oss-20b-1:0"
-        val novaLiteId = "amazon.nova-lite-v1:0"
-        val nova2LiteId = "amazon.nova-2-lite-v1:0"
-        val nova2ProId = "amazon.nova-2-pro-preview-v1:0"
-        val claudeModelId = "anthropic.claude-sonnet-4-20250514-v1:0"
         val region = "us-east-2"
         val maxTokenBudgetDeepSeek = 106 //Tokens in the thousands. 106K tokens.
         val maxTokenBudgetNova = 280 //Tokens in the thousands. 280K tokens.
@@ -567,8 +567,8 @@ and the sensual and erotic aspects.
 
         //Declare required settings for aws bedrock.
         val bedrockSettings = BedrockConfiguration(
-            "us-east-2",
-            nova2LiteId)
+            "us-west-2",
+            ModelConfig.PalmyraX5)
 
         //Declare settings to define how reasoning will function.
         val reasoningSettings = ReasoningSettings(
@@ -576,14 +576,13 @@ and the sensual and erotic aspects.
             roleCharacter = """$richardTreadwell""",
             depth = ReasoningDepth.High,
             duration = ReasoningDuration.Long,
-            reasoningInjector = ReasoningInjector.AfterUserPromptWithConverse,
-            numberOfRounds = 2
+            reasoningInjector = ReasoningInjector.AfterUserPromptWithConverse
         )
 
         // Configure pipe parameters
         val pipeSettings = PipeSettings(
-            temperature = 0.5,
-            topP = .6,
+            temperature = 1.0,
+            topP = .9,
             maxTokens = 8000,
             contextWindowSize = 990000
         )
@@ -598,7 +597,7 @@ and the sensual and erotic aspects.
         configuredPipe.setServiceTier(BedrockPriorityTier.Flex)
 
         val budgetSettings = TokenBudgetSettings(
-            maxTokens = 9000,
+            maxTokens = 8000,
             contextWindowSize = 990000,
             )
 
@@ -611,8 +610,8 @@ and the sensual and erotic aspects.
             .setRegion("us-east-2")
             .setTemperature(.6)
             .setTopP(.6)
-            .setMaxTokens(10000)
-            .setModel(nova2LiteId)
+            .setMaxTokens(8000)
+            .setModel(ModelConfig.PalmyraX5)
             .truncateModuleContext()
             .requireJsonPromptInjection()
             .setTokenBudget(budgetSettings)
@@ -628,7 +627,7 @@ and the sensual and erotic aspects.
             .setTransformationFunction(::recordDiscussionContext)
             //.setPreValidationFunction (::recordUserDiscussionContext)
             .pullPipelineContext()
-            //.setReasoningPipe(configuredPipe)
+            .setReasoningPipe(configuredPipe)
             .setPipeName("Chat Pipe")
             .setReasoning("high")
 
