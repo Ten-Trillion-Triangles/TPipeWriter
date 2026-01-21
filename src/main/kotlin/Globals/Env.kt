@@ -567,8 +567,8 @@ and the sensual and erotic aspects.
 
         //Declare required settings for aws bedrock.
         val bedrockSettings = BedrockConfiguration(
-            "us-east-2",
-            nova2LiteId)
+            "us-west-2",
+            ModelConfig.PalmyraX5)
 
         //Declare settings to define how reasoning will function.
         val reasoningSettings = ReasoningSettings(
@@ -581,8 +581,8 @@ and the sensual and erotic aspects.
 
         // Configure pipe parameters
         val pipeSettings = PipeSettings(
-            temperature = 0.5,
-            topP = .6,
+            temperature = 1.0,
+            topP = .9,
             maxTokens = 8000,
             contextWindowSize = 990000
         )
@@ -597,7 +597,7 @@ and the sensual and erotic aspects.
         configuredPipe.setServiceTier(BedrockPriorityTier.Flex)
 
         val budgetSettings = TokenBudgetSettings(
-            maxTokens = 9000,
+            maxTokens = 8000,
             contextWindowSize = 990000,
             )
 
@@ -610,8 +610,8 @@ and the sensual and erotic aspects.
             .setRegion("us-east-2")
             .setTemperature(.6)
             .setTopP(.6)
-            .setMaxTokens(10000)
-            .setModel(nova2LiteId)
+            .setMaxTokens(8000)
+            .setModel(ModelConfig.PalmyraX5)
             .truncateModuleContext()
             .requireJsonPromptInjection()
             .setTokenBudget(budgetSettings)
