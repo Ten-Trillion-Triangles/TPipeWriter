@@ -214,14 +214,14 @@ fun buildPlusWriterPipeline() : Pipeline
      * story's progress against the chapter guide
      */
     val guidePipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
+        .setRegion("us-west-2")
         .useConverseApi()
-        .setModel(qwenCoder480B)
+        .setModel(PalmyraX5)
         .requireJsonPromptInjection()
         .setJsonInput(VibeInstruct())
         .setJsonOutput(TodoList())
         .truncateModuleContext()
-        .setMaxTokens(32000)
+        .setMaxTokens(8000)
         .setTemperature(0.8)
         .setTopP(0.8)
         .setReasoningPipe(authorBuilder(Env.authorPrompt))
@@ -940,9 +940,9 @@ fun buildPlusWriterPipeline() : Pipeline
 
     //This pipe removes the attempt to forcefully wrap up the chapter when the user does not tell the llm to do so.
     val unmessupendingPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
+        .setRegion("us-east-2")
         .useConverseApi()
-        .setModel(qwenCoder480B)
+        .setModel(deepseekModelName)
         .truncateModuleContext()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
@@ -950,7 +950,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setTopP(0.8)
         .applySystemPrompt()
         .pullGlobalContext()
-        .setReasoningPipe(structuredCotBuilder())
+        //.setReasoningPipe(explicitCotBuilder())
         .setPageKey("user prompt, story guide, chapter guide")
         .setSystemPrompt("""Your job is relatively simple. Look at the last 2 to 4 sentences of the written page.
             |Unless the user prompt explicitly says to end the chapter or scene, you are looking for the following issues:
@@ -1014,7 +1014,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::recordWritingPipePage)
         //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(structuredCotBuilder()) }
-        .setReasoningPipe(explicitCotBuilder())
+        .setReasoningPipe(structuredCotBuilder())
         .setPageKey("user prompt, new page")
         .setSystemPrompt("""Your job is simple. REMOVE ALL EM DASHES.
             |LLMs consistently overuse em dashes and use them consistently inappropriately. 
