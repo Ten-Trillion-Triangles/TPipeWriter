@@ -297,17 +297,12 @@ object Env {
         val novaModelId = "amazon.nova-pro-v1:0"
         val gptModelId = "openai.gpt-oss-20b-1:0"
         val novaLiteId = "amazon.nova-lite-v1:0"
-        val claudeModelId = "anthropic.claude-sonnet-4-20250514-v1:0"
         val region = "us-east-2"
         val maxTokenBudgetDeepSeek = 106 //Tokens in the thousands. 106K tokens.
         val maxTokenBudgetNova = 280 //Tokens in the thousands. 280K tokens.
 
 
         bedrockEnv.loadInferenceConfig()
-        bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
-        bedrockEnv.bindInferenceProfile("amazon.nova-pro-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-pro-v1:0")
-        bedrockEnv.bindInferenceProfile("amazon.nova-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0")
-        bedrockEnv.bindInferenceProfile(claudeModelId, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
 
 //=============================================Construct Pipes =========================================================
 
@@ -595,7 +590,7 @@ object Env {
             .setTopP(.9)
             .setContextWindowSize(maxTokenBudgetDeepSeek)
             .setMaxTokens(maxTokens + 2000)
-            .setModel("arn:aws:bedrock:us-west-2::foundation-model/qwen.qwen3-coder-480b-a35b-v1:0")
+            .setModel("qwen.qwen3-coder-480b-a35b-v1:0")
             .truncateModuleContext()
             .requireJsonPromptInjection()
             .setPromptMode(PromptMode.chat)
@@ -883,5 +878,4 @@ suspend fun genericBranchFunction(original: MultimodalContent, changed: Multimod
 
     return changed //Not implemented yet so just auto-fail.
 }
-
 

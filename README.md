@@ -32,9 +32,9 @@ TPipeWriter implements logic to handle common LLM refusals (censorship). If a mo
 
 ### Configuration
 **Important**: You MUST configure your own AWS Bedrock inference profiles or foundation model ARNs.
-1. Open `src/main/kotlin/Globals/Env.kt`.
-2. Locate the `bedrockEnv.bindInferenceProfile` calls in the `init` function.
-3. Replace the placeholder ARNs with your own Bedrock Inference Profile ARNs or specific model ARNs.
+1. Make sure your AWS credentials are available in `~/.aws/credentials`.
+2. Run `./scripts/sync-bedrock-bindings.sh` from this repository to resolve the Bedrock ARNs for the hard-coded model IDs currently used by the codebase.
+3. If you want to inspect the bindings before writing `~/.aws/inference.txt`, run `./scripts/sync-bedrock-bindings.sh --dry-run`.
 
 ### Building
 Build the project using Gradle:

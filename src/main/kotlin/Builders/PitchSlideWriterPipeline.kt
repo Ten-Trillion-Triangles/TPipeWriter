@@ -31,7 +31,7 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
     val qwenCoder480B = "qwen.qwen3-coder-480b-a35b-v1:0"
     val deepseekModelName = "deepseek.r1-v1:0" //us-east-2
 
-    bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
+    bedrockEnv.loadInferenceConfig()
 
     val pitchSlideWriterPipeline = Pipeline()
 

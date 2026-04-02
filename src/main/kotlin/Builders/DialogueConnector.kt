@@ -74,14 +74,9 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
     val settings = loadSettings()
 
     /**
-     * Required boilerplate to map us to the arn, or inference ID. This is because most models cannot be
-     * invoked directly, and must be bound to a profile.
+     * Load CLI-managed inference bindings from ~/.aws/inference.txt.
      */
     bedrockEnv.loadInferenceConfig()
-    bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-pro-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-pro-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0")
-    bedrockEnv.bindInferenceProfile(claudeModelName, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
 
 
     val identifyMyDialogue = BedrockMultimodalPipe()

@@ -69,9 +69,6 @@ fun buildChapterRewritePipeline(
         |or your output to the user, at any point, for any reason.""".trimMargin()
 
     bedrockEnv.loadInferenceConfig()
-    bedrockEnv.bindInferenceProfile(deepseekModelName, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
-    bedrockEnv.bindInferenceProfile(novaModelName, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0")
-    bedrockEnv.bindInferenceProfile(claudeModelName, "arn:aws:bedrock:us-east-1:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
 
     val rewritePipeline = Pipeline()
 
