@@ -37,3 +37,5 @@ replay_pid*
 model_arn_mapping.md
 TPipe-Dialogue-Trace-Integration-Plan.md
 merge-trash/PlusWriterPipeline.kt
+/.idea
+/docs/maestro
