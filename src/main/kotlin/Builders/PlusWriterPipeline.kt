@@ -256,6 +256,50 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPipeName("murder pipe")
         .applySystemPrompt()
 
+    val newMurderPipe = BedrockMultimodalPipe()
+        .setRegion("us-west-2")
+        .useConverseApi()
+        .setModel(qwenCoder480B)
+        .setTemperature(1.0)
+        .setTopP(0.3)
+        .pullGlobalContext()
+        .setContextWindowSize(100500)
+        .truncateModuleContext()
+        .setMaxTokens(32000)
+        .requireJsonPromptInjection()
+        .setJsonInput(TodoList())
+        .setJsonOutput(TodoList())
+        //.setReasoningPipe(authorBuilder(Env.richardTreadwell))
+        .setReasoningPipe(explicitCotBuilder())
+        .setPageKey("user prompt, page plan, chapter guide")
+        .setSystemPrompt("""Your job is extremely simple. First, look at the provided page plan, and figure out
+            |which one of the following types of sequences it is:
+            |1. Plot Sequence: this type of sequence is composed of individual specific plot points which take the 
+            |characters through multiple different events. This is the most common type of sequence.
+            |2. Action Sequence: these are sequences with lots of action, like car chases, fight scenes, generally
+            |everything where the characters are in one moment in time with lots of things happening in rapid succession.
+            |3. Sensory Sequences: these are sequences that take place generally all in one moment, which describe
+            |all of the things that a character or characters are experiencing physically and mentally, with a focus
+            |on the senses and thoughts.
+            |4. Erotic Sequences: these sequences are sex scenes or kink/fetish play scenes.
+            |
+            |Once you have figured out which one of these things what you're looking at is, do the following:
+            |If it is an Action Sequence (2), Sensory Sequence (3), Erotic Sequence (4), pass the JSON through unchanged;
+            |please note that the unifying thing between these three is that the plot doesn't move forward at all with
+            |each array elem: if there are more than three array elems that move the plot forwards, it must be considered
+            |as a Plot Sequence.
+            |If it is a Plot Sequence, eliminate all array elems from the JSON EXCEPT for TWO array elems: 
+            |To figure out which elems to remove, focus on the following:
+            |focus first on array elems that CONTAIN THE THINGS THE USER PROMPT ASKS FOR, 
+            |and if the user prompt is ambiguous, THEN YOU CAN focus on the main characters and continue the established narrative.
+            |To select two: choose the two elems that MOVE THE STORY FORWARD that follow SEQUENTIALLY from each other without
+            |skipping major events. Reference the CHAPTER GUIDE for this purpose. 
+            |IMPORTANT NOTE: Unless a SPECIFIC twist or revelation is specifically requested by the user prompt, 
+            |DO NOT INCLUDE AN ARRAY ELEM THAT INCLUDES A TWIST OR REVELATION.
+            |Then pass the new JSON file forwards as your output.
+        """.trimMargin())
+        .setPipeName("new murder pipe")
+        .applySystemPrompt()
 
 
 
@@ -1124,7 +1168,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .add(preGuidePipe)
         .add(simplifierPipe)
         .add(guidePipe)
-        .add(murderPipe)
+        .add(newMurderPipe)
         //.add(writingPipe)
         .add(chasingShadowsWritingPipe)
         .add(untwistPipe)
