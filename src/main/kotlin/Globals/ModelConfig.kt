@@ -72,5 +72,13 @@ object ModelConfig
         bedrockEnv.bindInferenceProfile(llama405B, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama3-1-405b-instruct-v1:0")
         bedrockEnv.bindInferenceProfile(PalmyraX5, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.writer.palmyra-x5-v1:0")
         bedrockEnv.bindInferenceProfile("amazon.nova-2-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-2-lite-v1:0")
+        bedrockEnv.bindInferenceProfile(deepseekV31, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.deepseek.v3-v1:0")
+        bedrockEnv.bindInferenceProfile(qwen235B, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.qwen.qwen3-235b-a22b-2507-v1:0")
+        bedrockEnv.bindInferenceProfile(qwen32B, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.qwen.qwen3-32b-v1:0")
+        bedrockEnv.bindInferenceProfile(qwenCoder480B, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.qwen.qwen3-coder-480b-a35b-v1:0")
+        bedrockEnv.bindInferenceProfile(qwenCoder30B, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.qwen.qwen3-coder-30b-a3b-v1:0")
+        bedrockEnv.bindInferenceProfile(gptOssModelName, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.openai.gpt-oss-20b-1:0")
+        bedrockEnv.bindInferenceProfile(gptOss120bModelName, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.openai.gpt-oss-120b-1:0")
+        bedrockEnv.bindInferenceProfile(jambaModelName, "arn:aws:bedrock:us-east-1:521369004927:inference-profile/us.ai21.jamba-1-5-large-v1:0")
     }
 }
