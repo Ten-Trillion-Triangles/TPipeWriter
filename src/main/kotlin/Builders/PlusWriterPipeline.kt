@@ -300,7 +300,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .applySystemPrompt()
 
     val newMurderPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
+        .setRegion("us-west-2")
         .useConverseApi()
         .setModel(qwenCoder480B)
         .setTemperature(1.0)
