@@ -86,21 +86,6 @@ resolve_model_arn() {
     printf 'foundation:%s\n' "$arn"
 }
 
-find_bedrock_classpath_file() {
-    local cp_file
-
-    cp_file="$(
-        find "$TPipe_REPO_ROOT/.gradle" "$TPipe_REPO_ROOT/.gradle-cache" \
-            -type f -name 'gradle-worker-classpath*txt' \
-            -exec grep -l 'TPipe-Bedrock/build/classes/kotlin/main' {} + 2>/dev/null \
-            | sort \
-            | tail -n 1
-    )"
-
-    [[ -n "$cp_file" ]] || return 1
-    printf '%s\n' "$cp_file"
-}
-
 bind_model() {
     local model_id="$1"
     local region="$2"
@@ -117,7 +102,7 @@ bind_model() {
     printf 'Resolved %s (%s) via %s -> %s\n' "$model_id" "$region" "$kind" "$arn"
 
     if "$DRY_RUN"; then
-        printf 'Dry run: java -cp <TPipe-Bedrock classpath> cli.InferenceConfigCli bind %q %q\n' "$model_id" "$arn"
+        printf 'Dry run: ./gradlew runInferenceCli --args="bind %q %q"\n' "$model_id" "$arn"
         return 0
     fi
 
@@ -131,13 +116,7 @@ bind_model() {
         mkdir -p "$(dirname "$INFERENCE_FILE")"
     fi
 
-    (
-        cd "$TPipe_REPO_ROOT"
-        local cp_file
-        cp_file="$(find_bedrock_classpath_file)"
-        [[ -n "$cp_file" ]] || die "Could not locate a TPipe-Bedrock worker classpath file under $TPipe_REPO_ROOT"
-        java -cp "$(sed -n '2p' "$cp_file")" cli.InferenceConfigCli bind "$model_id" "$arn"
-    )
+    ./gradlew runInferenceCli --args="bind $model_id $arn"
 }
 
 main() {

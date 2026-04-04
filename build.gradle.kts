@@ -61,3 +61,10 @@ application {
 tasks.test {
     useJUnitPlatform()
 }
+
+tasks.register<JavaExec>("runInferenceCli") {
+    group = "application"
+    description = "Runs the Bedrock Inference Config CLI"
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("cli.InferenceConfigCli")
+}

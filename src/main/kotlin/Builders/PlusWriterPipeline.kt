@@ -180,7 +180,7 @@ fun buildPlusWriterPipeline() : Pipeline
      * story's progress against the chapter guide
      */
     val guidePipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
+        .setRegion("us-west-2")
         .useConverseApi()
         .setModel(qwenCoder480B)
         .requireJsonPromptInjection()
