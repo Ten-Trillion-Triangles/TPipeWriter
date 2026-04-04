@@ -200,6 +200,7 @@ object Env {
              richardTreadwellPersona: String = "xrg",
              controlPersona: String = "ivd")
     {
+        ModelConfig.init()
 
         activeAuthorPersona = authorPersona
         activeEditorPersona = editorPersona
@@ -230,16 +231,14 @@ object Env {
         writerPipeline.useGlobalContext("main") //Ensure it's using the global context so we can read from it correctly.
 
         //Declare region and arn for deepseek in preparation to start creating Bedrock pipes.
-        val deepSeekModelId = "deepseek.r1-v1:0"
-        val novaModelId = "amazon.nova-pro-v1:0"
-        val gptModelId = "openai.gpt-oss-20b-1:0"
-        val novaLiteId = "amazon.nova-lite-v1:0"
+        val deepSeekModelId = ModelConfig.deepseekModelName
+        val novaModelId = ModelConfig.novaProModelName
+        val gptModelId = ModelConfig.gptOssModelName
+        val novaLiteId = ModelConfig.novaModelName
         val region = "us-east-2"
         val maxTokenBudgetDeepSeek = 106 //Tokens in the thousands. 106K tokens.
         val maxTokenBudgetNova = 280 //Tokens in the thousands. 280K tokens.
 
-
-        bedrockEnv.loadInferenceConfig()
 
 //=============================================Construct Pipes =========================================================
 

@@ -68,3 +68,10 @@ tasks.register<JavaExec>("runInferenceCli") {
     classpath = sourceSets.main.get().runtimeClasspath
     mainClass.set("cli.InferenceConfigCli")
 }
+
+tasks.register<JavaExec>("exportModelManifest") {
+    group = "application"
+    description = "Exports the model manifest for binding scripts"
+    classpath = sourceSets.main.get().runtimeClasspath
+    mainClass.set("cli.ExportManifestKt")
+}

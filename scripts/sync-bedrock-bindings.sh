@@ -46,10 +46,10 @@ resolve_profile_arn() {
             --region "$region" \
             --inference-profile-identifier "$lookup_id" \
             --query 'inferenceProfileArn' \
-            --output text
+            --output text 2>/dev/null
     )" || return 1
 
-    [[ -n "$arn" && "$arn" != "None" ]] || die "No inference profile ARN found for ${model_id} in ${region}"
+    [[ -n "$arn" && "$arn" != "None" ]] || return 1
     printf '%s\n' "$arn"
 }
 
@@ -62,11 +62,11 @@ resolve_foundation_arn() {
     arn="$(
         "$AWS_BIN" bedrock list-foundation-models \
             --region "$region" \
-            --query "modelSummaries[?modelId=='${lookup_id}'].modelArn | [0]" \
-            --output text
+            --query "modelSummaries[?modelId=='${model_id}'].modelArn | [0]" \
+            --output text 2>/dev/null
     )" || return 1
 
-    [[ -n "$arn" && "$arn" != "None" ]] || die "No foundation-model ARN found for ${model_id} in ${region}"
+    [[ -n "$arn" && "$arn" != "None" ]] || return 1
     printf '%s\n' "$arn"
 }
 
@@ -77,13 +77,19 @@ resolve_model_arn() {
     local lookup_id="$4"
     local arn
 
-    if [[ "$lookup_kind" == "profile" ]] && arn="$(resolve_profile_arn "$lookup_id" "$model_id" "$region" 2>/dev/null)"; then
-        printf 'profile:%s\n' "$arn"
+    if [[ "$lookup_kind" == "profile" ]]; then
+        if arn="$(resolve_profile_arn "$lookup_id" "$model_id" "$region")"; then
+            printf 'profile:%s\n' "$arn"
+            return 0
+        fi
+    fi
+
+    if arn="$(resolve_foundation_arn "$lookup_id" "$model_id" "$region")"; then
+        printf 'foundation:%s\n' "$arn"
         return 0
     fi
 
-    arn="$(resolve_foundation_arn "$lookup_id" "$model_id" "$region")"
-    printf 'foundation:%s\n' "$arn"
+    return 1
 }
 
 bind_model() {
@@ -95,7 +101,11 @@ bind_model() {
     local kind
     local arn
 
-    resolved="$(resolve_model_arn "$model_id" "$region" "$lookup_kind" "$lookup_id")"
+    if ! resolved="$(resolve_model_arn "$model_id" "$region" "$lookup_kind" "$lookup_id")"; then
+        printf 'Warning: Could not resolve ARN for %s in %s. Skipping.\n' "$model_id" "$region" >&2
+        return 0
+    fi
+
     kind="${resolved%%:*}"
     arn="${resolved#*:}"
 
@@ -138,27 +148,17 @@ main() {
     command -v "$AWS_BIN" >/dev/null 2>&1 || die "aws CLI is required: ${AWS_BIN}"
     [[ -d "$TPipe_REPO_ROOT/TPipe-Bedrock" || -d "$TPipe_REPO_ROOT/TPipe/TPipe-Bedrock" ]] || die "TPipe Bedrock module directory not found under $TPipe_REPO_ROOT"
 
-    # Hard-coded manifest from today's live source tree. Claude is intentionally
-    # omitted because it is unused.
-    local bindings=(
-        "deepseek.r1-v1:0|us-east-2|profile|us.deepseek.r1-v1:0"
-        "amazon.nova-pro-v1:0|us-east-2|profile|us.amazon.nova-pro-v1:0"
-        "amazon.nova-lite-v1:0|us-east-2|profile|us.amazon.nova-lite-v1:0"
-        "openai.gpt-oss-20b-1:0|us-west-2|foundation|openai.gpt-oss-20b-1:0"
-        "openai.gpt-oss-120b-1:0|us-west-2|foundation|openai.gpt-oss-120b-1:0"
-        "deepseek.v3-v1:0|us-west-2|foundation|deepseek.v3-v1:0"
-        "us.meta.llama4-maverick-17b-instruct-v1:0|us-east-2|profile|us.meta.llama4-maverick-17b-instruct-v1:0"
-        "us.meta.llama3-3-70b-instruct-v1:0|us-east-2|profile|us.meta.llama3-3-70b-instruct-v1:0"
-        "us.meta.llama3-1-405b-instruct-v1:0|us-east-2|profile|us.meta.llama3-1-405b-instruct-v1:0"
-        "qwen.qwen3-coder-480b-a35b-v1:0|us-west-2|foundation|qwen.qwen3-coder-480b-a35b-v1:0"
-        "writer.palmyra-x5-v1:0|us-west-2|profile|us.writer.palmyra-x5-v1:0"
-    )
+    local manifest
+    manifest="$(./gradlew exportModelManifest -q)" || die "Failed to export model manifest"
 
     local entry model_id region lookup_kind lookup_id
-    for entry in "${bindings[@]}"; do
+    set +e
+    while IFS= read -r entry; do
+        [[ -z "$entry" ]] && continue
         IFS='|' read -r model_id region lookup_kind lookup_id <<<"$entry"
         bind_model "$model_id" "$region" "$lookup_kind" "$lookup_id"
-    done
+    done <<<"$manifest"
+    set -e
 }
 
 main "$@"
