@@ -30,16 +30,23 @@ class BedrockInferenceBindingTest
         configFile.writeText(
             """
             deepseek.r1-v1:0=arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0
+            deepseek.v3-v1:0=arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.deepseek.v3-v1:0
             amazon.nova-pro-v1:0=arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-pro-v1:0
             amazon.nova-lite-v1:0=arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0
-            openai.gpt-oss-20b-1:0=arn:aws:bedrock:us-west-2::foundation-model/openai.gpt-oss-20b-1:0
-            openai.gpt-oss-120b-1:0=arn:aws:bedrock:us-west-2::foundation-model/openai.gpt-oss-120b-1:0
-            deepseek.v3-v1:0=arn:aws:bedrock:us-west-2::foundation-model/deepseek.v3-v1:0
+            amazon.nova-2-lite-v1:0=arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-2-lite-v1:0
+            anthropic.claude-sonnet-4-20250514-v1:0=arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0
+            openai.gpt-oss-20b-1:0=arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.openai.gpt-oss-20b-1:0
+            openai.gpt-oss-120b-1:0=arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.openai.gpt-oss-120b-1:0
             us.meta.llama4-maverick-17b-instruct-v1:0=arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama4-maverick-17b-instruct-v1:0
             us.meta.llama3-3-70b-instruct-v1:0=arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama3-3-70b-instruct-v1:0
             us.meta.llama3-1-405b-instruct-v1:0=arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama3-1-405b-instruct-v1:0
-            amazon.nova-2-lite-v1:0=arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-2-lite-v1:0
-            qwen.qwen3-coder-480b-a35b-v1:0=arn:aws:bedrock:us-west-2::foundation-model/qwen.qwen3-coder-480b-a35b-v1:0
+            ai21.jamba-1-5-large-v1:0=arn:aws:bedrock:us-east-1:521369004927:inference-profile/us.ai21.jamba-1-5-large-v1:0
+            qwen.qwen3-235b-a22b-2507-v1:0=arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.qwen.qwen3-235b-a22b-2507-v1:0
+            qwen.qwen3-32b-v1:0=arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.qwen.qwen3-32b-v1:0
+            qwen.qwen3-coder-480b-a35b-v1:0=arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.qwen.qwen3-coder-480b-a35b-v1:0
+            qwen.qwen3-coder-30b-a3b-v1:0=arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.qwen.qwen3-coder-30b-a3b-v1:0
+            qwen.qwen3-next-80b-a3b=arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.qwen.qwen3-next-80b-a3b
+            qwen.qwen3-vl-235b-a22b=arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.qwen.qwen3-vl-235b-a22b
             writer.palmyra-x5-v1:0=arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.writer.palmyra-x5-v1:0
             """.trimIndent()
         )
@@ -63,11 +70,11 @@ class BedrockInferenceBindingTest
             bedrockEnv.getInferenceProfileId("deepseek.r1-v1:0")
         )
         assertEquals(
-            "arn:aws:bedrock:us-west-2::foundation-model/deepseek.v3-v1:0",
+            "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.deepseek.v3-v1:0",
             bedrockEnv.getInferenceProfileId("deepseek.v3-v1:0")
         )
         assertEquals(
-            "arn:aws:bedrock:us-west-2::foundation-model/qwen.qwen3-coder-480b-a35b-v1:0",
+            "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.qwen.qwen3-coder-480b-a35b-v1:0",
             bedrockEnv.getInferenceProfileId("qwen.qwen3-coder-480b-a35b-v1:0")
         )
         assertEquals(
@@ -75,19 +82,29 @@ class BedrockInferenceBindingTest
             bedrockEnv.getInferenceProfileId("writer.palmyra-x5-v1:0")
         )
 
+        val allModels = bedrockEnv.getAllModels()
+        assertEquals(19, allModels.size, "Should have all 19 models from the manifest")
         assertTrue(
-            bedrockEnv.getAllModels().containsAll(
+            allModels.containsAll(
                 listOf(
                     "deepseek.r1-v1:0",
+                    "deepseek.v3-v1:0",
                     "amazon.nova-pro-v1:0",
                     "amazon.nova-lite-v1:0",
+                    "amazon.nova-2-lite-v1:0",
+                    "anthropic.claude-sonnet-4-20250514-v1:0",
                     "openai.gpt-oss-20b-1:0",
                     "openai.gpt-oss-120b-1:0",
-                    "deepseek.v3-v1:0",
                     "us.meta.llama4-maverick-17b-instruct-v1:0",
                     "us.meta.llama3-3-70b-instruct-v1:0",
                     "us.meta.llama3-1-405b-instruct-v1:0",
+                    "ai21.jamba-1-5-large-v1:0",
+                    "qwen.qwen3-235b-a22b-2507-v1:0",
+                    "qwen.qwen3-32b-v1:0",
                     "qwen.qwen3-coder-480b-a35b-v1:0",
+                    "qwen.qwen3-coder-30b-a3b-v1:0",
+                    "qwen.qwen3-next-80b-a3b",
+                    "qwen.qwen3-vl-235b-a22b",
                     "writer.palmyra-x5-v1:0"
                 )
             ),
@@ -117,9 +134,9 @@ class BedrockInferenceBindingTest
             foundationPipe.init()
 
             assertEquals(
-                "arn:aws:bedrock:us-west-2::foundation-model/qwen.qwen3-coder-480b-a35b-v1:0",
+                "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.qwen.qwen3-coder-480b-a35b-v1:0",
                 foundationPipe.getModelName(),
-                "BedrockPipe.init() should swap a direct model ID for the loaded foundation-model ARN"
+                "BedrockPipe.init() should swap a direct model ID for the loaded inference profile ARN"
             )
         }
     }
