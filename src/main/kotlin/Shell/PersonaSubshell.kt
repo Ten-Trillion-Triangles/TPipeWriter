@@ -62,7 +62,6 @@ private fun assignPersonaToRole(role: String) {
         }
         println("Assigned $selectedPersona to $role.")
         
-        // Load current settings, update with new personas, and save
         val currentSettings = loadSettings()
         val newSettings = currentSettings.copy(
             activeAuthorPersona = Env.activeAuthorPersona,
@@ -70,21 +69,8 @@ private fun assignPersonaToRole(role: String) {
             activeRichardTreadwellPersona = Env.activeRichardTreadwellPersona,
             activeControlPersona = Env.activeControlPersona
         )
-        
-        saveSettings(newSettings)
-        
-        // Re-initialize pipelines
-        Env.init(
-            writingStyle = newSettings.writingStyle,
-            temperature = newSettings.temperature,
-            topP = newSettings.topP,
-            maxTokens = newSettings.maxTokens,
-            useAutomaticLoreBookUpdates = newSettings.useAutoLorebook,
-            authorPersona = newSettings.activeAuthorPersona,
-            editorPersona = newSettings.activeEditorPersona,
-            richardTreadwellPersona = newSettings.activeRichardTreadwellPersona,
-            controlPersona = newSettings.activeControlPersona
-        )
+
+        applyRuntimeSettings(newSettings)
         println("Pipelines rebuilt with new prompts.")
     } else if (choice == personas.size + 1) {
         println("Assignment cancelled.")

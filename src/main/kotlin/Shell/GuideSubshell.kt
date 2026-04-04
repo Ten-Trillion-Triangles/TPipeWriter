@@ -232,9 +232,9 @@ fun saveAuthorGuide()
         println(e)
     }
 
-    //Save settings back to disk.
+    //Save settings back to disk and refresh resident pipelines that captured the prompt text.
     val settings = loadSettings().copy(authorGuide = authorGuide)
-    saveSettings(settings)
+    applyRuntimeSettings(settings)
 
     println("\n\nAuthor guide has been set.")
 }
@@ -253,8 +253,9 @@ fun loadAuthorGuide()
 
     val guide = readStringFromFile("${getHomeFolder()}/TPipeWriter/${guideName}-author-guide.txt")
 
-    val settings = loadSettings()
-    settings.authorGuide = guide
+    val settings = loadSettings().copy(authorGuide = guide)
+    Env.authorPrompt = guide
+    applyRuntimeSettings(settings)
 
 }
 
@@ -314,12 +315,13 @@ fun saveRichardTreadwell()
          *  I was there in the room with them, watching as they read.
          */
         settings.competingAuthorGuide = richardTreadwell
+        Env.richardTreadwell = richardTreadwell
 
         /**
          * Could this really save everyone? Was trusting Ben after everything he's done a good idea?
          * I didn't know. I didn't know, but I was out of options.
          */
-        saveSettings(settings)
+        applyRuntimeSettings(settings)
     }
     catch (e: Exception)
     {
@@ -354,14 +356,14 @@ fun loadRichardTreadwell()
          * To forever remember, I hereby declare the reopening of the Richard Treadwell reading room.
          * The competing author has returned to guide us once more.
          */
-        val settings = loadSettings()
-        settings.competingAuthorGuide = richardTreadwell
+        val settings = loadSettings().copy(competingAuthorGuide = richardTreadwell)
+        Env.richardTreadwell = richardTreadwell
 
         /**
          * Could this really save everyone? Was trusting Ben after everything he's done a good idea?
          * I didn't know. I didn't know, but I was out of options.
          */
-        saveSettings(settings)
+        applyRuntimeSettings(settings)
 
         println("""
         

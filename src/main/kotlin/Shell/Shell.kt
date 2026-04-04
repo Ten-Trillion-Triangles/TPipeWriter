@@ -58,6 +58,69 @@ enum class ContextSelectionStrategy
  */
 var globalWritingStrength = "med"
 
+/**
+ * Persist settings and immediately rehydrate runtime state from them.
+ * This keeps prompt-based changes, guides, and resident pipelines in sync without requiring a restart.
+ */
+fun applyRuntimeSettings(settings: TPipeSettings)
+{
+    saveSettings(settings)
+
+    Env.activeAuthorPersona = settings.activeAuthorPersona
+    Env.activeEditorPersona = settings.activeEditorPersona
+    Env.activeRichardTreadwellPersona = settings.activeRichardTreadwellPersona
+    Env.activeControlPersona = settings.activeControlPersona
+
+    Env.activeAuthorGuide = settings.authorGuide
+    Env.activeChapterGuide = settings.chapterGuide
+    Env.activeStoryGuide = settings.storyGuide
+
+    if (settings.authorGuide.isNotBlank())
+    {
+        Env.authorPrompt = settings.authorGuide
+    }
+
+    if (settings.competingAuthorGuide.isNotBlank())
+    {
+        Env.richardTreadwell = settings.competingAuthorGuide
+    }
+
+    Env.init(
+        writingStyle = settings.writingStyle,
+        temperature = settings.temperature,
+        topP = settings.topP,
+        maxTokens = settings.maxTokens,
+        useAutomaticLoreBookUpdates = settings.useAutoLorebook,
+        authorPersona = settings.activeAuthorPersona,
+        editorPersona = settings.activeEditorPersona,
+        richardTreadwellPersona = settings.activeRichardTreadwellPersona,
+        controlPersona = settings.activeControlPersona
+    )
+
+    runBlocking {
+        if (settings.chapterGuide.isNotEmpty())
+        {
+            val chapterGuideWindow = ContextWindow()
+            chapterGuideWindow.contextElements.add(settings.chapterGuide)
+            ContextBank.emplaceWithMutex("chapter guide", chapterGuideWindow)
+        }
+        else
+        {
+            ContextBank.deleteContextWindowSuspend("chapter guide")
+        }
+
+        if (settings.storyGuide.isNotEmpty())
+        {
+            val storyGuideWindow = ContextWindow()
+            storyGuideWindow.contextElements.add(settings.storyGuide)
+            ContextBank.emplaceWithMutex("story guide", storyGuideWindow)
+        }
+        else
+        {
+            ContextBank.deleteContextWindowSuspend("story guide")
+        }
+    }
+}
 
 
 /**
@@ -1025,35 +1088,7 @@ fun loadStory()
         
         // Apply loaded settings and reinitialize system
         if (settingsFile.exists()) {
-            saveSettings(loadedSettings)
-            Env.init(
-                loadedSettings.writingStyle, 
-                loadedSettings.temperature, 
-                loadedSettings.topP, 
-                loadedSettings.maxTokens, 
-                loadedSettings.useAutoLorebook,
-                loadedSettings.activeAuthorPersona,
-                loadedSettings.activeEditorPersona,
-                loadedSettings.activeRichardTreadwellPersona,
-                loadedSettings.activeControlPersona
-            )
-            
-            // Load guides into runtime variables and context banks
-            Env.activeChapterGuide = loadedSettings.chapterGuide
-            Env.activeStoryGuide = loadedSettings.storyGuide
-            
-            // Store guides in context banks
-            if (loadedSettings.chapterGuide.isNotEmpty()) {
-                val chapterGuideWindow = com.TTT.Context.ContextWindow()
-                chapterGuideWindow.contextElements.add(loadedSettings.chapterGuide)
-                ContextBank.emplace("chapter guide", chapterGuideWindow)
-            }
-            
-            if (loadedSettings.storyGuide.isNotEmpty()) {
-                val storyGuideWindow = com.TTT.Context.ContextWindow()
-                storyGuideWindow.contextElements.add(loadedSettings.storyGuide)
-                ContextBank.emplace("story guide", storyGuideWindow)
-            }
+            applyRuntimeSettings(loadedSettings)
         }
         
         println("Story loaded successfully (${contextElements.size} chapters)")
@@ -1141,19 +1176,8 @@ fun configureSettings()
     
     try
     {
-        saveSettings(newSettings)
         println("\nReinitializing system with new settings...")
-        Env.init(
-            writingStyle, 
-            currentSettings.temperature, 
-            currentSettings.topP, 
-            maxTokens, 
-            useAutoLorebook,
-            currentSettings.activeAuthorPersona,
-            currentSettings.activeEditorPersona,
-            currentSettings.activeRichardTreadwellPersona,
-            currentSettings.activeControlPersona
-        )
+        applyRuntimeSettings(newSettings)
         println("Settings updated successfully!")
         println("\nFor LLM model settings (temperature, topP, models), use /llm-settings")
     }
@@ -2870,8 +2894,4 @@ fun showFullComparison(original: String, rewritten: String)
     
     println("\nWord counts: Original: ${original.split("\\s+".toRegex()).size}, Rewritten: ${rewritten.split("\\s+".toRegex()).size}")
 }
-
-
-
-
 

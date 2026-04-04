@@ -5,6 +5,7 @@ import com.TTT.Enums.ProviderName
 import com.TTT.Pipe.Pipe
 import com.TTT.Pipeline.Pipeline
 import kotlinx.coroutines.runBlocking
+import Globals.WriterTokenBudgets
 
 data class ModelSettings(
     var provider: ProviderName,
@@ -123,6 +124,13 @@ fun updatePipeWithModelSettings(pipeline: Pipeline,  modelSettings: List<ModelSe
         val pipe = pipeline.getPipeByName(model.pipeName).second
         if(pipe == null) continue
 
+        pipe.setTokenBudget(
+            WriterTokenBudgets.forModel(
+                model = model.modelName,
+                maxTokens = model.maxTokens
+            )
+        )
+
         /**
          * Split based on provider and then use the data class to populate its core settings. Then, invoke
          * the init function for its pipe.
@@ -143,10 +151,14 @@ fun updatePipeWithModelSettings(pipeline: Pipeline,  modelSettings: List<ModelSe
                 }
 
             }
-            ProviderName.Nai -> continue
-            ProviderName.Gemini -> continue
-            ProviderName.Gpt -> continue
-            ProviderName.Ollama -> continue
+            ProviderName.Nai,
+            ProviderName.Gemini,
+            ProviderName.Gpt,
+            ProviderName.Ollama -> {
+                runBlocking {
+                    pipe.init()
+                }
+            }
         }
     }
 }

@@ -14,21 +14,9 @@ fun main(args: Array<String>) {
     try {
         // Load saved settings or use defaults
         val settings = Shell.loadSettings()
-        
-        // Set active personas from settings
-        Env.activeAuthorPersona = settings.activeAuthorPersona
-        Env.activeEditorPersona = settings.activeEditorPersona
-        Env.activeRichardTreadwellPersona = settings.activeRichardTreadwellPersona
-        Env.activeControlPersona = settings.activeControlPersona
-        
-        // Initialize the environment with loaded settings
-        Env.init(
-            writingStyle = settings.writingStyle,
-            temperature = settings.temperature,
-            topP = settings.topP,
-            maxTokens = settings.maxTokens,
-            useAutomaticLoreBookUpdates = settings.useAutoLorebook
-        )
+
+        // Initialize the environment with loaded settings and restore any persisted prompt guides.
+        Shell.applyRuntimeSettings(settings)
         
         println("Environment initialized successfully!")
         
