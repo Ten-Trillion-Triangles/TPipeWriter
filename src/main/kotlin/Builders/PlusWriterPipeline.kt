@@ -355,7 +355,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::recordWritingPipePage)
         //.setReasoningPipe(explicitCotBuilder())
-        .setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
+        .setReasoningPipe(explicitCotBuilder().apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) })
         .setSystemPrompt(
             """You will now write the next page of the story. Your first priority is to follow all instructions 
                 in the user prompt, and your second priority is to follow the plan you wrote for this page,
@@ -416,7 +416,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .applySystemPrompt()
         .pullGlobalContext()
         .setPageKey("user prompt")
-        .setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
+        .setReasoningPipe(explicitCotBuilder().apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) })
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setSystemPrompt("""Your job is simple, but will require effort. Seek out all twists in the written page 
             |THAT ARE NOT SPECIFICALLY REQUESTED BY THE USER PROMPT OR SUBSTANTIATED BY THE LOREBOOK
@@ -450,7 +450,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setTopP(0.8)
         .applySystemPrompt()
         .pullGlobalContext()
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(structuredCotBuilder()) }
+        //.setReasoningPipe(explicitCotBuilder().apply { setReasoningPipe(structuredCotBuilder()) })
         .setReasoningPipe(explicitCotBuilder())
         .setPageKey("user prompt")
         .setSystemPrompt("""Your job is simple, but will require effort. You are looking for the following things
@@ -486,7 +486,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setTopP(0.8)
         .applySystemPrompt()
         .pullGlobalContext()
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(structuredCotBuilder()) }
+        //.setReasoningPipe(explicitCotBuilder().apply { setReasoningPipe(structuredCotBuilder()) })
         .setReasoningPipe(explicitCotBuilder())
         .setPageKey("user prompt")
         .setSystemPrompt("""Your job is simple, but will require effort. You are looking for the following things
@@ -621,7 +621,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setTemperature(.8)
         .setTopP(.8)
         .applySystemPrompt()
-        .setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
+        .setReasoningPipe(explicitCotBuilder().apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) })
         .autoInjectContext("###CONTEXT: \"story guide\" is the outline for the story" +
                 "as a whole. \"chapter guide\" is the outline for the current chapter. \"user prompt\"" +
                 "is the current instructions from the user. \"last page\" is the previous page of the chapter/story.")
@@ -786,7 +786,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::recordWritingPipePage)
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(structuredCotBuilder()) }
+        //.setReasoningPipe(explicitCotBuilder().apply { setReasoningPipe(structuredCotBuilder()) })
         .setReasoningPipe(explicitCotBuilder())
         .setPageKey("user prompt, new page")
         .setSystemPrompt("""Your job is simple. REMOVE ALL EM DASHES.
@@ -813,7 +813,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::recordWritingPipePage)
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(structuredCotBuilder()) }
+        //.setReasoningPipe(explicitCotBuilder().apply { setReasoningPipe(structuredCotBuilder()) })
         .setReasoningPipe(explicitCotBuilder())
         .setPageKey("user prompt, new page")
         .setSystemPrompt("""Your task is fairly simple: you must fix the text in accordance to the
@@ -846,7 +846,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::recordWritingPipePage)
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(structuredCotBuilder()) }
+        //.setReasoningPipe(explicitCotBuilder().apply { setReasoningPipe(structuredCotBuilder()) })
         .setReasoningPipe(explicitCotBuilder())
         .setPageKey("user prompt, new page")
         .setSystemPrompt("""Your task is fairly simple: you must fix the text in accordance to the
@@ -883,7 +883,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::secondPassTransform)
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(structuredCotBuilder()) }
+        //.setReasoningPipe(explicitCotBuilder().apply { setReasoningPipe(structuredCotBuilder()) })
         .setReasoningPipe(explicitCotBuilder())
         .setPageKey("user prompt, new page")
         .setSystemPrompt("""Your job is straightforward: you must do one final pass over of the new page to ensure
