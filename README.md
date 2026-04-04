@@ -1,73 +1,155 @@
 # TPipeWriter
 
-TPipeWriter is a sophisticated creative writing assistant built on the **TPipe** framework. It leverages multi-agent pipelines to orchestrate complex writing workflows, managing long-term story context, lore consistency, and creative brainstorming through AWS Bedrock.
+TPipeWriter is a creative writing CLI built on the **TPipe** framework. It uses resident and on-demand pipelines to manage long-form story context, lore consistency, character chat, guide prompts, and LLM settings through AWS Bedrock and other supported providers.
 
-## Core Concepts
-
-TPipeWriter is powered by the TPipe library, which introduces several key architectural patterns:
-
-- **Pipe**: The fundamental unit of execution. A Pipe performs a specific task, such as calling an LLM, transforming text, or updating a database.
-- **Pipeline**: An orchestrated sequence of Pipes. Pipelines manage the flow of data (`MultimodalContent`) and context between individual units of work.
-- **ContextBank**: A centralized management system for different "pages" of context (e.g., the main story, summaries, or chat history). It allows agents to maintain state across long horizons.
-
-## Features & Demonstrations
-
-### Long Horizon Agent Workflows
-TPipeWriter is designed for writing full-length novels. Its pipelines automatically handle:
-- **Context Management**: Intelligently truncating and selecting relevant story parts to fit within model context windows (up to 128k+ tokens).
-- **Lore Consistency**: A dedicated Lorebook pipe scans new writing to extract and update character details, locations, and plot points, ensuring the agent "remembers" the world it's building.
-- **Multi-Stage Processing**: The writer pipeline doesn't just generate text; it cleans up model reasoning, removes unwanted formatting, and updates the global state in a single execution.
-
-### Powerful Agent Steering
-The project demonstrates how specific "Author" and "Guide" prompts can drastically alter the voice and behavior of the writing agent. By switching between different author personas (e.g., the empathetic N'zelquin or the eroticizing Xilaron), users can steer the creative direction with high precision.
-
-### Pipeline-Level Refusal Handling
-TPipeWriter implements logic to handle common LLM refusals (censorship). If a model refuses a prompt based on safety guidelines, the pipeline can detect the failure and automatically branch to a different model (e.g., DeepSeek) to fulfill the request, ensuring the creative process remains uninterrupted.
-
-## Setup & Build
+## Quickstart
 
 ### Prerequisites
-- **TPipe Library**: This project depends on the TPipe framework. Ensure the `TPipe` repository is cloned at `../TPipe` relative to this directory.
-- **AWS Credentials**: You must have an AWS account with access to Bedrock models. A `[default]` profile must be configured in `~/.aws/credentials`.
+- Clone the `TPipe` repository as a sibling of this project so the composite build at `../TPipe/TPipe` resolves correctly.
+- Make sure your AWS credentials are available in `~/.aws/credentials` if you plan to use Bedrock-backed models.
+- If you use Bedrock inference profiles, run `./scripts/sync-bedrock-bindings.sh` to refresh the local model binding file.
 
-### Configuration
-**Important**: You MUST configure your own AWS Bedrock inference profiles or foundation model ARNs.
-1. Make sure your AWS credentials are available in `~/.aws/credentials`.
-2. Run `./scripts/sync-bedrock-bindings.sh` from this repository to resolve the Bedrock ARNs for the hard-coded model IDs currently used by the codebase.
-3. If you want to inspect the bindings before writing `~/.aws/inference.txt`, run `./scripts/sync-bedrock-bindings.sh --dry-run`.
+### Build and run
+1. Build the app with Gradle:
+   ```bash
+   ./gradlew shadowJar
+   ```
+2. Start the CLI with the provided launcher:
+   ```bash
+   ./run.sh
+   ```
 
-### Building
-Build the project using Gradle:
-```bash
-./gradlew shadowJar
-```
-This will generate a runnable JAR in `build/libs/`.
+`run.sh` looks for a built jar and launches it with `java -jar`.
+
+### Basic workflow
+1. Load or create story content.
+2. Use `/write`, `/idea`, `/chat`, or `/lorebook` to work on the story.
+3. Use `/settings`, `/llm-settings`, `/persona`, and `/guide` to tune the runtime.
+4. Save either the active context or a full export when you want to persist work.
+
+## What TPipeWriter Does
+
+TPipeWriter is built around a few core ideas:
+
+- **Pipes** are the smallest execution units. They call models, transform content, or update context.
+- **Pipelines** are ordered sets of pipes that move `MultimodalContent` through a workflow.
+- **ContextBank** stores named pages of context, such as `main`, `chat`, `summary`, `chapter guide`, and `story guide`.
+
+Most pipelines are constructed at startup in `Env.init(...)` and stay resident in memory. A few flows, such as character chat and rewrite, rebuild their pipeline on demand so they can incorporate the latest selected character or story context.
 
 ## Interactive CLI
 
-Run the application to enter the interactive shell. You can use the following slash commands to interact with different agent pipelines:
+The main shell supports these commands:
 
-- `/write [prompt]`: Generate the next part of your story. Use `continue` to let the agent decide the next beat.
-- `/idea [prompt]`: Brainstorm new plot points, characters, or world-building elements.
-- `/lorebook [instruction]`: Manually update the lorebook or ask the agent to extract lore from the recent text.
-- `/chat [question]`: Discuss your story with an agent. Ask about themes, character motivations, or "what-if" scenarios.
-- `/summary [options]`: Generate summaries of specific chapters or the entire story to maintain a high-level overview.
-- `/settings`: Configure generation parameters like temperature, topP, and writing style.
-- `/save`: Save the current story and lorebook context to `~/.TPipeWriter/`.
+- `/write [prompt]` - Generate the next story content.
+- `/idea [prompt]` - Brainstorm ideas and plot points.
+- `/chat [question]` - Discuss the story with the discussion pipeline.
+- `/character [name]` - Open the character chat subshell or start it with a character prompt.
+- `/lorebook [instruction]` - Update lorebook entries or extract lore from recent text.
+- `/summary [options]` - Summarize the current story context.
+- `/save` - Save the current context pages to `~/.TPipeWriter/`.
+- `/export` - Export story text, chapter metadata, lorebook, and settings to `~/TPipeWriter/`.
+- `/load` - Load an exported story back into the active context.
+- `/clear` - Clear story content and lorebook data.
+- `/clear-chat` - Clear chat history only.
+- `/settings` - Configure general runtime settings like writing style, max tokens, and auto-lorebook behavior.
+- `/llm-settings` - Configure the model, temperature, top-p, and token settings for each pipeline.
+- `/guide` - Open the guide menu for chapter, story, and author guides.
+- `/persona` - Assign saved prompts to the author/editor/reviewer/control roles.
+- `/chapters` - Open chapter management.
+- `/rewrite [chapter] [instructions]` - Rewrite an existing chapter.
+- `/style` - Show the current writing style.
+- `/lore` - Manage lorebook entries.
+- `/import-lorebook <file>` - Import lorebook data from JSON.
+- `/import-nai <file>` - Import a Novel AI story export.
+- `/pitch` - Open the pitch writer.
+- `/author` - Open the author guide / Richard Treadwell menu.
+- `/test` - Run the development test hook.
+- `/help` - Show the current command list.
+- `/exit` - Quit the app.
+
+### Character chat workflow
+
+The character subshell has its own commands:
+
+- `character <name>`, `use <name>`, or `set <name>` - Select a character from `Prompts.promptMap`.
+- `list` - Show available character names.
+- `story` - Rebuild the active character pipeline with story context enabled.
+- `clear` - Clear that character’s conversation history.
+- `help` - Show the subshell help.
+- `back` / `exit` - Leave the subshell.
+
+Important: select a character first before using `story`. The command uses the active character prompt and story-aware pipeline builder, so it cannot work without an active character.
+
+## Settings and Guides
+
+### General settings
+`/settings` updates the persistent `TPipeSettings` record and immediately rehydrates the runtime. It covers:
+
+- writing style
+- max tokens
+- auto-lorebook behavior
+- active persona assignments
+
+### LLM settings
+`/llm-settings` is the per-pipeline model manager. It lets you inspect and update each pipeline’s model, temperature, top-p, and max token values, and it supports export/import/reset/bulk workflows.
+
+### Guides and personas
+`/guide` manages chapter guide, story guide, and author guide files. Those guides are persisted under the user home directory and also reloaded into runtime context when applied.
+
+`/persona` maps saved prompt entries onto the active writer roles:
+
+- Author
+- Editor
+- Richard Treadwell
+- Writing Control
+
+## Save, Export, and Load
+
+TPipeWriter has two different persistence paths:
+
+- `/save` writes the live `ContextBank` pages to `~/.TPipeWriter/MainStory.json`, `Summary.json`, and `Chat.json`.
+- `/export` writes a story package to `~/TPipeWriter/` containing the story text, story metadata, lorebook JSON, and settings JSON.
+- `/load` restores that exported package back into memory.
+
+This split means `/save` is best for preserving the current runtime state, while `/export` and `/load` are better for moving a story between sessions.
+
+## Pipeline Overview
+
+The startup environment builds a set of resident pipelines, including:
+
+- writer
+- idea
+- discussion/chat
+- lorebook
+- summarizer
+- style
+- NCC
+- rewrite
+- plus writer
+- pitch
+
+Some flows are rebuilt on demand instead of staying resident:
+
+- character chat builds a fresh character pipeline when a character is selected
+- `story` in the character subshell rebuilds that pipeline with story context enabled
+- `/rewrite` can assemble a dedicated rewrite pipeline for the requested chapter
+
+This is why prompt changes, persona changes, and guide changes are re-applied through the runtime settings path instead of waiting for a restart.
 
 ## Advanced Pipelines
 
-TPipeWriter includes several specialized pipelines for different writing tasks:
-
-- **PlusWriterPipeline**: A more powerful writing pipeline that uses multiple models and reasoning steps to produce higher-quality prose.
-- **ChapterRewritePipeline**: Specifically designed to take an existing chapter and rewrite it based on new instructions or style changes.
-- **ExpansionPipeline**: Focuses on taking a brief outline or a short segment and expanding it into a full, detailed scene.
-- **DialogueConnector**: A specialized component for handling character dialogue with high consistency and voice adherence.
-- **PitchSlideWriterPipeline**: An experimental pipeline for generating pitch materials or slide content based on story data.
+- **PlusWriterPipeline**: Multi-stage writing pipeline with stronger planning and refinement.
+- **ChapterRewritePipeline**: Rewrites existing chapters with a new style or instruction set.
+- **ExpansionPipeline**: Expands short inputs into longer scenes.
+- **DialogueConnector**: Handles dialogue-heavy interactions with strong voice consistency.
+- **PitchSlideWriterPipeline**: Builds pitch-oriented content from story data.
 
 ## Project Structure
 
-- `src/main/kotlin/Builders/`: Contains the logic for constructing complex pipelines.
-- `src/main/kotlin/Globals/Env.kt`: The central environment configuration where models and system prompts are defined.
-- `src/main/kotlin/Shell/`: Implementation of the interactive CLI and subshells.
-- `src/main/kotlin/Structs/`: Data classes for settings, lore, and story metadata.
+- `src/main/kotlin/Builders/` - Pipeline construction and helper utilities.
+- `src/main/kotlin/Globals/Env.kt` - Shared environment, resident pipeline setup, and prompt/persona state.
+- `src/main/kotlin/Shell/` - Interactive CLI entrypoints and subshells.
+- `src/main/kotlin/Structs/` - Settings and data structures.
+- `run.sh` - Launcher that finds a built jar and starts the CLI.
+
