@@ -113,8 +113,13 @@ private fun processCharacterChatInput(input: String, allowExit: Boolean): Boolea
         }
 
         lower == "story" -> {
+            if (activeCharacterName == null) {
+                println("Select a character first with \"character <name>\" before using story.")
+                return false
+            }
             val charData = Prompts.promptMap[activeCharacterName] ?: ""
             activeCharacterPipeline = buildCharacterPipelineWithStory(charData)
+            println("Story context enabled for \"${activeCharacterName}\".")
             return false
         }
 
@@ -204,11 +209,12 @@ private fun printCharacterChatHelp() {
         Character Chat Commands:
           character <name> | use <name> | set <name>  - select a character from Prompts.promptMap
           list                                         - list available characters
+          story                                        - enable story context for the active character (requires a selected character)
           clear                                        - clear conversation history for the active character
           help                                         - show this menu
           back | exit                                  - leave the subshell
 
-        Type any other text to chat with the selected character.
+        Type any other text to chat with the selected character after selecting one.
         """.trimIndent()
     )
 }
