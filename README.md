@@ -2,6 +2,8 @@
 
 TPipeWriter is a creative writing CLI built on the **TPipe** framework. It uses resident and on-demand pipelines to manage long-form story context, lore consistency, character chat, guide prompts, and LLM settings through AWS Bedrock and other supported providers.
 
+Full user manual: [docs/user-manual.md](docs/user-manual.md)
+
 ## Quickstart
 
 ### Prerequisites
@@ -10,16 +12,16 @@ TPipeWriter is a creative writing CLI built on the **TPipe** framework. It uses 
 - If you use Bedrock inference profiles, run `./scripts/sync-bedrock-bindings.sh` to refresh the local model binding file.
 
 ### Build and run
-1. Build the app with Gradle:
+1. Build the app with Gradle if you need a fresh jar or install image:
    ```bash
    ./gradlew shadowJar
    ```
-2. Start the CLI with the provided launcher:
+2. Start the CLI with the provided launcher for your platform:
    ```bash
    ./run.sh
    ```
 
-`run.sh` looks for a built jar and launches it with `java -jar`.
+Use `run.sh` on Linux and other Unix-like systems, `run.command` on macOS, and the equivalent launcher script for your platform if you are on Windows.
 
 ### Basic workflow
 1. Load or create story content.
@@ -152,4 +154,3 @@ This is why prompt changes, persona changes, and guide changes are re-applied th
 - `src/main/kotlin/Shell/` - Interactive CLI entrypoints and subshells.
 - `src/main/kotlin/Structs/` - Settings and data structures.
 - `run.sh` - Launcher that finds a built jar and starts the CLI.
-
