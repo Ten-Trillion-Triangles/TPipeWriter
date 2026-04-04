@@ -38,6 +38,7 @@ enum class CommandState
     Idea,
     Lorebook,
     Chat,
+    Character,
     Summary
 }
 
@@ -216,6 +217,11 @@ fun parseInput()
                 commandState = CommandState.Chat
                 if (remainingText.isNotEmpty()) callChatPipeline(remainingText)
             }
+            "character" -> {
+                commandState = CommandState.Character
+                if (remainingText.isNotEmpty()) characterChatSubshell(remainingText)
+                else characterChatSubshell()
+            }
             "lorebook" -> {
                 commandState = CommandState.Lorebook
                 if (remainingText.isNotEmpty()) callLorebookPipeline(remainingText)
@@ -262,6 +268,7 @@ fun parseInput()
             "guide" -> selectGuideMode()
             "author" -> selectAuthorMode()
             "pitch" -> callPitchSubShell()
+            "persona" -> personaSubshell()
             else -> println("Unknown command: $extractedSlashCommand. Type /help for available commands.")
         }
 
@@ -274,6 +281,7 @@ fun parseInput()
             CommandState.Writer -> callWriterPipeline(rawInput)
             CommandState.Idea -> callIdeaPipeline(rawInput)
             CommandState.Chat -> callChatPipeline(rawInput)
+            CommandState.Character -> handleCharacterChatInput(rawInput)
             CommandState.Lorebook -> callLorebookPipeline(rawInput)
             CommandState.Summary -> callSummaryPipeline(rawInput)
         }
@@ -1018,7 +1026,17 @@ fun loadStory()
         // Apply loaded settings and reinitialize system
         if (settingsFile.exists()) {
             saveSettings(loadedSettings)
-            Env.init(loadedSettings.writingStyle, loadedSettings.temperature, loadedSettings.topP, loadedSettings.maxTokens, loadedSettings.useAutoLorebook)
+            Env.init(
+                loadedSettings.writingStyle, 
+                loadedSettings.temperature, 
+                loadedSettings.topP, 
+                loadedSettings.maxTokens, 
+                loadedSettings.useAutoLorebook,
+                loadedSettings.activeAuthorPersona,
+                loadedSettings.activeEditorPersona,
+                loadedSettings.activeRichardTreadwellPersona,
+                loadedSettings.activeControlPersona
+            )
             
             // Load guides into runtime variables and context banks
             Env.activeChapterGuide = loadedSettings.chapterGuide
@@ -1084,7 +1102,11 @@ data class TPipeSettings(
     var authorGuide: String = "",
     var competingAuthorGuide: String = "",
     var chapterGuide: String = "",
-    var storyGuide: String = ""
+    var storyGuide: String = "",
+    var activeAuthorPersona: String = "nzg",
+    var activeEditorPersona: String = "tg",
+    var activeRichardTreadwellPersona: String = "xrg",
+    var activeControlPersona: String = "ivd"
 )
 
 /**
@@ -1111,13 +1133,27 @@ fun configureSettings()
         }
     }
     
-    val newSettings = TPipeSettings(writingStyle, currentSettings.temperature, currentSettings.topP, maxTokens, useAutoLorebook)
+    val newSettings = currentSettings.copy(
+        writingStyle = writingStyle,
+        maxTokens = maxTokens,
+        useAutoLorebook = useAutoLorebook
+    )
     
     try
     {
         saveSettings(newSettings)
         println("\nReinitializing system with new settings...")
-        Env.init(writingStyle, currentSettings.temperature, currentSettings.topP, maxTokens, useAutoLorebook)
+        Env.init(
+            writingStyle, 
+            currentSettings.temperature, 
+            currentSettings.topP, 
+            maxTokens, 
+            useAutoLorebook,
+            currentSettings.activeAuthorPersona,
+            currentSettings.activeEditorPersona,
+            currentSettings.activeRichardTreadwellPersona,
+            currentSettings.activeControlPersona
+        )
         println("Settings updated successfully!")
         println("\nFor LLM model settings (temperature, topP, models), use /llm-settings")
     }
@@ -1216,6 +1252,7 @@ fun printHelp()
         |/write             - Generate story content using the writer pipeline
         |/idea              - Enter idea pipeline sub-shell or generate ideas with prompt
         |/chat              - Chat about the story using the discussion pipeline
+        |/character         - Chat with a selected character prompt (uses converse history)
         |/lorebook          - Update lorebook entries using the lorebook pipeline
         |/summary           - Summarize content (last/all/1-3/5/custom text)
         |/save              - Save current context to file
@@ -1233,6 +1270,7 @@ fun printHelp()
         |/rewrite           - Rewrite existing chapters with lore and style fixes
         |/style             - Show current writing style
         |/guide             - Open the guide settings menu.
+        |/persona           - Assign personas to roles (Author, Editor, etc.)
         |/help              - Show this help message
         |/exit              - Exit the application
         |

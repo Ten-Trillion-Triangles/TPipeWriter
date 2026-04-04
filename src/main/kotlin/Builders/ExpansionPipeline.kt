@@ -148,8 +148,7 @@ val expansionPipeline = Pipeline()
                 |-Follow the style guide to a T. Here is your style guide: ${settings.writingStyle}
                 |
                 |Reference the lorebook when considering what new material to add. Consider ${Env.authorPrompt}
-                |and ${Env.richardTreadwell} for inspiration on themes. 
-                |
+                |and ${Env.richardTreadwell} for inspiration on themes.                |
                 |GO APESHIT WITH THE AMOUNT OF TEXT YOU ADD: DO NOT AVOID EXTREME INFO DUMPING.
             """.trimMargin()
         )

@@ -15,6 +15,12 @@ fun main(args: Array<String>) {
         // Load saved settings or use defaults
         val settings = Shell.loadSettings()
         
+        // Set active personas from settings
+        Env.activeAuthorPersona = settings.activeAuthorPersona
+        Env.activeEditorPersona = settings.activeEditorPersona
+        Env.activeRichardTreadwellPersona = settings.activeRichardTreadwellPersona
+        Env.activeControlPersona = settings.activeControlPersona
+        
         // Initialize the environment with loaded settings
         Env.init(
             writingStyle = settings.writingStyle,
