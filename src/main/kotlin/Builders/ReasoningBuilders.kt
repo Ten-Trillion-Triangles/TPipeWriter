@@ -7,6 +7,7 @@ import Defaults.reasoning.ReasoningDuration
 import Defaults.reasoning.ReasoningInjector
 import Defaults.reasoning.ReasoningMethod
 import Defaults.reasoning.ReasoningSettings
+import Globals.WriterTokenBudgets
 import com.TTT.Pipe.Pipe
 import com.TTT.Structs.PipeSettings
 import kotlinx.coroutines.runBlocking
@@ -57,6 +58,8 @@ fun authorBuilder(
         pipeSettings
     )
 
+    pipe.setTokenBudget(WriterTokenBudgets.forModel(model, maxTokens))
+
     runBlocking { pipe.init() }
 
     return pipe
@@ -91,6 +94,8 @@ fun obsessivePlannerBuilder(): Pipe
         reasoningSettings,
         pipeSettings
     )
+
+    pipe.setTokenBudget(WriterTokenBudgets.qwenCoder480B(maxTokens = 32_000))
 
     runBlocking { pipe.init() }
 
@@ -127,6 +132,8 @@ fun bestIdeaBuilder(): Pipe
         pipeSettings
     )
 
+    pipe.setTokenBudget(WriterTokenBudgets.qwenCoder480BReasoning(maxTokens = 8_000))
+
     runBlocking { pipe.init() }
 
     return pipe
@@ -161,6 +168,8 @@ fun structuredCotBuilder() : Pipe
         pipeSettings
     )
 
+    pipe.setTokenBudget(WriterTokenBudgets.qwenCoder480BReasoning(maxTokens = 8_000))
+
     runBlocking { pipe.init() }
 
     return pipe
@@ -194,6 +203,8 @@ fun processFocusedBuilder() : Pipe
         reasoningSettings,
         pipeSettings
     )
+
+    pipe.setTokenBudget(WriterTokenBudgets.qwenCoder480BReasoning(maxTokens = 8_000))
 
     runBlocking { pipe.init() }
 

@@ -12,6 +12,7 @@ import Builders.Util.storeUserPrompt
 import Globals.Env
 import Globals.isValidGptOssResponse
 import Globals.recordLoreBook
+import Globals.WriterTokenBudgets
 import Shell.loadSettings
 import Util.enablePipelineStreaming
 import bedrockPipe.BedrockMultimodalPipe
@@ -132,6 +133,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .setJsonOutput(VibeInstruct())
         .truncateModuleContext()
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(
+            maxTokens = 32_000,
+            reasoningBudget = 8_000,
+            subtractReasoningFromInput = true
+        ))
         .setTemperature(1.0)
         .setTopP(0.7)
         .setPageKey("user prompt, story guide")
@@ -163,6 +169,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .setContextWindowSize(100500)
         .truncateModuleContext()
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(
+            maxTokens = 32_000,
+            reasoningBudget = 8_000,
+            subtractReasoningFromInput = true
+        ))
         .requireJsonPromptInjection()
         .setJsonInput(VibeInstruct())
         .setJsonOutput(VibeInstruct())
@@ -188,6 +199,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .setJsonOutput(TodoList())
         .truncateModuleContext()
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(
+            maxTokens = 32_000,
+            reasoningBudget = 8_000,
+            subtractReasoningFromInput = true
+        ))
         .setTemperature(0.8)
         .setTopP(0.8)
         .setReasoningPipe(authorBuilder(Env.authorPrompt))
@@ -236,6 +252,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setContextWindowSize(100500)
         .truncateModuleContext()
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.deepSeekR1(maxTokens = 8_000))
         .requireJsonPromptInjection()
         .setJsonInput(TodoList())
         .setJsonOutput(TodoList())
@@ -266,6 +283,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .setContextWindowSize(100500)
         .truncateModuleContext()
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(
+            maxTokens = 32_000,
+            reasoningBudget = 8_000,
+            subtractReasoningFromInput = true
+        ))
         .requireJsonPromptInjection()
         .setJsonInput(TodoList())
         .setJsonOutput(TodoList())
@@ -318,6 +340,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setContextWindowSize(120000)
         .truncateModuleContext()
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(maxTokens = 32_000))
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::recordWritingPipePage)
         //.setReasoningPipe(authorBuilder(Env.authorPrompt))
@@ -352,6 +375,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .setContextWindowSize(120000)
         .truncateModuleContext()
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(
+            maxTokens = 32_000,
+            reasoningBudget = 8_000,
+            subtractReasoningFromInput = true
+        ))
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::recordWritingPipePage)
         //.setReasoningPipe(explicitCotBuilder())
@@ -411,6 +439,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .truncateModuleContext()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(
+            maxTokens = 32_000,
+            reasoningBudget = 8_000,
+            subtractReasoningFromInput = true
+        ))
         .setTemperature(0.8)
         .setTopP(0.8)
         .applySystemPrompt()
@@ -446,6 +479,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .truncateModuleContext()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(
+            maxTokens = 32_000,
+            reasoningBudget = 8_000,
+            subtractReasoningFromInput = true
+        ))
         .setTemperature(1.0)
         .setTopP(0.8)
         .applySystemPrompt()
@@ -482,6 +520,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .truncateModuleContext()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(
+            maxTokens = 32_000,
+            reasoningBudget = 8_000,
+            subtractReasoningFromInput = true
+        ))
         .setTemperature(1.0)
         .setTopP(0.8)
         .applySystemPrompt()
@@ -519,6 +562,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setTopP(0.9)
         .setContextWindowSize(115000)
         .setMaxTokens(8000)
+        .setTokenBudget(WriterTokenBudgets.deepSeekV31(maxTokens = 8_000))
         .setValidatorFunction(::isValidGptOssResponse)
         .pullGlobalContext()
         .setPageKey("user prompt")
@@ -547,6 +591,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .setModel(qwenCoder480B)
         .setContextWindowSize(120000)
         .setMaxTokens(20000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(
+            maxTokens = 20_000,
+            reasoningBudget = 8_000,
+            subtractReasoningFromInput = true
+        ))
         .setTopP(.8)
         .setTemperature(.8)
         .truncateModuleContext()
@@ -584,6 +633,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .setJsonInput(WorldFixes())
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(
+            maxTokens = 32_000,
+            reasoningBudget = 8_000,
+            subtractReasoningFromInput = true
+        ))
         .truncateModuleContext()
         .pullGlobalContext()
         .setPageKey("new page, main, user prompt")
@@ -618,6 +672,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .truncateModuleContext()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(
+            maxTokens = 32_000,
+            reasoningBudget = 8_000,
+            subtractReasoningFromInput = true
+        ))
         .setTemperature(.8)
         .setTopP(.8)
         .applySystemPrompt()
@@ -674,6 +733,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(
+            maxTokens = 32_000,
+            reasoningBudget = 8_000,
+            subtractReasoningFromInput = true
+        ))
         .requireJsonPromptInjection()
         .setJsonInput(WorldFixes())
         .setPreInvokeFunction(::preInvokeLoreRepairPipe)
@@ -720,6 +784,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .truncateModuleContext()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(
+            maxTokens = 32_000,
+            reasoningBudget = 8_000,
+            subtractReasoningFromInput = true
+        ))
         .setTemperature(1.0)
         .setTopP(1.0)
         .applySystemPrompt()
@@ -784,6 +853,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setTopP(0.7)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(
+            maxTokens = 32_000,
+            reasoningBudget = 8_000,
+            subtractReasoningFromInput = true
+        ))
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::recordWritingPipePage)
         //.setReasoningPipe(explicitCotBuilder().apply { setReasoningPipe(structuredCotBuilder()) })
@@ -811,6 +885,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setTopP(0.9)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(
+            maxTokens = 32_000,
+            reasoningBudget = 8_000,
+            subtractReasoningFromInput = true
+        ))
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::recordWritingPipePage)
         //.setReasoningPipe(explicitCotBuilder().apply { setReasoningPipe(structuredCotBuilder()) })
@@ -844,6 +923,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setTopP(0.8)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(
+            maxTokens = 32_000,
+            reasoningBudget = 8_000,
+            subtractReasoningFromInput = true
+        ))
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::recordWritingPipePage)
         //.setReasoningPipe(explicitCotBuilder().apply { setReasoningPipe(structuredCotBuilder()) })
@@ -881,6 +965,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setTopP(0.9)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(
+            maxTokens = 32_000,
+            reasoningBudget = 8_000,
+            subtractReasoningFromInput = true
+        ))
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::secondPassTransform)
         //.setReasoningPipe(explicitCotBuilder().apply { setReasoningPipe(structuredCotBuilder()) })
@@ -909,6 +998,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setTopP(0.7)
         .setContextWindowSize(115000)
         .setMaxTokens(8000)
+        .setTokenBudget(WriterTokenBudgets.deepSeekV31(maxTokens = 8_000))
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::secondPassTransform)
         //.setReasoningPipe(authorBuilder(Env.richardTreadwell))
@@ -974,6 +1064,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setTemperature(0.5)
         .setTopP(.5)
         .setMaxTokens(20000)
+        .setTokenBudget(WriterTokenBudgets.gptOss120b(maxTokens = 20_000))
         .truncateModuleContext()
         .updatePipelineContextOnExit()
         .enableAppendLoreBookScheme()
@@ -992,6 +1083,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(maxTokens = 32_000))
         .pullGlobalContext()
         .setPageKey("new page, user prompt")
         .setTemperature(1.0)
@@ -1044,6 +1136,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(maxTokens = 32_000))
         .pullGlobalContext()
         .setPageKey("new page, user prompt")
         .autoInjectContext("New Page is the page of text you must work on.")
@@ -1106,6 +1199,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
+        .setTokenBudget(WriterTokenBudgets.qwenCoder480B(maxTokens = 32_000))
         .pullGlobalContext()
         .setPageKey("new page, user prompt")
         .setTemperature(1.0)

@@ -57,13 +57,17 @@ data class ModelSettings(
 fun toModelSettings(pipe: Pipe) : ModelSettings
 {
     val pipeSettings = pipe.toPipeSettings()
+    val defaults = ModelSettings(
+        provider = pipe.getProviderEnum(),
+        modelName = pipe.getModelName()
+    )
     val newModelSettings = ModelSettings(
-        provider = pipeSettings.provider,
-        modelName = pipeSettings.model,
-        temperature = pipeSettings.temperature,
-        topP = pipeSettings.topP,
-        pipeName = pipeSettings.pipeName,
-        maxTokens = pipeSettings.maxTokens)
+        provider = pipeSettings.provider ?: defaults.provider,
+        modelName = pipeSettings.model ?: defaults.modelName,
+        temperature = pipeSettings.temperature ?: defaults.temperature,
+        topP = pipeSettings.topP ?: defaults.topP,
+        pipeName = pipeSettings.pipeName ?: defaults.pipeName,
+        maxTokens = pipeSettings.maxTokens ?: defaults.maxTokens)
 
     return newModelSettings
 }

@@ -35,6 +35,7 @@ import com.TTT.Util.writeStringToFile
 import env.bedrockEnv
 import kotlinx.coroutines.runBlocking
 import java.io.File
+import Globals.WriterTokenBudgets
 
 /**
  * Data class for handling the user prompt for the manual lorebook pipeline.
@@ -274,6 +275,7 @@ object Env {
             .setPromptMode(PromptMode.internalContext)
             .setContextWindowSize(108000)
             .setMaxTokens(maxTokens)
+            .setTokenBudget(WriterTokenBudgets.deepSeekR1(maxTokens = maxTokens))
             .setContextWindowSettings(ContextWindowSettings.TruncateTop)
             .setSystemPrompt(writerEntrySystemPrompt)
             .autoInjectContext("""When writing the next portion of the story, you will be provided with the 
@@ -309,6 +311,7 @@ object Env {
             .setTopP(.7)
             .setTemperature(.7)
             .setMaxTokens(maxTokens)
+            .setTokenBudget(WriterTokenBudgets.gptOss20b(maxTokens = maxTokens))
             .setPromptMode(PromptMode.singlePrompt)
             .setSystemPrompt(cleanUpPipeSystemPrompt)
             .setTransformationFunction(::transformWriter)
@@ -368,6 +371,7 @@ object Env {
                     "The context will be provided in the user's prompt. Use it to assist in deciding how to generate " +
                     "lorebook keys and values.")
             .setContextWindowSize(107000)
+            .setTokenBudget(WriterTokenBudgets.deepSeekR1(maxTokens = 8_000))
             .setTransformationFunction(::recordLoreBook)
             .setPipeName("Lorebook")
 
@@ -431,7 +435,8 @@ object Env {
             .setJsonInput(blankLoreBookUserPromptExample, true)
             .setJsonOutput(blankLoreBookExample)
             .setTransformationFunction(::recordLoreBook)
-            .setMaxTokens(32000)
+            .setMaxTokens(8_000)
+            .setTokenBudget(WriterTokenBudgets.deepSeekR1(maxTokens = 8_000))
             .pullPipelineContext()
 
         lorebookPipeline.add(manualLoreBookPipe)
@@ -470,6 +475,7 @@ object Env {
             .setSystemPrompt(ideaSystemPrompt)
             .autoInjectContext("This is context on the story the user is writing. Some of it may be truncated" +
                     "due to token limits. Use this to help the user come up with new ideas.")
+            .setTokenBudget(WriterTokenBudgets.deepSeekR1(maxTokens = maxTokens))
 
         ideaPipeline.add(ideaPipe)
 
@@ -518,6 +524,7 @@ object Env {
             reasoningSettings,
             pipeSettings)
             .setPipeName("Thinking Pipe") as BedrockPipe
+        configuredPipe.setTokenBudget(WriterTokenBudgets.deepSeekR1(maxTokens = 4_000))
 
         val discussionPipe = BedrockMultimodalPipe()
             .useConverseApi()
@@ -527,6 +534,7 @@ object Env {
             .setContextWindowSize(maxTokenBudgetDeepSeek)
             .setMaxTokens(maxTokens + 2000)
             .setModel("qwen.qwen3-coder-480b-a35b-v1:0")
+            .setTokenBudget(WriterTokenBudgets.qwenCoder480B(maxTokens = maxTokens + 2000))
             .truncateModuleContext()
             .requireJsonPromptInjection()
             .setPromptMode(PromptMode.chat)
@@ -573,6 +581,7 @@ object Env {
             .enableCaching()
             .setModel(novaModelId)
             .setContextWindowSize(maxTokenBudgetNova)
+            .setTokenBudget(WriterTokenBudgets.novaPro(maxTokens = 4_000))
             .truncateModuleContext()
             .setContextWindowSettings(ContextWindowSettings.TruncateTop)
             .setSystemPrompt(summarySystemPrompt)
@@ -814,4 +823,3 @@ suspend fun genericBranchFunction(original: MultimodalContent, changed: Multimod
 
     return changed //Not implemented yet so just auto-fail.
 }
-
