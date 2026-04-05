@@ -23,7 +23,7 @@ Use `run.sh` on Linux and other Unix-like systems, `run.command` on macOS, and t
 
 1. Load or create a story.
 2. Use `/write`, `/idea`, `/chat`, `/character`, or `/lorebook` to work on the content.
-3. Use `/settings`, `/llm-settings`, `/persona`, and `/guide` to tune runtime behavior.
+3. Use `/settings`, `/llm-settings`, `/persona`, `/guide`, and `/tokens` to tune and inspect runtime behavior.
 4. Save or export when you want to preserve progress.
 
 ## Main Commands
@@ -32,6 +32,7 @@ Use `run.sh` on Linux and other Unix-like systems, `run.command` on macOS, and t
 - `/idea [prompt]` - Brainstorm new story material.
 - `/chat [question]` - Ask questions about the story.
 - `/character [name]` - Open the character chat subshell.
+- `/tokens` - Open the token counting subshell.
 - `/lorebook [instruction]` - Update or extract lore entries.
 - `/summary [options]` - Summarize current story context.
 - `/save` - Save live context pages to `~/.TPipeWriter/`.
@@ -65,6 +66,18 @@ Inside the character subshell:
 - `back` or `exit` leaves the subshell.
 
 Select a character before using `story`.
+
+## Token Counting
+
+The token counting subshell is a read-only inspection tool. It does not change your story or settings.
+
+- `chapter <index>` - Count a single chapter.
+- `chapters <start>-<end>` - Count a chapter range and show per-chapter counts.
+- `lorebook [key]` - Count all lorebook entries or one specific key.
+- `context [text]` - Count the active story context, or count custom text you provide.
+- `model <name|number>` - Switch the tokenizer model used for counting.
+- `models` - Show the available tokenizer models.
+- `settings` - Show the current token-counting model and tokenizer settings.
 
 ## Settings
 

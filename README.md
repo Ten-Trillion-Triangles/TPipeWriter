@@ -47,6 +47,7 @@ The main shell supports these commands:
 - `/idea [prompt]` - Brainstorm ideas and plot points.
 - `/chat [question]` - Discuss the story with the discussion pipeline.
 - `/character [name]` - Open the character chat subshell or start it with a character prompt.
+- `/tokens` - Open the token counting subshell for chapters, lorebook entries, and custom text.
 - `/lorebook [instruction]` - Update lorebook entries or extract lore from recent text.
 - `/summary [options]` - Summarize the current story context.
 - `/save` - Save the current context pages to `~/.TPipeWriter/`.
@@ -80,6 +81,18 @@ The character subshell has its own commands:
 - `clear` - Clear that character’s conversation history.
 - `help` - Show the subshell help.
 - `back` / `exit` - Leave the subshell.
+
+### Token counting workflow
+
+The token counting subshell helps inspect story size and tokenizer behavior without changing your runtime state.
+
+- `chapter <index>` - Count tokens for a single chapter.
+- `chapters <start>-<end>` - Count a chapter range and print per-chapter counts.
+- `lorebook [key]` - Count all lorebook entries or one specific key.
+- `context [text]` - Count the active story context, or custom text if you provide it.
+- `model <name|number>` - Switch the tokenizer model used for counting.
+- `models` - Show the available tokenizer models.
+- `settings` - Show the current token-counting model and tokenizer settings.
 
 Important: select a character first before using `story`. The command uses the active character prompt and story-aware pipeline builder, so it cannot work without an active character.
 

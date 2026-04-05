@@ -285,6 +285,10 @@ fun parseInput()
                 if (remainingText.isNotEmpty()) characterChatSubshell(remainingText)
                 else characterChatSubshell()
             }
+            "tokens" -> {
+                commandState = CommandState.Writer
+                tokenCountingSubshell()
+            }
             "lorebook" -> {
                 commandState = CommandState.Lorebook
                 if (remainingText.isNotEmpty()) callLorebookPipeline(remainingText)
@@ -1277,6 +1281,7 @@ fun printHelp()
         |/idea              - Enter idea pipeline sub-shell or generate ideas with prompt
         |/chat              - Chat about the story using the discussion pipeline
         |/character         - Chat with a selected character prompt (uses converse history)
+        |/tokens            - Count tokens for chapters, lorebook entries, and custom text
         |/lorebook          - Update lorebook entries using the lorebook pipeline
         |/summary           - Summarize content (last/all/1-3/5/custom text)
         |/save              - Save current context to file
@@ -2894,4 +2899,3 @@ fun showFullComparison(original: String, rewritten: String)
     
     println("\nWord counts: Original: ${original.split("\\s+".toRegex()).size}, Rewritten: ${rewritten.split("\\s+".toRegex()).size}")
 }
-
