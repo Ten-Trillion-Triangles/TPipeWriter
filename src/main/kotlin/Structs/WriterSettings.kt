@@ -58,12 +58,12 @@ fun toModelSettings(pipe: Pipe) : ModelSettings
 {
     val pipeSettings = pipe.toPipeSettings()
     val newModelSettings = ModelSettings(
-        provider = pipeSettings.provider,
-        modelName = pipeSettings.model,
-        temperature = pipeSettings.temperature,
-        topP = pipeSettings.topP,
-        pipeName = pipeSettings.pipeName,
-        maxTokens = pipeSettings.maxTokens)
+        provider = pipeSettings.provider!!,
+        modelName = pipeSettings.model ?: "",
+        temperature = pipeSettings.temperature ?: .7,
+        topP = pipeSettings.topP ?: .7,
+        pipeName = pipeSettings.pipeName ?: "",
+        maxTokens = pipeSettings.maxTokens ?: 10000)
 
     return newModelSettings
 }
@@ -143,6 +143,7 @@ fun updatePipeWithModelSettings(pipeline: Pipeline,  modelSettings: List<ModelSe
             ProviderName.Gemini -> continue
             ProviderName.Gpt -> continue
             ProviderName.Ollama -> continue
+            ProviderName.OpenRouter -> continue
         }
     }
 }

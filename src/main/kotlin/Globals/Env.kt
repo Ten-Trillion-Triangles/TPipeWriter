@@ -594,7 +594,6 @@ and the sensual and erotic aspects.
             pipeSettings)
             .setPipeName("Thinking Pipe") as BedrockPipe
 
-        configuredPipe.setServiceTier(BedrockPriorityTier.Flex)
 
         val budgetSettings = TokenBudgetSettings(
             maxTokens = 8000,
@@ -605,9 +604,8 @@ and the sensual and erotic aspects.
 
         val discussionPipe = BedrockMultimodalPipe()
             .useConverseApi()
-            .setServiceTier(BedrockPriorityTier.Flex)
             .enableStreaming()
-            .setRegion("us-east-2")
+            .setRegion("us-west-2")
             .setTemperature(.6)
             .setTopP(.6)
             .setMaxTokens(8000)
@@ -629,7 +627,6 @@ and the sensual and erotic aspects.
             .pullPipelineContext()
             .setReasoningPipe(configuredPipe)
             .setPipeName("Chat Pipe")
-            .setReasoning("high")
 
         discussionPipeline.add(discussionPipe)
 

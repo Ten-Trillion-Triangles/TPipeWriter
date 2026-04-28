@@ -706,7 +706,7 @@ fun callChatPipeline(prompt: String)
     result.addText(request)
 
     Env.discussionPipeline.context = chatContextWindow
-    Env.discussionPipeline.enableTracing()
+    Env.discussionPipeline.enableTracing(TraceConfig(detailLevel = TraceDetailLevel.DEBUG))
 
     println("Thinking...")
 
