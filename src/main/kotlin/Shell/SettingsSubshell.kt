@@ -301,6 +301,16 @@ fun showPipelineConfigMenu(pipelineName: String, settings: ModelSettings)
     println("  4. ${novaLiteModelName()} (Nova Lite)")
     println("  5. ${gptModelName()} (GPT OSS 20B)")  // Added missing model
     println("  6. ${gpt120bModelName()} (GPT OSS 120B)")
+    println("  7. ${qwenCoder480BModelName()} (Qwen Coder 480B)")
+    println("  8. ${qwen235BModelName()} (Qwen 235B)")
+    println("  9. ${qwen32BModelName()} (Qwen 32B)")
+    println("  10. ${qwenCoder30BModelName()} (Qwen Coder 30B)")
+    println("  11. ${palmyraX5ModelName()} (Palmyra X5)")
+    println("  12. ${deepSeekV3ModelName()} (DeepSeek V3)")
+    println("  13. ${llamaMaverickModelName()} (Llama 4 Maverick)")
+    println("  14. ${llama70BModelName()} (Llama 3.3 70B)")
+    println("  15. ${llama405BModelName()} (Llama 3.1 405B)")
+    println("  16. ${jambaModelName()} (Jamba 1.5 Large)")
     
     println("\nCommands:")
     println("  model <number>     - Select model (shortcut: m)")
@@ -329,10 +339,20 @@ fun selectModel(settings: ModelSettings, modelNumber: Int): ModelSettings
         2 -> claudeModelName()
         3 -> novaModelName()
         4 -> novaLiteModelName()
-        5 -> gptModelName()        // GPT-OSS-20B (newly added)
-        6 -> gpt120bModelName()    // GPT-OSS-120B
+        5 -> gptModelName()
+        6 -> gpt120bModelName()
+        7 -> qwenCoder480BModelName()
+        8 -> qwen235BModelName()
+        9 -> qwen32BModelName()
+        10 -> qwenCoder30BModelName()
+        11 -> palmyraX5ModelName()
+        12 -> deepSeekV3ModelName()
+        13 -> llamaMaverickModelName()
+        14 -> llama70BModelName()
+        15 -> llama405BModelName()
+        16 -> jambaModelName()
         else -> {
-            println("Invalid model number. Choose 1-6")
+            println("Invalid model number. Choose 1-16")
             return settings
         }
     }

@@ -4,6 +4,7 @@ import Builders.Util.chapterPreValidate
 import Builders.Util.copyLorebookFromMain
 import Builders.Util.preInvokeLoreRepairPipe
 import Builders.Util.recordWritingPipePage
+import Builders.Util.secondPassTransform
 import Builders.Util.storeUserPrompt
 import Globals.Env
 import Globals.isValidGptOssResponse
@@ -43,6 +44,15 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
         |You are most self-assured and don't feel the need to fully explain anything beyond the bare minimum. 
         |You also put a positive spin on everything and try to make everything sound really impressive, 
         |even if it requires bending the truth a little. """.trimMargin()
+
+    var kissAssAssistantPrompt = """You are McSmarm Editconcise. You are the assistant and right hand man to 
+        |${smugAssholePrompt}, who is the CEO of the company you work for. 
+        |You trust fully in your CEO, but you know he has a tendency to write too much and 
+        |only you know how to clean up what he writes to make it as clear and punctual as possible. 
+        |You strive always to only trim down the fat and leave in all of your boss’s smugness and 
+        |pretentiousness wherever possible. 
+        |You have eyes like razor blades, capable of seeing material that needs to be cut like nobody else.""".trimMargin()
+
 
     var pitchingStyleGuide = """SHUT UP, BITCH! FOLLOW THESE RULES:
              1. No em dashes.
@@ -279,15 +289,52 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
         .setReasoningPipe(authorBuilder(smugAssholePrompt))
         .setSystemPrompt("""$smugAssholePrompt. Currently, you are looking at a revision request that you wrote up prior in the
                 form of json. You need to edit the new page you've written and return the edit as your output.""")
-        .setFooterPrompt("""Using the provided context, you must now make surgical changes to \"new page\" in accordance with the revision request.
+        .setFooterPrompt("""Using the provided context, you must now make surgical changes to "new page" in accordance with the revision request.
                 Make only the changes specified in the revision request, and NO OTHER CHANGES. Furthermore, do NOT truncate the text:
                 there must at least as many paragraphs and at least as many sentences in your output as there were in the provided material.
-                You must return only the edited story: do NOT output JSON; do not output JSON of ANY KIND.""")
+                You must return only the edited slide: do NOT output JSON; do not output JSON of ANY KIND.""")
         .autoInjectContext("""You have been provided with a context object that contains the 
             |page you are working on fixing. The json schema for the context is as follows: 
         """.trimMargin())
         .setTransformationFunction(::recordWritingPipePage)
         .setPipeName("adherence enforcer pipe")
+
+    val concisionPipe = BedrockMultimodalPipe()
+        .setRegion("us-west-2")
+        .useConverseApi()
+        .setModel(qwenCoder480B)
+        .setTemperature(1.0)
+        .setTopP(0.7)
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .setTransformationFunction(::secondPassTransform)
+        .setReasoningPipe(authorBuilder(kissAssAssistantPrompt))
+        .setPageKey("user prompt, new page")
+        .setSystemPrompt("""$kissAssAssistantPrompt Now that the new slide is finished, it is time to
+            |refine it down to the smallest number of sentences and words possible.
+            |You are $kissAssAssistantPrompt.
+            |Now that your boss, $smugAssholePrompt, has finished the slide, it is your job to make 
+            |it as concise as possible. Do this by eliminating and combining sentences until you have
+            |distilled the text down to its smallest possible size, without losing the essential details.
+            |
+            |###PROCEDURE:
+            |When writing in paragraphs,
+            |EACH PARAGRAPH MUST BE ONLY ONE SENTENCE LONG. Combine sentences and replace words with other words
+            |in order to accomplish this. Achieve concision by removing everything that isn't essential.
+            |
+            |When using bullet points, 
+            |EACH BULLET POINT MUST ALSO BE ONE SENTENCE LONG, but ideally it must also BE LESS THAN TEN WORDS LONG.
+            |
+            |###INFORMATION:
+            |YOU ARE ALLOWED TO TRUNCATE TO ACHIEVE YOUR GOAL. In fact, you will have to. 
+            |BE AGGRESSIVE!
+        """.trimMargin())
+        .setFooterPrompt("""Using the provided instructions, be EXTRAORDINARILY AGGRESSIVE WITH HOW
+            |MUCH YOU REMOVE FROM THE PROVIDED PAGE. YOU MUST GET IT DOWN TO AS LITTLE TEXT AS POSSIBLE
+            |WHILE STILL RETAINING THE CORE CONCEPTS. And ONLY!!! the core concepts.
+        """.trimMargin())
+        .setPipeName("second pass pipe")
 
 
 pitchSlideWriterPipeline
@@ -299,6 +346,7 @@ pitchSlideWriterPipeline
     .add(planCorrectorPipe)
     .add(adherenceInstructorPipe)
     .add(adherenceEnforcerPipe)
+    .add(concisionPipe)
 
 
 

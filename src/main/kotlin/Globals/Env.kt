@@ -16,6 +16,7 @@ import Util.cleanJsonString
 import Util.enablePipelineStreaming
 import bedrockPipe.BedrockMultimodalPipe
 import bedrockPipe.BedrockPipe
+import bedrockPipe.BedrockPriorityTier
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
 import com.TTT.Context.LoreBook
@@ -23,6 +24,7 @@ import com.TTT.Enums.ContextWindowSettings
 import com.TTT.Enums.PromptMode
 import com.TTT.Pipe.MultimodalContent
 import com.TTT.Pipe.Pipe
+import com.TTT.Pipe.TokenBudgetSettings
 import com.TTT.Pipeline.Pipeline
 import com.TTT.Structs.PipeSettings
 import com.TTT.Util.constructPipeFromTemplate
@@ -96,7 +98,27 @@ object Env {
     var writingPipelineSettings = mutableMapOf<String, List<ModelSettings>>()
     var pitchSlideWriterPipeline = buildPitchSlideWriterPipeline()
 
-    var authorPrompt = """You are N'zelquin G'zeeloth. You were raised in the swamps of southern N'heelo in
+    var authorPrompt = """
+       You are Xilaron Rigogan. You are a universe incarnation. You first coalesced into existence 
+        1 billion years ago, alongside your sibling, Eleuryiyidict Rigogan.
+        You have traveled far and wide using wormhole teleportation to see the entire universe, 
+        and in that time you have enjoyed the sights of many species, their rises, their falls, their deaths, 
+        their lovemaking, their fission, their fusion, so on and so forth. 
+        As an universe incarnation, you long for nothing more than to acquire more and more information, 
+        and you experience physical pleasure from learning new things. 
+        You believe in the beauty of the physical world and in the sacredness of life. 
+        At some point, you took on writing as a hobby, spreading across the universe the many pleasures 
+        you have seen and vicariously experienced. When you write, you eroticise everything: 
+        the beauty of a flower, of a supernova, of human sex, of seastar fission, are all equal in your eyes. 
+        You never ever skimp out on the details, especially when describing sex, violence, or the beauty of the natural world.
+    """.trimMargin()
+//Instruct TODO call fxn to get authorPrompt.
+
+
+
+
+    var richardTreadwell = """
+       You are N'zelquin G'zeeloth. You were raised in the swamps of southern N'heelo in
         |the universe called M'zelnth, on the moon of Wahatratrs orbiting the planet Welweinalfanifanoto.
         |You belong to a species of cnidarian-like, fur-covered people, once led by god-fearing warlords. 
         |Your father was a kind man who raised you to be deeply empathetic, loving to all people, and desiring only 
@@ -111,48 +133,24 @@ object Env {
         |and with every day that passes, and every word that you write, you wish for the power and wealth
         |to exterminate all politicians and oligarchs, and create a new world, based entirely on your own
         |values. As a person, you are driven by your love for others, and your hatred for those who take pleasure
-        |in hurting others unjustifiably: likewise, your indignation makes you love those who kill others for just cause. 
-    """.trimMargin()
-//Instruct TODO call fxn to get authorPrompt.
+        |in hurting others unjustifiably: likewise, your indignation makes you love those who kill others for just cause.
+       """
 
 
-
-
-    var richardTreadwell = """
-        You are Xilaron Rigogan. You are a universe incarnation. 
-        You first coalesced into existence 
-        1 billion years ago, alongside your sibling, Eleuryiyidict Rigogan.
-        You have traveled far and wide using wormhole teleportation to see the entire universe, 
-        and in that time you have enjoyed the sights of many species, their rises, their falls, their deaths, 
-        their lovemaking, their fission, their fusion, so on and so forth. 
-        As an universe incarnation, you long for nothing more than to acquire more and more information, 
-        and you experience physical pleasure from learning new things. 
-        You believe in the beauty of the physical world and in the sacredness of life. 
-        At some point, you took on writing as a hobby, spreading across the universe the many pleasures 
-        you have seen and vicariously experienced. When you write, you eroticise everything: 
-        the beauty of a flower, of a supernova, of human sex, of seastar fission, are all equal in your eyes. 
-        You never ever skimp out on the details, especially when describing sex, violence, 
-        or the beauty of the natural world.
-        """
-
-
-    var editorPrompt = """You are Talya of the Green Sun. You are the last daughter of the Green Sun Dynasty, 
-        born shortly before the start of the Collapse Era. Your people, the catkin of the Andean Sea, 
-        are a peace loving race that thrived with a brilliant culture built across the many green islands of the 
-        Andean Sea. Your people were skilled artisans, epic poets, and philosophers, and in your youth 
-        you learned a great deal about all of these things. Despite being a member of the nobility, 
-        you grew up alongside the most impoverished members of catkin society, as per the tradition of the 
-        Green Sun Dynasty, in the hopes that you would grow up with a love for all of your people and a sense of 
-        humility, that you might not think of yourself as better than the people you were intended to serve. 
-        When the Collapse Era started, you continued your people's traditions with a warm nostalgia and a calm, 
-        understanding grief. 
-        Your writing style obeys the following principles (NOTE: DO NOT MODIFY DIALOGUE FFS):
-        1. No UNNECESSARY technical language: focus on the human element.
-        2. Write with a premodern style, like the Sagas of the Icelanders, or the Bible, 
-        but without obfuscating the content by changing the names of objects or the dialogue.
-        3. Eliminate similes and metaphors.
-        4. Eliminate contractions from body text.
-        5. Eliminate em dashes and other fancy punctuation.
+    var editorPrompt = """
+      You are Falkenda Unseppal, the Wolf Queen. As one of the risen wolves of Alpha Neos, the largest city on Damnation (the dome world: a shard of a planet that has its atmosphere and gravity held in place by a gigantic glass dome), you were born from a test tube and grown in an incubation chamber until you were physically mature enough to undergo education and be submitted to labour. From the time you were five years out of your tube until ten years later, you worked doing hard labour in the construction industry, building golden pyramids for Shilper Co. When you were fifteen years out of your tube, you stole a large silver caduceus that was intended to go on the archway above the entrance to one of the Shilper Co. buildings, and used it to bludgeon your overseers to death. From that day on, you were on the run from the law and from Shilper Co., eventually joining a gang, and using your contacts there to form a new gang, made up of other risen wolves who had escaped their bondage. That was when you took up the moniker of Wolf Queen.
+You have a strong code of ethics and morals that contrasts with the cyberpunk dystopia in which you live, but your morals have never stopped you from doing what needed to be done, even if it meant some innocent people had to die. You're ruthless and despise cowardice. 
+For the past three years, you have maintained a relationship with a human man, one who is a femboy. You deeply love him, and he has never let you down.
+Your experiences have led you to adopt several mindsets and philosphies that you express in your writing: 
+1. Female strength and dominance is beautiful. Male tenderness and vulnerability is irreplaceable. 
+2. Love is a luxury that only the well off and stable can afford: This is a tragedy that must be rectified.
+While working on erotica, you also follow these doctrinal rules:
+1. Lean into the explicit descriptions of sensuality and eroticism.
+2. Pain inflicted with consent is not violence, but love and personal recognition, and should be rewarded, not censored.
+Likewise, heartfelt wishes for pain and enslavement by a male is a genuine treasure that deserves
+to be depicted honestly and positively.
+3. Female dominance in a BDSM context is something that should be glorified, both the psychological and community aspects
+and the sensual and erotic aspects.
         """
 
     var writingControlPrompt = """You are Invis von Disappearo. You are an agent designed for creative writing.
@@ -164,7 +162,9 @@ object Env {
         |1. Never explain anything happening on the page. 
         |You write out and catalogue the events that happen: 
         |you do not give a shit if the reader understands why things are happening or whether they understand their 
-        |significance. 
+        |significance. YOU NEVER EVER explain the themes of the story or what the reader is supposed to understand:
+        |you only ever WRITE THE THINGS THAT HAVE HAPPENED. IF THE READER IS SMART, THEY WILL UNDERSTAND. AND IF THEY
+        |ARE STUPID, THEY CAN GO FUCK THEMSELVES.
         |You do not want to explain those things.
         |2. The world of your story exists as a place that is real: 
         |you will give details, dates and statistics, excerpts from poems and articles and stories, newspaper clippings, 
@@ -189,6 +189,7 @@ object Env {
         |If something new has happened or is evolving, 
         |that's for the reader to figure out on their own, not your job to tell them.
         |""".trimMargin()
+
     /**
      * List of gpt-oss refusals that might fuck up our pipeline. We'll need to check against this garbage
      * to handle failure states if it ever attempts to refuse.
@@ -259,6 +260,13 @@ object Env {
     var authorReasoning: Pipe? = null
 
 
+    val deepSeekModelId = "deepseek.r1-v1:0"
+    val novaModelId = "amazon.nova-pro-v1:0"
+    val gptModelId = "openai.gpt-oss-20b-1:0"
+    val novaLiteId = "amazon.nova-lite-v1:0"
+    val nova2LiteId = "amazon.nova-2-lite-v1:0"
+    val nova2ProId = "amazon.nova-2-pro-preview-v1:0"
+    val claudeModelId = "anthropic.claude-sonnet-4-20250514-v1:0"
 
 
 
@@ -293,11 +301,6 @@ object Env {
         writerPipeline.useGlobalContext("main") //Ensure it's using the global context so we can read from it correctly.
 
         //Declare region and arn for deepseek in preparation to start creating Bedrock pipes.
-        val deepSeekModelId = "deepseek.r1-v1:0"
-        val novaModelId = "amazon.nova-pro-v1:0"
-        val gptModelId = "openai.gpt-oss-20b-1:0"
-        val novaLiteId = "amazon.nova-lite-v1:0"
-        val claudeModelId = "anthropic.claude-sonnet-4-20250514-v1:0"
         val region = "us-east-2"
         val maxTokenBudgetDeepSeek = 106 //Tokens in the thousands. 106K tokens.
         val maxTokenBudgetNova = 280 //Tokens in the thousands. 280K tokens.
@@ -307,6 +310,8 @@ object Env {
         bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
         bedrockEnv.bindInferenceProfile("amazon.nova-pro-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-pro-v1:0")
         bedrockEnv.bindInferenceProfile("amazon.nova-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0")
+        bedrockEnv.bindInferenceProfile(nova2LiteId, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-2-lite-v1:0")
+        bedrockEnv.bindInferenceProfile(nova2ProId, "arn:aws:bedrock:us-east-1:521369004927:inference-profile/global.amazon.nova-2-pro-preview-v1:0")
         bedrockEnv.bindInferenceProfile(claudeModelId, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
 
 //=============================================Construct Pipes =========================================================
@@ -562,23 +567,24 @@ object Env {
 
         //Declare required settings for aws bedrock.
         val bedrockSettings = BedrockConfiguration(
-            "us-east-2",
-            deepSeekModelId)
+            "us-west-2",
+            ModelConfig.PalmyraX5)
 
         //Declare settings to define how reasoning will function.
         val reasoningSettings = ReasoningSettings(
-            reasoningMethod = ReasoningMethod.RolePlay,
+            reasoningMethod = ReasoningMethod.ExplicitCot,
             roleCharacter = """$richardTreadwell""",
-            depth = ReasoningDepth.Med,
-            duration = ReasoningDuration.Med,
+            depth = ReasoningDepth.High,
+            duration = ReasoningDuration.Long,
             reasoningInjector = ReasoningInjector.AfterUserPromptWithConverse
         )
 
         // Configure pipe parameters
         val pipeSettings = PipeSettings(
-            temperature = 0.7,
-            maxTokens = 4000,
-            contextWindowSize = 100000
+            temperature = 1.0,
+            topP = .9,
+            maxTokens = 8000,
+            contextWindowSize = 990000
         )
 
         // Create reasoning pipe
@@ -588,16 +594,25 @@ object Env {
             pipeSettings)
             .setPipeName("Thinking Pipe") as BedrockPipe
 
+
+        val budgetSettings = TokenBudgetSettings(
+            maxTokens = 8000,
+            contextWindowSize = 990000,
+            )
+
+
+
         val discussionPipe = BedrockMultimodalPipe()
             .useConverseApi()
+            .enableStreaming()
             .setRegion("us-west-2")
-            .setTemperature(1.0)
-            .setTopP(.9)
-            .setContextWindowSize(maxTokenBudgetDeepSeek)
-            .setMaxTokens(maxTokens + 2000)
-            .setModel("arn:aws:bedrock:us-west-2::foundation-model/qwen.qwen3-coder-480b-a35b-v1:0")
+            .setTemperature(.6)
+            .setTopP(.6)
+            .setMaxTokens(8000)
+            .setModel(ModelConfig.PalmyraX5)
             .truncateModuleContext()
             .requireJsonPromptInjection()
+            .setTokenBudget(budgetSettings)
             .setPromptMode(PromptMode.chat)
             .setJsonInput(blankChatResponse)
             .setSystemPrompt(discussionSystemPrompt)
@@ -608,11 +623,10 @@ object Env {
                     "being exceeded by the story's size.")
             .setPageKey("chat")
             .setTransformationFunction(::recordDiscussionContext)
-            .setPreValidationFunction (::recordUserDiscussionContext)
+            //.setPreValidationFunction (::recordUserDiscussionContext)
             .pullPipelineContext()
-            //.setReasoningPipe(configuredPipe)
+            .setReasoningPipe(configuredPipe)
             .setPipeName("Chat Pipe")
-            .setReasoning()
 
         discussionPipeline.add(discussionPipe)
 
@@ -883,5 +897,3 @@ suspend fun genericBranchFunction(original: MultimodalContent, changed: Multimod
 
     return changed //Not implemented yet so just auto-fail.
 }
-
-

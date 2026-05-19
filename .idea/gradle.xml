@@ -12,22 +12,30 @@
                   <project path="$PROJECT_DIR$/../TPipe/TPipe" />
                   <project path="$PROJECT_DIR$/../TPipe/TPipe/TPipe-Bedrock" />
                   <project path="$PROJECT_DIR$/../TPipe/TPipe/TPipe-Defaults" />
+                  <project path="$PROJECT_DIR$/../TPipe/TPipe/TPipe-GenericOpenAI" />
                   <project path="$PROJECT_DIR$/../TPipe/TPipe/TPipe-MCP" />
                   <project path="$PROJECT_DIR$/../TPipe/TPipe/TPipe-Ollama" />
+                  <project path="$PROJECT_DIR$/../TPipe/TPipe/TPipe-OpenRouter" />
+                  <project path="$PROJECT_DIR$/../TPipe/TPipe/TPipe-TraceServer" />
+                  <project path="$PROJECT_DIR$/../TPipe/TPipe/TPipe-Tuner" />
                 </projects>
               </build>
             </builds>
           </compositeBuild>
         </compositeConfiguration>
         <option name="externalProjectPath" value="$PROJECT_DIR$" />
-        <option name="gradleJvm" value="graalvm-ce-24" />
+        <option name="gradleJvm" value="graalvm-ce-24 (3)" />
         <option name="modules">
           <set>
             <option value="$PROJECT_DIR$/../TPipe/TPipe" />
             <option value="$PROJECT_DIR$/../TPipe/TPipe/TPipe-Bedrock" />
             <option value="$PROJECT_DIR$/../TPipe/TPipe/TPipe-Defaults" />
+            <option value="$PROJECT_DIR$/../TPipe/TPipe/TPipe-GenericOpenAI" />
             <option value="$PROJECT_DIR$/../TPipe/TPipe/TPipe-MCP" />
             <option value="$PROJECT_DIR$/../TPipe/TPipe/TPipe-Ollama" />
+            <option value="$PROJECT_DIR$/../TPipe/TPipe/TPipe-OpenRouter" />
+            <option value="$PROJECT_DIR$/../TPipe/TPipe/TPipe-TraceServer" />
+            <option value="$PROJECT_DIR$/../TPipe/TPipe/TPipe-Tuner" />
             <option value="$PROJECT_DIR$" />
           </set>
         </option>

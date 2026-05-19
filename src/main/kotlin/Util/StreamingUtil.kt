@@ -17,13 +17,11 @@ fun enablePipelineStreaming(pipeline: Pipeline) {
     pipeline.getPipes().forEach { pipe ->
         when (pipe) {
             is BedrockMultimodalPipe -> {
-                pipe.enableStreaming()
-                pipe.setStreamingCallback(callback)
+                pipe.enableStreaming(callback, true)
                 enabledCount++
             }
             is BedrockPipe -> {
-                pipe.enableStreaming()
-                pipe.setStreamingCallback(callback)
+                pipe.enableStreaming(callback, true)
                 enabledCount++
             }
         }

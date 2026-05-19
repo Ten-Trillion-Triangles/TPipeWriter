@@ -132,15 +132,16 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
     val benignSkiesMyDialoguePipe = BedrockMultimodalPipe()
         .setRegion("us-west-2")
         .useConverseApi()
-        .setModel(qwenCoder480B)
+        .setModel(PalmyraX5)
         .setContextWindowSize(115000)
-        .setMaxTokens(32000)
+        .setMaxTokens(8000)
         .pullGlobalContext()
         .setPageKey("new page, user prompt")
         .setTemperature(0.8)
-        .setTopP(.7)
+        .setTopP(.8)
         .applySystemPrompt()
-        .setReasoningPipe(authorBuilder(Env.richardTreadwell))
+        //.setReasoningPipe(authorBuilder(Env.authorPrompt))
+        .setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.authorPrompt)) }
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setSystemPrompt("""Looking at new page, find all instances of dialogue where a character
             |has more than one consecutive sentence of dialogue. In each place you find a segment of dialogue with more
@@ -156,13 +157,14 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
             |6. Massive listicles.
             |7. Ideological rant as character voice: characters delivering monologues like they're sapient op-ed pieces.
             |
-            |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story. 
+            |Your one great mission is to go absolutely apeshit with the amount of **dialogue** you add to the story. 
             |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material (there should be MORE).
             |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
             |NO TEXT CAN BE DELETED: ONLY ADDED. Additionally, your changes must be to ALL PLACES WITH MORE THAN ONE
-            |EXISTING LINE OF DIALOGUE: ONLY ADD TO PLACES THAT ALREADY HAVE DIALOGUE. YOU MUST NOT ADD ADDITIONAL
-            |PARAGRAPHS OF BODY TEXT TO THE END OF THE PAGE.
+            |EXISTING LINE OF DIALOGUE: ONLY ADD DIALOGUE AND ONLY TO PLACES THAT ALREADY HAVE DIALOGUE! YOU MUST NOT ADD ADDITIONAL
+            |PARAGRAPHS OF BODY TEXT TO THE PAGE. DO NOT ADD STAGE DIRECTIONS!!! ONLY. ADD. DIALOGUE. YOU FUCK. AND ONLY ADD DIALOGUE TO PLACES
+            |WHERE THERE IS ALREADY DIALOGUE!!!!!!!!!!!!!!!!!!!!!
             |###WARNING: ABSOLUTELY DO NOT INCLUDE THE LIST OF YOUR CHANGES IN THE OUTPUT. 
             |THE FINAL OUTPUT MUST BE ONLY THE FULLY MODIFIED PAGE.
         """.trimMargin())
@@ -172,7 +174,7 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
             |as many sentences in your output as there were in the provided material (there should be MORE).
             |###IMPORTANT: DO NOT INCLUDE THE LIST OF YOUR CHANGES IN YOUR OUTPUT. THE OUTPUT MUST BE ONLY THE 
             |FULLY MODIFIED PAGE.
-            |###WARNING: Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD CONTENT TO THE END OF THE PAGE.
+            |###WARNING: Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD BODY TEXT TO THE PAGE.
         """.trimMargin())
         .setTransformationFunction(::recordWritingPipePage)
         .applySystemPrompt()
@@ -183,16 +185,17 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
     val polishMyDialoguePipe = BedrockMultimodalPipe()
         .setRegion("us-west-2")
         .useConverseApi()
-        .setModel(qwenCoder480B)
+        .setModel(PalmyraX5)
         .setContextWindowSize(115000)
-        .setMaxTokens(32000)
+        .setMaxTokens(8000)
         .pullGlobalContext()
         .setPageKey("new page, user prompt")
         .autoInjectContext("New Page is the page of text you must work on.")
         .setTemperature(0.8)
-        .setTopP(.7)
+        .setTopP(.8)
         .applySystemPrompt()
-        .setReasoningPipe(authorBuilder(Env.authorPrompt))
+        //.setReasoningPipe(authorBuilder(Env.richardTreadwell))
+        .setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.richardTreadwell)) }
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setSystemPrompt("""Looking at new page, find all instances of dialogue. 
             |You must extend the character's dialogue by adding in additional exposition
@@ -218,13 +221,15 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
             |6. Socratic structure: question → short assent → layered explanation.
             |
             |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story.
-            |Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD CONTENT TO THE END OF THE PAGE.
+            |Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD NON DIALOGUE CONTENT TO THE PAGE.
+            |DO NOT ADD STAGE DIRECTIONS!!! ONLY. ADD. DIALOGUE. YOU FUCK. AND ONLY ADD DIALOGUE TO PLACES
+            |WHERE THERE IS ALREADY DIALOGUE!!!!!!!!!!!!!!!!!!!!!
             |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material (there should be MORE).
             |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
             |NO TEXT CAN BE DELETED: ONLY ADDED. Additionally, your changes must be to ALL PLACES WITH MORE THAN ONE
-            |EXISTING LINE OF DIALOGUE: ONLY ADD TO PLACES THAT ALREADY HAVE DIALOGUE. YOU MUST NOT ADD ADDITIONAL
-            |PARAGRAPHS OF BODY TEXT TO THE END OF THE PAGE.
+            |EXISTING LINE OF DIALOGUE: ONLY ADD DIALOGUE, and ONLY IN PLACES THAT ALREADY HAVE DIALOGUE! YOU MUST NOT ADD ADDITIONAL
+            |PARAGRAPHS OF BODY TEXT TO THE PAGE.
             |###WARNING: ABSOLUTELY DO NOT INCLUDE THE LIST OF YOUR CHANGES IN THE OUTPUT. 
             |THE FINAL OUTPUT MUST BE ONLY THE FULLY MODIFIED PAGE.
         """.trimMargin())
@@ -234,7 +239,7 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
             |as many sentences in your output as there were in the provided material (there should be MORE).
             |###IMPORTANT: DO NOT INCLUDE THE LIST OF YOUR CHANGES IN YOUR OUTPUT. THE OUTPUT MUST BE ONLY THE 
             |FULLY MODIFIED PAGE.
-            |###WARNING: Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD CONTENT TO THE END OF THE PAGE.
+            |###WARNING: Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD NON DIALOGUE CONTENT TO THE PAGE.
         """.trimMargin())
         .setTransformationFunction(::recordWritingPipePage)
         .applySystemPrompt()
@@ -243,16 +248,18 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
 
 
     val certifyMyDialoguePipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
+        .setRegion("us-west-2")
         .useConverseApi()
-        .setModel(deepseekModelName)
+        .setModel(PalmyraX5)
         .setContextWindowSize(115000)
-        .setMaxTokens(32000)
+        .setMaxTokens(8000)
         .pullGlobalContext()
         .setPageKey("new page, user prompt")
         .setTemperature(0.8)
-        .setTopP(.7)
+        .setTopP(.8)
         .applySystemPrompt()
+        //.setReasoningPipe(authorBuilder(Env.editorPrompt))
+        .setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.editorPrompt)) }
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setSystemPrompt("""Looking at new page, find all instances of dialogue. 
             |You must extend the character's dialogue by adding in additional exposition
@@ -285,8 +292,9 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
             |sentences in your output as there were in the provided material (there should be MORE).
             |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
             |NO TEXT CAN BE DELETED: ONLY ADDED. Additionally, your changes must be to ALL PLACES WITH MORE THAN ONE
-            |EXISTING LINE OF DIALOGUE: ONLY ADD TO PLACES THAT ALREADY HAVE DIALOGUE. YOU MUST NOT ADD ADDITIONAL
-            |PARAGRAPHS OF BODY TEXT TO THE END OF THE PAGE.
+            |EXISTING LINE OF DIALOGUE: ONLY ADD NEW DIALOGUE AND ONLY TO PLACES THAT ALREADY HAVE DIALOGUE. YOU MUST NOT ADD ADDITIONAL
+            |PARAGRAPHS OF BODY TEXT TO THE PAGE. DO NOT ADD STAGE DIRECTIONS!!! ONLY. ADD. DIALOGUE. YOU FUCK. AND ONLY ADD DIALOGUE TO PLACES
+            |WHERE THERE IS ALREADY DIALOGUE!!!!!!!!!!!!!!!!!!!!!
             |###WARNING: ABSOLUTELY DO NOT INCLUDE THE LIST OF YOUR CHANGES IN THE OUTPUT. 
             |THE FINAL OUTPUT MUST BE ONLY THE FULLY MODIFIED PAGE.
         """.trimMargin())
@@ -296,7 +304,7 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
             |as many sentences in your output as there were in the provided material (there should be MORE).
             |###IMPORTANT: DO NOT INCLUDE THE LIST OF YOUR CHANGES IN YOUR OUTPUT. THE OUTPUT MUST BE ONLY THE 
             |FULLY MODIFIED PAGE.
-            |###WARNING: Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD CONTENT TO THE END OF THE PAGE.
+            |###WARNING: Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD BODY TEXT ANYWHERE ON THE PAGE.
         """.trimMargin())
         .setTransformationFunction(::recordWritingPipePage)
         .applySystemPrompt()
@@ -332,6 +340,8 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
  */
 suspend fun shunt(content: MultimodalContent) : MultimodalContent
 {
+    val originalText = content.text
+
     val (dialogueSelectionPipeline, connector) = buildDialogueConnector()
     connector.enableTracing()
     dialogueSelectionPipeline.enableTracing()
@@ -352,6 +362,11 @@ suspend fun shunt(content: MultimodalContent) : MultimodalContent
     }
 
 
+    if(json.dialogueType == DialogueType.FormalRote)
+    {
+        content.text = originalText
+        return content
+    }
 
     val finalResult = connector.execute(json.dialogueType, content)
 

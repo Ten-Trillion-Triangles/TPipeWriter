@@ -38,6 +38,7 @@ enum class CommandState
     Idea,
     Lorebook,
     Chat,
+    Character,
     Summary
 }
 
@@ -216,6 +217,11 @@ fun parseInput()
                 commandState = CommandState.Chat
                 if (remainingText.isNotEmpty()) callChatPipeline(remainingText)
             }
+            "character" -> {
+                commandState = CommandState.Character
+                if (remainingText.isNotEmpty()) characterChatSubshell(remainingText)
+                else characterChatSubshell()
+            }
             "lorebook" -> {
                 commandState = CommandState.Lorebook
                 if (remainingText.isNotEmpty()) callLorebookPipeline(remainingText)
@@ -243,6 +249,10 @@ fun parseInput()
             "chapters" -> {
                 commandState = CommandState.Writer
                 manageChapters()
+            }
+            "tokens" -> {
+                commandState = CommandState.Writer
+                tokenCountingSubshell()
             }
             "clear-chat" -> clearChatHistory()
             "rewrite" -> {
@@ -274,6 +284,7 @@ fun parseInput()
             CommandState.Writer -> callWriterPipeline(rawInput)
             CommandState.Idea -> callIdeaPipeline(rawInput)
             CommandState.Chat -> callChatPipeline(rawInput)
+            CommandState.Character -> handleCharacterChatInput(rawInput)
             CommandState.Lorebook -> callLorebookPipeline(rawInput)
             CommandState.Summary -> callSummaryPipeline(rawInput)
         }
@@ -695,7 +706,7 @@ fun callChatPipeline(prompt: String)
     result.addText(request)
 
     Env.discussionPipeline.context = chatContextWindow
-    Env.discussionPipeline.enableTracing()
+    Env.discussionPipeline.enableTracing(TraceConfig(detailLevel = TraceDetailLevel.DEBUG))
 
     println("Thinking...")
 
@@ -1216,6 +1227,7 @@ fun printHelp()
         |/write             - Generate story content using the writer pipeline
         |/idea              - Enter idea pipeline sub-shell or generate ideas with prompt
         |/chat              - Chat about the story using the discussion pipeline
+        |/character         - Chat with a selected character prompt (uses converse history)
         |/lorebook          - Update lorebook entries using the lorebook pipeline
         |/summary           - Summarize content (last/all/1-3/5/custom text)
         |/save              - Save current context to file
@@ -1230,6 +1242,7 @@ fun printHelp()
         |/import-lorebook   - Import lorebook from JSON file
         |/import-nai        - Import Novel AI story from JSON file
         |/chapters          - Enter chapter management sub-shell
+        |/tokens            - Enter token counting sub-shell for analysis
         |/rewrite           - Rewrite existing chapters with lore and style fixes
         |/style             - Show current writing style
         |/guide             - Open the guide settings menu.
@@ -2832,8 +2845,4 @@ fun showFullComparison(original: String, rewritten: String)
     
     println("\nWord counts: Original: ${original.split("\\s+".toRegex()).size}, Rewritten: ${rewritten.split("\\s+".toRegex()).size}")
 }
-
-
-
-
 

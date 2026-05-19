@@ -23,11 +23,21 @@ data class ModelSettings(
       return when (modelName)
         {
             deepSeekModelName() -> "us-east-2"
+            deepSeekV3ModelName() -> "us-west-2"
             novaModelName() -> "us-east-2"
             novaLiteModelName() -> "us-east-2"
             gptModelName() -> "us-west-2"
             gpt120bModelName() -> "us-west-2"
             claudeModelName() -> "us-east-1"
+            qwen235BModelName() -> "us-west-2"
+            qwen32BModelName() -> "us-west-2"
+            qwenCoder480BModelName() -> "us-west-2"
+            qwenCoder30BModelName() -> "us-west-2"
+            palmyraX5ModelName() -> "us-west-2"
+            llamaMaverickModelName() -> "us-east-2"
+            llama70BModelName() -> "us-east-2"
+            llama405BModelName() -> "us-east-2"
+            jambaModelName() -> "us-east-1"
           else -> {""}
       }
     }
@@ -48,12 +58,12 @@ fun toModelSettings(pipe: Pipe) : ModelSettings
 {
     val pipeSettings = pipe.toPipeSettings()
     val newModelSettings = ModelSettings(
-        provider = pipeSettings.provider,
-        modelName = pipeSettings.model,
-        temperature = pipeSettings.temperature,
-        topP = pipeSettings.topP,
-        pipeName = pipeSettings.pipeName,
-        maxTokens = pipeSettings.maxTokens)
+        provider = pipeSettings.provider!!,
+        modelName = pipeSettings.model ?: "",
+        temperature = pipeSettings.temperature ?: .7,
+        topP = pipeSettings.topP ?: .7,
+        pipeName = pipeSettings.pipeName ?: "",
+        maxTokens = pipeSettings.maxTokens ?: 10000)
 
     return newModelSettings
 }
@@ -133,16 +143,27 @@ fun updatePipeWithModelSettings(pipeline: Pipeline,  modelSettings: List<ModelSe
             ProviderName.Gemini -> continue
             ProviderName.Gpt -> continue
             ProviderName.Ollama -> continue
+            ProviderName.OpenRouter -> continue
         }
     }
 }
 
 fun deepSeekModelName() : String = "deepseek.r1-v1:0"
+fun deepSeekV3ModelName() : String = "deepseek.v3-v1:0"
 fun novaModelName() : String = "amazon.nova-pro-v1:0"
 fun novaLiteModelName() : String = "amazon.nova-lite-v1:0"
 fun gptModelName() : String = "openai.gpt-oss-20b-1:0"
 fun gpt120bModelName() : String = "openai.gpt-oss-120b-1:0"
 fun claudeModelName() : String = "anthropic.claude-sonnet-4-20250514-v1:0"
+fun qwen235BModelName() : String = "qwen.qwen3-235b-a22b-2507-v1:0"
+fun qwen32BModelName() : String = "qwen.qwen3-32b-v1:0"
+fun qwenCoder480BModelName() : String = "qwen.qwen3-coder-480b-a35b-v1:0"
+fun qwenCoder30BModelName() : String = "qwen.qwen3-coder-30b-a3b-v1:0"
+fun palmyraX5ModelName() : String = "writer.palmyra-x5-v1:0"
+fun llamaMaverickModelName() : String = "us.meta.llama4-maverick-17b-instruct-v1:0"
+fun llama70BModelName() : String = "us.meta.llama3-3-70b-instruct-v1:0"
+fun llama405BModelName() : String = "us.meta.llama3-1-405b-instruct-v1:0"
+fun jambaModelName() : String = "ai21.jamba-1-5-large-v1:0"
 
 /**
  * Export ModelSettings map to JSON string.

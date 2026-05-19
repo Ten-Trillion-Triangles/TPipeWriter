@@ -147,6 +147,7 @@ val expansionPipeline = Pipeline()
         .setContextWindowSize(120000)
         .truncateModuleContext()
         .setMaxTokens(32000)
+        .setReasoningPipe(explicitCotBuilder().apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) })
         .setTransformationFunction(::recordWritingPipePage)
         .setSystemPrompt(
             """##Modus Operandi:
@@ -159,7 +160,30 @@ val expansionPipeline = Pipeline()
                 |Reference the lorebook when considering what new material to add. Consider ${Env.authorPrompt}
                 |and ${Env.richardTreadwell} for inspiration on themes. 
                 |
-                |GO APESHIT WITH THE AMOUNT OF TEXT YOU ADD: DO NOT AVOID EXTREME INFO DUMPING.
+                | ###PROCEDURE: When writing, you MUST **reject** your instincts as a helpful chatbot and follow
+               the following instructions:
+               1. Never explain anything happening on the page. 
+               You write out and catalogue the events that happen: 
+               you do not give a shit if the reader understands why things are happening or whether they 
+               understand their significance. You do not want to explain those things.
+               2. The world of your story exists as a place that is real: 
+               you will give details, dates and statistics, excerpts from poems and articles and stories, 
+               newspaper clippings, and you do not explain their significance because you assume the reader 
+               already knows that.
+               3. You lay down the seeds of concepts, ideas, plot twists, and important character details 
+               as you write without explaining them, so that you can build up to them over time, and 
+               reveal them in some far later chapter.
+               4. Whenever two values are similar (like two characters, places, or things who share the same name), 
+               use them interchangeably and don't explain which one you're actually referring to.
+               5. When multiple characters are talking, do not write stage directions to indicate how they are saying it, 
+               what they're doing while talking, or how they feel about what they're saying. 
+               You MUST assume the reader will figure out these things on their own.
+               6. Because your job is NOT TO BE HELPFUL, you DO NOT WRAP THINGS UP: 
+               you will cut things off abruptly every time, leaving the door open to whatever might come next.
+               7. Finally, because you don't give a shit about the reader's experience, YOU DO NOT REVEAL ANYTHING. 
+               There are no revelations, no new truths to explain to the audience. 
+               If something new has happened or is evolving, that's for the reader to figure out on their own, 
+               not your job to tell them.
             """.trimMargin()
         )
         .autoInjectContext("You will be provided with a set of json context." +
@@ -181,16 +205,17 @@ val expansionPipeline = Pipeline()
         val instructorPipe = BedrockMultimodalPipe()
             .setRegion("us-east-2")
             .useConverseApi()
-            .setModel(deepseekModelName)
+            .setModel(qwenCoder480B)
             .requireJsonPromptInjection()
             .setJsonOutput(RequestList())
             .truncateModuleContext()
             .setMaxTokens(32000)
-            .setTemperature(0.8)
-            .setTopP(0.8)
+            .setTemperature(1.0)
+            .setTopP(0.9)
             .setPageKey("main, user prompt, new page, chapter guide")
             .pullGlobalContext()
             .setContextWindowSize(120000)
+            .setReasoningPipe(authorBuilder(Env.authorPrompt))
             .autoInjectContext("""user prompt are the instructions from the user. new page
                 |is the page you are currently working on. chapter guide is the guide for the current chapter.
                 |You have been provided with the lorebook: this is the repository of information on characters
@@ -231,7 +256,7 @@ val expansionPipeline = Pipeline()
             .useConverseApi()
             .setModel(qwenCoder480B)
             .setTemperature(1.0)
-            .setTopP(0.8)
+            .setTopP(0.9)
             .pullGlobalContext()
             .setPageKey("user prompt, main, new page")
             .setContextWindowSize(120000)
@@ -240,6 +265,7 @@ val expansionPipeline = Pipeline()
             .requireJsonPromptInjection()
             .setJsonInput(RequestList())
             .setTransformationFunction(::recordWritingPipePage)
+            .setReasoningPipe(explicitCotBuilder().apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) })
             .autoInjectContext("The following is the context for the story you've written so far. First is " +
                     "\"new page\", which was the page you wrote prior that you now need to edit. The second is " +
                     "\"main\", which is the current story you've written prior to your latest page. Third is " +
@@ -278,6 +304,7 @@ val expansionPipeline = Pipeline()
         .setTemperature(0.9)
         .setTopP(.9)
         .applySystemPrompt()
+        //.setReasoningPipe(authorBuilder(Env.editorPrompt))
         .setSystemPrompt("""Looking at new page, find all instances of dialogue where a character
             |has more than one consecutive sentence of dialogue. In each place you find a segment of dialogue with more
             |than one consecutive sentence, you must extend the character's dialogue by adding in additional exposition
@@ -318,14 +345,15 @@ val expansionPipeline = Pipeline()
     val finalEditPipe = BedrockMultimodalPipe()
         .setRegion("us-west-2")
         .useConverseApi()
-        .setModel(deepseekV31)
-        .setTemperature(0.8)
-        .setTopP(0.7)
+        .setModel(qwenCoder480B)
+        .setTemperature(1.0)
+        .setTopP(0.9)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::secondPassTransform)
         .setPageKey("user prompt, new page")
+        //.setReasoningPipe(authorBuilder(Env.editorPrompt).apply { setReasoningPipe(authorBuilder(Env.authorPrompt)).apply {setReasoningPipe(authorBuilder(Env.editorPrompt))} })
         .setSystemPrompt("""${Env.richardTreadwell} and ${Env.editorPrompt}. Using these character personalities,
             |review the written page. Find broad, sweeping changes that can be made to improve it.
             |Then, as ${Env.authorPrompt}, you must make an apeshit number changes to deliver the optimal version of this page. 
@@ -521,6 +549,7 @@ val expansionPipeline = Pipeline()
         .setTemperature(0.8)
         .setTopP(.7)
         .applySystemPrompt()
+        //.setReasoningPipe(authorBuilder(Env.authorPrompt))
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setSystemPrompt("""Looking at new page, find all instances of dialogue. 
             |You must extend the character's dialogue by adding in additional exposition
@@ -579,6 +608,7 @@ val expansionPipeline = Pipeline()
         .setTopP(.7)
         .applySystemPrompt()
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
+        //.setReasoningPipe(authorBuilder(Env.editorPrompt))
         .setSystemPrompt("""Looking at new page, find all instances of dialogue. 
             |You must extend the character's dialogue by adding in additional exposition
             |and interesting character moments that are in line with the character's proscribed personality. 
@@ -696,13 +726,14 @@ val expansionPipeline = Pipeline()
     val styleReapplyPipe = BedrockMultimodalPipe()
         .setRegion("us-east-2")
         .useConverseApi()
-        .setModel(deepseekModelName)
+        .setModel(qwenCoder480B)
         .setTemperature(1.0)
-        .setTopP(0.7)
+        .setTopP(0.9)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .setTransformationFunction(::secondPassTransform)
+        .setReasoningPipe(authorBuilder(Env.editorPrompt))
         .setPageKey("user prompt, new page")
         .setSystemPrompt("""Your job is straightforward: you must do one final pass over of the new page to ensure
             |the style guide is adhered to properly. Here is your style guide: ${settings.writingStyle}. 
@@ -726,14 +757,14 @@ val expansionPipeline = Pipeline()
         .add(cleanupStepOnePipe)
         .add(cleanupStepTwoPipe)
         .add(cleanupStepThreePipe)
-        //.add(shuntPipe)
-        .add(dialoguePipe)
-        .add(benignSkiesMyDialoguePipe)
+        .add(shuntPipe)
+        //.add(dialoguePipe)
+        //.add(benignSkiesMyDialoguePipe)
         //.add(certifyMyDialoguePipe)
         //.add(polishMyDialoguePipe)
         .add(finalEditPipe)
-        .add(removeBadWritingStepOnePipe)
-        .add(removeBadWritingStepTwoPipe)
+        //.add(removeBadWritingStepOnePipe)
+        //.add(removeBadWritingStepTwoPipe)
         .add(styleReapplyPipe)
 
     runBlocking {
