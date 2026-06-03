@@ -4,7 +4,6 @@ package Builders.Util
 import Builders.RewriteStyleActions
 import Globals.isValidGptOssResponse
 import Structs.RewriteAnalysis
-import bedrockPipe.BedrockMultimodalPipe
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
 import com.TTT.Context.MiniBank
@@ -14,6 +13,7 @@ import com.TTT.Util.constructPipeFromTemplate
 import com.TTT.Util.deserialize
 import com.TTT.Util.repairAndDeserialize
 import kotlinx.coroutines.runBlocking
+import openrouterPipe.OpenRouterPipe
 
 suspend fun storeRewritePlan(content: MultimodalContent): MultimodalContent
 {
@@ -145,15 +145,15 @@ suspend fun checkWritingStyle(content: MultimodalContent): MultimodalContent
 fun styleSuggestPreValidate(context: MiniBank, content: MultimodalContent? = null) : MiniBank
 {
     //Required for us to get the correct token settings for gpt-oss
-    val bedrockExamplePipe = BedrockMultimodalPipe()
-    bedrockExamplePipe.setModel("gpt-oss")
+    val examplePipe = OpenRouterPipe()
+    examplePipe.setModel("openai/gpt-oss-20b")
         .truncateModuleContext()
 
     //Pull the copied main context from the mini bank.
     val mainContext = context.contextMap["main"] ?: ContextWindow()
 
     //Chop out excess context since it wastes tokens and does not improve the example output.
-    val truncationSettings = bedrockExamplePipe.getTruncationSettings()
+    val truncationSettings = examplePipe.getTruncationSettings()
     mainContext.selectAndTruncateContext("", 8000, ContextWindowSettings.TruncateTop, truncationSettings)
 
     //Emplace the mini bank again.
@@ -185,15 +185,14 @@ suspend fun transformRewriteStyle(content: MultimodalContent): MultimodalContent
  * allow us to fix this unacceptable behavior for now until we can find a way to get more uncensored models into
  * available inferencing.
  */
-fun replacePipeWithDeepseek(pipe: BedrockMultimodalPipe) : BedrockMultimodalPipe?
+fun replacePipeWithDeepseek(pipe: OpenRouterPipe) : OpenRouterPipe?
 {
-    val deepseekModelId = "deepseek.r1-v1:0"
-    val newPipe = constructPipeFromTemplate<BedrockMultimodalPipe>(pipe)
+    val deepseekModelId = "deepseek/deepseek-r1"
+    val newPipe = constructPipeFromTemplate<OpenRouterPipe>(pipe)
 
     if(newPipe != null)
     {
-        newPipe.setRegion("us-east-2")
-            .setModel(deepseekModelId)
+        newPipe.setModel(deepseekModelId)
 
         runBlocking {
             newPipe.init()

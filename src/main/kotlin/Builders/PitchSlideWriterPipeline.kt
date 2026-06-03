@@ -9,9 +9,8 @@ import Builders.Util.storeUserPrompt
 import Globals.Env
 import Globals.isValidGptOssResponse
 import Util.enablePipelineStreaming
-import bedrockPipe.BedrockMultimodalPipe
+import openrouterPipe.OpenRouterPipe
 import com.TTT.Pipeline.Pipeline
-import env.bedrockEnv
 import kotlinx.coroutines.runBlocking
 
 @kotlinx.serialization.Serializable
@@ -27,12 +26,11 @@ data class PointFixes(
 
 fun buildPitchSlideWriterPipeline(): Pipeline {
     /**
-     * Supposedly optimized for coding. Supports reasoning.
+     * 480B Coder has been replaced with the 235B MoE in the OpenRouter path.
+     * Both are Qwen3 MoE family, similar reasoning/instruct tuning.
      */
-    val qwenCoder480B = "qwen.qwen3-coder-480b-a35b-v1:0"
-    val deepseekModelName = "deepseek.r1-v1:0" //us-east-2
-
-    bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
+    val qwenCoder480B = "qwen/qwen3-235b-a22b-2507"
+    val deepseekModelName = "deepseek/deepseek-r1"
 
     val pitchSlideWriterPipeline = Pipeline()
 
@@ -64,9 +62,7 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
              6. Write out all numbers."""
 
 
-    val blueprintPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val blueprintPipe = OpenRouterPipe()
         .setModel(deepseekModelName)
         .setTemperature(0.8)
         .setTopP(0.8)
@@ -95,9 +91,7 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
             |include ONLY ONE idea per array element. I repeat: Only ONE idea per array element.""")
         .setPipeName("blueprintPipe")
 
-    val constructorPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val constructorPipe = OpenRouterPipe()
         .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.3)
@@ -126,9 +120,7 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
         .setPipeName("constructor pipe")
 
 
-    val validityCheckerPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val validityCheckerPipe = OpenRouterPipe()
         .setModel(deepseekModelName)
         .setContextWindowSize(120000)
         .setMaxTokens(20000)
@@ -160,9 +152,7 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
                 " to be made in your output.")
         .setPipeName("validity checker pipe")
 
-    val validityCorrectorPipe  = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val validityCorrectorPipe  = OpenRouterPipe()
         .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
@@ -188,9 +178,7 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
         .setTransformationFunction(::recordWritingPipePage)
         .setPipeName("validity corrector pipe")
 
-    val planCheckPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val planCheckPipe = OpenRouterPipe()
         .setModel(deepseekModelName)
         .setContextWindowSize(120000)
         .setMaxTokens(20000)
@@ -218,9 +206,7 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
                 is the current instructions from the user.""")
         .setPipeName("plan check pipe")
 
-    val planCorrectorPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val planCorrectorPipe = OpenRouterPipe()
         .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
@@ -246,9 +232,7 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
         .setTransformationFunction(::recordWritingPipePage)
         .setPipeName("plan corrector pipe")
 
-    val adherenceInstructorPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val adherenceInstructorPipe = OpenRouterPipe()
         .setModel(deepseekModelName)
         .setContextWindowSize(120000)
         .setMaxTokens(20000)
@@ -272,9 +256,7 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
         .autoInjectContext("""###CONTEXT: "user prompt" is the instructions from the user.""")
         .setPipeName("adherence instructor pipe")
 
-    val adherenceEnforcerPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val adherenceEnforcerPipe = OpenRouterPipe()
         .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
@@ -299,9 +281,7 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
         .setTransformationFunction(::recordWritingPipePage)
         .setPipeName("adherence enforcer pipe")
 
-    val concisionPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val concisionPipe = OpenRouterPipe()
         .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.7)

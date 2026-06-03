@@ -4,7 +4,7 @@ import com.TTT.Context.ContextWindow
 import com.TTT.Context.Dictionary
 import com.TTT.Context.ContextBank
 import com.TTT.Pipe.TruncationSettings
-import bedrockPipe.BedrockMultimodalPipe
+import openrouterPipe.OpenRouterPipe
 import Chapter.ChapterManager
 import Structs.*
 import readEnhancedInput
@@ -68,10 +68,10 @@ fun tokenCountingSubshell() {
 
 /**
  * Creates truncation settings for the specified model.
- * Uses TPipeWriter's actual AWS Bedrock model identifiers and configures
+ * Uses TPipeWriter's actual OpenRouter model identifiers and configures
  * appropriate tokenization settings for each supported model.
- * 
- * @param modelName The model identifier (e.g., deepseek.r1-v1:0, amazon.nova-pro-v1:0)
+ *
+ * @param modelName The model identifier (e.g., deepseek/deepseek-r1, amazon/nova-pro-v1)
  * @return TruncationSettings configured for the specified model
  * @throws Exception If model configuration fails, falls back to DeepSeek defaults
  */
@@ -79,68 +79,64 @@ private fun createTruncationSettings(modelName: String): TruncationSettings {
     return try {
         when (modelName) {
             deepSeekModelName() -> {
-                val pipe = BedrockMultimodalPipe().setModel(deepSeekModelName())
+                val pipe = OpenRouterPipe().setModel(deepSeekModelName())
                 pipe.truncateModuleContext().getTruncationSettings()
             }
             novaModelName() -> {
-                val pipe = BedrockMultimodalPipe().setModel(novaModelName())
+                val pipe = OpenRouterPipe().setModel(novaModelName())
                 pipe.truncateModuleContext().getTruncationSettings()
             }
             novaLiteModelName() -> {
-                val pipe = BedrockMultimodalPipe().setModel(novaLiteModelName())
+                val pipe = OpenRouterPipe().setModel(novaLiteModelName())
                 pipe.truncateModuleContext().getTruncationSettings()
             }
             claudeModelName() -> {
-                val pipe = BedrockMultimodalPipe().setModel(claudeModelName())
+                val pipe = OpenRouterPipe().setModel(claudeModelName())
                 pipe.truncateModuleContext().getTruncationSettings()
             }
             gptModelName() -> {
-                val pipe = BedrockMultimodalPipe().setModel(gptModelName())
+                val pipe = OpenRouterPipe().setModel(gptModelName())
                 pipe.truncateModuleContext().getTruncationSettings()
             }
             gpt120bModelName() -> {
-                val pipe = BedrockMultimodalPipe().setModel(gpt120bModelName())
+                val pipe = OpenRouterPipe().setModel(gpt120bModelName())
                 pipe.truncateModuleContext().getTruncationSettings()
             }
             // Qwen models
-            "qwen.qwen3-235b-a22b-2507-v1:0" -> {
-                val pipe = BedrockMultimodalPipe().setModel("qwen.qwen3-235b-a22b-2507-v1:0")
+            "qwen/qwen3-235b-a22b-2507" -> {
+                val pipe = OpenRouterPipe().setModel("qwen/qwen3-235b-a22b-2507")
                 pipe.truncateModuleContext().getTruncationSettings()
             }
-            "qwen.qwen3-32b-v1:0" -> {
-                val pipe = BedrockMultimodalPipe().setModel("qwen.qwen3-32b-v1:0")
+            "qwen/qwen3-32b" -> {
+                val pipe = OpenRouterPipe().setModel("qwen/qwen3-32b")
                 pipe.truncateModuleContext().getTruncationSettings()
             }
-            "qwen.qwen3-coder-480b-a35b-v1:0" -> {
-                val pipe = BedrockMultimodalPipe().setModel("qwen.qwen3-coder-480b-a35b-v1:0")
-                pipe.truncateModuleContext().getTruncationSettings()
-            }
-            "qwen.qwen3-coder-30b-a3b-v1:0" -> {
-                val pipe = BedrockMultimodalPipe().setModel("qwen.qwen3-coder-30b-a3b-v1:0")
+            "qwen/qwen3-coder-30b-a3b-instruct" -> {
+                val pipe = OpenRouterPipe().setModel("qwen/qwen3-coder-30b-a3b-instruct")
                 pipe.truncateModuleContext().getTruncationSettings()
             }
             // PalmyraX5 model
-            "writer.palmyra-x5-v1:0" -> {
-                val pipe = BedrockMultimodalPipe().setModel("writer.palmyra-x5-v1:0")
+            "writer/palmyra-x5" -> {
+                val pipe = OpenRouterPipe().setModel("writer/palmyra-x5")
                 pipe.truncateModuleContext().getTruncationSettings()
             }
             else -> {
                 // Try to use the provided model name directly
-                val pipe = BedrockMultimodalPipe().setModel(modelName)
+                val pipe = OpenRouterPipe().setModel(modelName)
                 pipe.truncateModuleContext().getTruncationSettings()
             }
         }
     } catch (e: Exception) {
         println("Warning: Failed to configure model '$modelName', using DeepSeek defaults: ${e.message}")
         // Default to DeepSeek settings if model fails
-        val pipe = BedrockMultimodalPipe().setModel(deepSeekModelName())
+        val pipe = OpenRouterPipe().setModel(deepSeekModelName())
         pipe.truncateModuleContext().getTruncationSettings()
     }
 }
 
 /**
  * Lists all supported models for token counting with their full identifiers.
- * Displays both the friendly names and actual AWS Bedrock model IDs,
+ * Displays both the friendly names and actual OpenRouter model IDs,
  * along with usage instructions for model switching.
  */
 private fun showAvailableModels() {
@@ -151,11 +147,11 @@ private fun showAvailableModels() {
     println("  Claude: ${claudeModelName()}")
     println("  GPT: ${gptModelName()}")
     println("  GPT 120B: ${gpt120bModelName()}")
-    println("  Qwen 235B: qwen.qwen3-235b-a22b-2507-v1:0")
-    println("  Qwen 32B: qwen.qwen3-32b-v1:0")
-    println("  Qwen Coder 480B: qwen.qwen3-coder-480b-a35b-v1:0")
-    println("  Qwen Coder 30B: qwen.qwen3-coder-30b-a3b-v1:0")
-    println("  PalmyraX5: writer.palmyra-x5-v1:0")
+    println("  Qwen 235B: qwen/qwen3-235b-a22b-2507")
+    println("  Qwen 32B: qwen/qwen3-32b")
+    println("  Qwen Coder 480B: qwen/qwen3-235b-a22b-2507")
+    println("  Qwen Coder 30B: qwen/qwen3-coder-30b-a3b-instruct")
+    println("  PalmyraX5: writer/palmyra-x5")
     println("\nUse 'model <model-name>' to switch models")
     println("You can use either the full model ID or the short name (e.g., 'deepseek' or '${deepSeekModelName()}')")
 }
@@ -542,7 +538,7 @@ private fun validateChapterIndex(input: String): Int? {
  * Handles model selection with support for both full model IDs and short names.
  * Validates model configuration and provides fallback to default model if needed.
  * Supports convenient short names like 'deepseek', 'nova', 'claude' in addition
- * to full AWS Bedrock model identifiers.
+ * to full OpenRouter model identifiers.
  * 
  * @param modelName Model identifier (full ID or short name)
  * @return Validated model name for use with createTruncationSettings
@@ -562,11 +558,11 @@ private fun handleModelSelection(modelName: String): String {
         "claude" -> claudeModelName()
         "gpt" -> gptModelName()
         "gpt-120b", "gpt120b" -> gpt120bModelName()
-        "qwen235b", "qwen-235b" -> "qwen.qwen3-235b-a22b-2507-v1:0"
-        "qwen32b", "qwen-32b" -> "qwen.qwen3-32b-v1:0"
-        "qwencoder480b", "qwen-coder-480b" -> "qwen.qwen3-coder-480b-a35b-v1:0"
-        "qwencoder30b", "qwen-coder-30b" -> "qwen.qwen3-coder-30b-a3b-v1:0"
-        "palmyrax5", "palmyra-x5", "palmyra" -> "writer.palmyra-x5-v1:0"
+        "qwen235b", "qwen-235b" -> "qwen/qwen3-235b-a22b-2507"
+        "qwen32b", "qwen-32b" -> "qwen/qwen3-32b"
+        "qwencoder480b", "qwen-coder-480b" -> "qwen/qwen3-235b-a22b-2507"
+        "qwencoder30b", "qwen-coder-30b" -> "qwen/qwen3-coder-30b-a3b-instruct"
+        "palmyrax5", "palmyra-x5", "palmyra" -> "writer/palmyra-x5"
         else -> modelName // Use provided name directly
     }
     

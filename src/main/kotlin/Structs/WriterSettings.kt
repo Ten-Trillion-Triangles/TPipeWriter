@@ -1,10 +1,11 @@
 package Structs
 
-import bedrockPipe.BedrockPipe
 import com.TTT.Enums.ProviderName
 import com.TTT.Pipe.Pipe
 import com.TTT.Pipeline.Pipeline
+import env.OpenRouterEnv
 import kotlinx.coroutines.runBlocking
+import openrouterPipe.OpenRouterPipe
 
 data class ModelSettings(
     var provider: ProviderName,
@@ -20,26 +21,7 @@ data class ModelSettings(
     //Stupid name because of frustrating java garbage.
     fun getRegionV2() : String
     {
-      return when (modelName)
-        {
-            deepSeekModelName() -> "us-east-2"
-            deepSeekV3ModelName() -> "us-west-2"
-            novaModelName() -> "us-east-2"
-            novaLiteModelName() -> "us-east-2"
-            gptModelName() -> "us-west-2"
-            gpt120bModelName() -> "us-west-2"
-            claudeModelName() -> "us-east-1"
-            qwen235BModelName() -> "us-west-2"
-            qwen32BModelName() -> "us-west-2"
-            qwenCoder480BModelName() -> "us-west-2"
-            qwenCoder30BModelName() -> "us-west-2"
-            palmyraX5ModelName() -> "us-west-2"
-            llamaMaverickModelName() -> "us-east-2"
-            llama70BModelName() -> "us-east-2"
-            llama405BModelName() -> "us-east-2"
-            jambaModelName() -> "us-east-1"
-          else -> {""}
-      }
+      return ""
     }
 
     /**
@@ -94,14 +76,10 @@ fun convertPipelineToDeepseek(pipeline: Pipeline) : Pipeline
     val pipes = pipeline.getPipes()
     for(pipe in pipes)
     {
-        if(pipe is BedrockPipe)
+        if(pipe is OpenRouterPipe)
         {
-            pipe.setRegion("us-east-2")
-                .setModel("deepseek.r1-v1:0")
-
-            runBlocking {
-                pipe.init()
-            }
+            pipe.setModel("deepseek/deepseek-r1")
+            runBlocking { pipe.init() }
         }
     }
 
@@ -126,16 +104,18 @@ fun updatePipeWithModelSettings(pipeline: Pipeline,  modelSettings: List<ModelSe
         when (pipe.getProviderEnum())
         {
             ProviderName.Aws -> {
+                // Legacy branch: any persisted settings still tagged ProviderName.Aws are read-only
+                // at this point — the BedrockPipe class no longer exists, so we cast to the
+                // surviving OpenRouterPipe and skip the Bedrock-only setRegion() call.
                 model.setRegion()
-                val bedrockPipe = pipe as BedrockPipe
-                bedrockPipe.setRegion(model.region)
-                    .setModel(model.modelName)
+                val orPipe = pipe as OpenRouterPipe
+                orPipe.setModel(model.modelName)
                     .setTopP(model.topP)
                     .setTemperature(model.temperature)
                     .setMaxTokens(model.maxTokens)
 
                 runBlocking {
-                    bedrockPipe.init()
+                    orPipe.init()
                 }
 
             }
@@ -143,27 +123,35 @@ fun updatePipeWithModelSettings(pipeline: Pipeline,  modelSettings: List<ModelSe
             ProviderName.Gemini -> continue
             ProviderName.Gpt -> continue
             ProviderName.Ollama -> continue
-            ProviderName.OpenRouter -> continue
+            ProviderName.OpenRouter -> {
+                val orPipe = pipe as OpenRouterPipe
+                orPipe.setModel(model.modelName)
+                    .setTemperature(model.temperature)
+                    .setTopP(model.topP)
+                    .setMaxTokens(model.maxTokens)
+                orPipe.setApiKey(OpenRouterEnv.resolveApiKey())
+                runBlocking { orPipe.init() }
+            }
         }
     }
 }
 
-fun deepSeekModelName() : String = "deepseek.r1-v1:0"
-fun deepSeekV3ModelName() : String = "deepseek.v3-v1:0"
-fun novaModelName() : String = "amazon.nova-pro-v1:0"
-fun novaLiteModelName() : String = "amazon.nova-lite-v1:0"
-fun gptModelName() : String = "openai.gpt-oss-20b-1:0"
-fun gpt120bModelName() : String = "openai.gpt-oss-120b-1:0"
-fun claudeModelName() : String = "anthropic.claude-sonnet-4-20250514-v1:0"
-fun qwen235BModelName() : String = "qwen.qwen3-235b-a22b-2507-v1:0"
-fun qwen32BModelName() : String = "qwen.qwen3-32b-v1:0"
-fun qwenCoder480BModelName() : String = "qwen.qwen3-coder-480b-a35b-v1:0"
-fun qwenCoder30BModelName() : String = "qwen.qwen3-coder-30b-a3b-v1:0"
-fun palmyraX5ModelName() : String = "writer.palmyra-x5-v1:0"
-fun llamaMaverickModelName() : String = "us.meta.llama4-maverick-17b-instruct-v1:0"
-fun llama70BModelName() : String = "us.meta.llama3-3-70b-instruct-v1:0"
-fun llama405BModelName() : String = "us.meta.llama3-1-405b-instruct-v1:0"
-fun jambaModelName() : String = "ai21.jamba-1-5-large-v1:0"
+fun deepSeekModelName() : String = "deepseek/deepseek-r1"
+fun deepSeekV3ModelName() : String = "deepseek/deepseek-v3.1-terminus"
+fun novaModelName() : String = "amazon/nova-pro-v1"
+fun novaLiteModelName() : String = "amazon/nova-lite-v1"
+fun gptModelName() : String = "openai/gpt-oss-20b"
+fun gpt120bModelName() : String = "openai/gpt-oss-120b"
+fun claudeModelName() : String = "anthropic/claude-sonnet-4"
+fun qwen235BModelName() : String = "qwen/qwen3-235b-a22b-2507"
+fun qwen32BModelName() : String = "qwen/qwen3-32b"
+fun qwenCoder480BModelName() : String = "qwen/qwen3-235b-a22b-2507"
+fun qwenCoder30BModelName() : String = "qwen/qwen3-coder-30b-a3b-instruct"
+fun palmyraX5ModelName() : String = "writer/palmyra-x5"
+fun llamaMaverickModelName() : String = "meta-llama/llama-4-maverick"
+fun llama70BModelName() : String = "meta-llama/llama-3.3-70b-instruct"
+fun llama405BModelName() : String = "nousresearch/hermes-3-llama-3.1-405b"
+fun jambaModelName() : String = "ai21/jamba-large-1.7"
 
 /**
  * Export ModelSettings map to JSON string.

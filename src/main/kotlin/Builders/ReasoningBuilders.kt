@@ -1,7 +1,5 @@
 package Builders
 
-import Defaults.BedrockConfiguration
-import Defaults.reasoning.ReasoningBuilder.reasonWithBedrock
 import Defaults.reasoning.ReasoningDepth
 import Defaults.reasoning.ReasoningDuration
 import Defaults.reasoning.ReasoningInjector
@@ -21,8 +19,8 @@ fun authorBuilder(
     injectionMethod: ReasoningInjector = ReasoningInjector.AfterUserPrompt,
     rounds: Int = 1,
     focusPoints: MutableMap<Int, String> = mutableMapOf(),
-    region: String = "us-west-2",
-    model: String = "writer.palmyra-x5-v1:0",
+    @Suppress("UNUSED_PARAMETER") region: String = "us-west-2", // deprecated: OpenRouter has no region concept
+    model: String = "writer/palmyra-x5",
     maxTokens: Int = 8000,
     temperature: Double = 1.0,
     topP: Double = .7
@@ -38,11 +36,6 @@ fun authorBuilder(
         focusPoints = focusPoints
     )
 
-    val bedrockSettings = BedrockConfiguration(
-        region = region,
-        model = model
-    )
-
     val pipeSettings = PipeSettings(
         model = model,
         temperature = temperature,
@@ -51,11 +44,7 @@ fun authorBuilder(
         pipeName = "author"
     )
 
-    val pipe = reasonWithBedrock(
-        bedrockSettings,
-        reasoningSettings,
-        pipeSettings
-    )
+    val pipe = reasonWithOpenRouter(model, reasoningSettings, pipeSettings)
 
     runBlocking { pipe.init() }
 
@@ -73,24 +62,15 @@ fun obsessivePlannerBuilder(): Pipe
         numberOfRounds = 1
     )
 
-    val config = BedrockConfiguration(
-        region = "us-west-2",
-        model = "qwen.qwen3-coder-480b-a35b-v1:0"
-    )
-
     val pipeSettings = PipeSettings(
-        model = "qwen.qwen3-coder-480b-a35b-v1:0",
+        model = "qwen/qwen3-235b-a22b-2507",
         temperature = 1.0,
         topP = .7,
         maxTokens = 32000,
         pipeName = "obsessive planner"
     )
 
-    val pipe = reasonWithBedrock(
-        config,
-        reasoningSettings,
-        pipeSettings
-    )
+    val pipe = reasonWithOpenRouter("qwen/qwen3-235b-a22b-2507", reasoningSettings, pipeSettings)
 
     runBlocking { pipe.init() }
 
@@ -107,13 +87,8 @@ fun bestIdeaBuilder(): Pipe
         reasoningInjector = ReasoningInjector.AfterUserPrompt
     )
 
-    val config = BedrockConfiguration(
-        region = "us-west-2",
-        model = "qwen.qwen3-coder-480b-a35b-v1:0"
-    )
-
     val pipeSettings = PipeSettings(
-        model = "qwen.qwen3-coder-480b-a35b-v1:0",
+        model = "qwen/qwen3-235b-a22b-2507",
         temperature = .7,
         topP = .7,
         maxTokens = 8000,
@@ -121,11 +96,7 @@ fun bestIdeaBuilder(): Pipe
         pipeName = "best idea"
     )
 
-    val pipe = reasonWithBedrock(
-        config,
-        reasoningSettings,
-        pipeSettings
-    )
+    val pipe = reasonWithOpenRouter("qwen/qwen3-235b-a22b-2507", reasoningSettings, pipeSettings)
 
     runBlocking { pipe.init() }
 
@@ -142,11 +113,6 @@ fun structuredCotBuilder() : Pipe
         numberOfRounds = 1
     )
 
-    val bedrockSettings = BedrockConfiguration(
-        region = "us-west-2",
-        model = "qwen.qwen3-coder-480b-a35b-v1:0"
-    )
-
     val pipeSettings = PipeSettings(
         temperature = .7,
         topP = .7,
@@ -155,11 +121,7 @@ fun structuredCotBuilder() : Pipe
         pipeName = "structured cot"
     )
 
-    val pipe = reasonWithBedrock(
-        bedrockSettings,
-        reasoningSettings,
-        pipeSettings
-    )
+    val pipe = reasonWithOpenRouter("qwen/qwen3-235b-a22b-2507", reasoningSettings, pipeSettings)
 
     runBlocking { pipe.init() }
 
@@ -176,11 +138,6 @@ fun processFocusedBuilder() : Pipe
         numberOfRounds = 1
     )
 
-    val bedrockSettings = BedrockConfiguration(
-        region = "us-west-2",
-        model = "qwen.qwen3-coder-480b-a35b-v1:0"
-    )
-
     val pipeSettings = PipeSettings(
         temperature = .7,
         topP = .7,
@@ -189,11 +146,7 @@ fun processFocusedBuilder() : Pipe
         pipeName = "process focused"
     )
 
-    val pipe = reasonWithBedrock(
-        bedrockSettings,
-        reasoningSettings,
-        pipeSettings
-    )
+    val pipe = reasonWithOpenRouter("qwen/qwen3-235b-a22b-2507", reasoningSettings, pipeSettings)
 
     runBlocking { pipe.init() }
 
@@ -211,11 +164,6 @@ fun explicitCotBuilder(focusPoints: MutableMap<Int, String> = mutableMapOf()) : 
         focusPoints = focusPoints
     )
 
-    val bedrockSettings = BedrockConfiguration(
-        region = "us-west-2",
-        model = "qwen.qwen3-coder-480b-a35b-v1:0"
-    )
-
     val pipeSettings = PipeSettings(
         temperature = .7,
         topP = .7,
@@ -224,11 +172,7 @@ fun explicitCotBuilder(focusPoints: MutableMap<Int, String> = mutableMapOf()) : 
         pipeName = "explicit cot"
     )
 
-    val pipe = reasonWithBedrock(
-        bedrockSettings,
-        reasoningSettings,
-        pipeSettings
-    )
+    val pipe = reasonWithOpenRouter("qwen/qwen3-235b-a22b-2507", reasoningSettings, pipeSettings)
 
     runBlocking { pipe.init() }
 

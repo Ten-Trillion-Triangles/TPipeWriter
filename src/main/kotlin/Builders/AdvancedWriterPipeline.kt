@@ -6,14 +6,13 @@ import Builders.Util.transformStyle
 import Builders.Util.validateGenericGptOss
 import Builders.Util.validateLoreChecker
 import Globals.recordLoreBook
-import bedrockPipe.BedrockMultimodalPipe
 import com.TTT.Context.ContextWindow
 import com.TTT.Enums.ContextWindowSettings
 import com.TTT.Enums.PromptMode
 import com.TTT.Pipeline.Pipeline
-import env.bedrockEnv
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
+import openrouterPipe.OpenRouterPipe
 
 /**
  * Data class that denotes lore violations so that a repair pipe can read this data and fix the issues with the lore.
@@ -33,28 +32,18 @@ fun buildNccWriter(style : String = "",
                    topP : Double = 0.9,
                    writerModel : String = "claude",
                    checkerModel : String = "deepseek",
-                   loreBookModel : String = "gpt-oss",
+                   loreBookModel : String = "openai/gpt-oss-20b",
                    maxTokens : Int = 20000,
                    contextWindowMax : Int = 105000) : Pipeline
 {
     /**
      * Declare model names for my sanity, so I don't have to keep typing them all into the pipes.
      */
-    val deepseekModelName = "deepseek.r1-v1:0"
-    val claudeModelName = "anthropic.claude-sonnet-4-20250514-v1:0"
-    val novaModelName = "amazon.nova-lite-v1:0"
-    val gptOssModelName = "openai.gpt-oss-20b-1:0"
-    val gptOss120bModelName = "openai.gpt-oss-120b-1:0"
-
-    /**
-     * Required boilerplate to map us to the arn, or inference ID. This is because most models cannot be
-     * invoked directly, and must be bound to a profile.
-     */
-    bedrockEnv.loadInferenceConfig()
-    bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-pro-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-pro-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0")
-    bedrockEnv.bindInferenceProfile(claudeModelName, "arn:aws:bedrock:us-east-1:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
+    val deepseekModelName = "deepseek/deepseek-r1"
+    val claudeModelName = "anthropic/claude-sonnet-4"
+    val novaModelName = "amazon/nova-lite-v1"
+    val gptOssModelName = "openai/gpt-oss-20b"
+    val gptOss120bModelName = "openai/gpt-oss-120b"
 
     val nccPipeline = Pipeline()
 
@@ -63,10 +52,7 @@ fun buildNccWriter(style : String = "",
     /**
      * Initial entry pipe. Handles user's request and will begin to write based on the story content provided.
      */
-    val writerEntryPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
-        .setReadTimeout(500)
+    val writerEntryPipe = OpenRouterPipe()
         .setModel(deepseekModelName)
         .setTopP(topP)
         .setTemperature(temperature)
@@ -121,10 +107,7 @@ fun buildNccWriter(style : String = "",
      * This has to be forward declared because kotlin is not able to inference an object not yet declared in the file
      * order. So this happens if the branch fails but is declared prior to the lore checker pipe.
      */
-    val loreRepairPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
-        .setReadTimeout(500)
+    val loreRepairPipe = OpenRouterPipe()
         .setModel(deepseekModelName)
         .setTopP(topP)
         .setTemperature(temperature)
@@ -163,10 +146,7 @@ fun buildNccWriter(style : String = "",
      * output of the story conforms to existing lore, or if it outright contradicts existing lore. This pipe will return
      * the status and branch fail into a corrective rewrite pipe.
      */
-    val loreCheckerPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-1")
-        .useConverseApi()
-        .setReadTimeout(500)
+    val loreCheckerPipe = OpenRouterPipe()
         .setModel(gptOssModelName)
         .setTopP(topP)
         .setTemperature(temperature)
@@ -206,10 +186,7 @@ fun buildNccWriter(style : String = "",
 
 //------------------------------------------------Style pipe------------------------------------------------------------
 
-    val styleCheckerPipe = BedrockMultimodalPipe()
-        .setReadTimeout(300)
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val styleCheckerPipe = OpenRouterPipe()
         .setModel(gptOssModelName)
         .setTopP(topP)
         .setTemperature(temperature)
@@ -274,11 +251,8 @@ fun buildNccWriter(style : String = "",
 
     val blankLoreBookExample = ContextWindow()
 
-    val loreBookPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
-        .enableCaching()
-        .setReadTimeout(400)
+    val loreBookPipe = OpenRouterPipe()
+        .setCacheControl("5m")
         .requireJsonPromptInjection()
         .setModel(gptOssModelName)
         .setPromptMode(PromptMode.singlePrompt)

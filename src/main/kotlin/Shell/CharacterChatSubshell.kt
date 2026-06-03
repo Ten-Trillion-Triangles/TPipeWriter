@@ -4,7 +4,7 @@ import Builders.buildCharacterPipeline
 import Builders.buildCharacterPipelineWithStory
 import Globals.Env
 import Globals.Prompts
-import bedrockPipe.BedrockMultimodalPipe
+import openrouterPipe.OpenRouterPipe
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ConverseHistory
 import com.TTT.Context.ConverseRole
@@ -39,7 +39,7 @@ private fun characterPageKey(): String {
 }
 
 private fun buildTruncationSettings(): TruncationSettings {
-    val template = BedrockMultimodalPipe().truncateModuleContext()
+    val template = OpenRouterPipe().truncateModuleContext()
     val settings = template.getTruncationSettings()
     settings.multiplyWindowSizeBy = 0
     return settings

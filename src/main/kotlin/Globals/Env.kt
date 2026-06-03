@@ -3,8 +3,8 @@ package Globals
 import Builders.buildNccWriter
 import Builders.buildPitchSlideWriterPipeline
 import Builders.buildPlusWriterPipeline
-import Defaults.BedrockConfiguration
-import Defaults.reasoning.ReasoningBuilder
+import Builders.reasonWithOpenRouter
+import Defaults.OpenRouterConfiguration
 import Defaults.reasoning.ReasoningDepth
 import Defaults.reasoning.ReasoningDuration
 import Defaults.reasoning.ReasoningInjector
@@ -14,9 +14,7 @@ import Shell.CommandState
 import Structs.ModelSettings
 import Util.cleanJsonString
 import Util.enablePipelineStreaming
-import bedrockPipe.BedrockMultimodalPipe
-import bedrockPipe.BedrockPipe
-import bedrockPipe.BedrockPriorityTier
+import openrouterPipe.OpenRouterPipe
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
 import com.TTT.Context.LoreBook
@@ -34,7 +32,7 @@ import com.TTT.Util.getHomeFolder
 import com.TTT.Util.repairAndDeserialize
 import com.TTT.Util.serialize
 import com.TTT.Util.writeStringToFile
-import env.bedrockEnv
+import env.OpenRouterEnv
 import kotlinx.coroutines.runBlocking
 import java.io.File
 
@@ -260,13 +258,11 @@ and the sensual and erotic aspects.
     var authorReasoning: Pipe? = null
 
 
-    val deepSeekModelId = "deepseek.r1-v1:0"
-    val novaModelId = "amazon.nova-pro-v1:0"
-    val gptModelId = "openai.gpt-oss-20b-1:0"
-    val novaLiteId = "amazon.nova-lite-v1:0"
-    val nova2LiteId = "amazon.nova-2-lite-v1:0"
-    val nova2ProId = "amazon.nova-2-pro-preview-v1:0"
-    val claudeModelId = "anthropic.claude-sonnet-4-20250514-v1:0"
+    val deepSeekModelId = "deepseek/deepseek-r1"
+    val novaModelId = "amazon/nova-pro-v1"
+    val gptModelId = "openai/gpt-oss-20b"
+    val novaLiteId = "amazon/nova-lite-v1"
+    val claudeModelId = "anthropic/claude-sonnet-4"
 
 
 
@@ -278,6 +274,12 @@ and the sensual and erotic aspects.
     {
 
 //=========================================== Construct agents =========================================================
+        /**
+         * Seed the OpenRouter env with whatever the host shell provided. Main.kt also calls this on
+         * startup, but pipelines can be rebuilt from inside the running shell via /settings without
+         * round-tripping through main(), so re-seeding here keeps things idempotent.
+         */
+        OpenRouterEnv.setApiKey(System.getenv("OPENROUTER_API_KEY") ?: "")
         /**
          * Obliterate and reset existing pipelines. This allows the user to recall init and adjust various
          * generation, and model settings as they see fit.
@@ -300,19 +302,10 @@ and the sensual and erotic aspects.
          */
         writerPipeline.useGlobalContext("main") //Ensure it's using the global context so we can read from it correctly.
 
-        //Declare region and arn for deepseek in preparation to start creating Bedrock pipes.
-        val region = "us-east-2"
+        //Token budget envelopes (in thousands). OpenRouter negotiates model context limits per request.
         val maxTokenBudgetDeepSeek = 106 //Tokens in the thousands. 106K tokens.
         val maxTokenBudgetNova = 280 //Tokens in the thousands. 280K tokens.
 
-
-        bedrockEnv.loadInferenceConfig()
-        bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
-        bedrockEnv.bindInferenceProfile("amazon.nova-pro-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-pro-v1:0")
-        bedrockEnv.bindInferenceProfile("amazon.nova-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0")
-        bedrockEnv.bindInferenceProfile(nova2LiteId, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-2-lite-v1:0")
-        bedrockEnv.bindInferenceProfile(nova2ProId, "arn:aws:bedrock:us-east-1:521369004927:inference-profile/global.amazon.nova-2-pro-preview-v1:0")
-        bedrockEnv.bindInferenceProfile(claudeModelId, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
 
 //=============================================Construct Pipes =========================================================
 
@@ -335,10 +328,7 @@ and the sensual and erotic aspects.
          * Declare the writer pipe. This pipe continues writing the story based on context from prior portions of
          * the story.
          */
-        val writerEntryPipe = BedrockMultimodalPipe()
-            .setRegion("us-east-2")
-            .useConverseApi()
-            .setReadTimeout(800)
+        val writerEntryPipe = OpenRouterPipe()
             .setModel(deepSeekModelId)
             .pullPipelineContext()
             .setTemperature(temperature)
@@ -375,10 +365,8 @@ and the sensual and erotic aspects.
          * The cleanup pipe handles removal of json, html, any code, markdown contents, and any other computer generated
          * code, file metadata, or other content that's not part of the actual story.
          */
-        val cleanUpPipe = BedrockMultimodalPipe()
-            .setRegion("us-east-2")
-            .useConverseApi()
-            .enableCaching()
+        val cleanUpPipe = OpenRouterPipe()
+            .setCacheControl("5m")
             .setModel(gptModelId)
             .setTopP(.7)
             .setTemperature(.7)
@@ -422,11 +410,8 @@ and the sensual and erotic aspects.
 
         val blankLoreBookExample = ContextWindow()
 
-        val loreBookPipe = BedrockMultimodalPipe()
-            .setRegion("us-east-2")
-            .useConverseApi()
-            .enableCaching()
-            .setReadTimeout(400)
+        val loreBookPipe = OpenRouterPipe()
+            .setCacheControl("5m")
             .requireJsonPromptInjection()
             .pullPipelineContext()
             .setModel(deepSeekModelId)
@@ -489,11 +474,8 @@ and the sensual and erotic aspects.
          * Pipe responsible for handling any user requested manual lorebook updates. Supports being given keys,
          * or explicit instructions by the user.
          */
-        val manualLoreBookPipe = BedrockMultimodalPipe()
-            .setRegion("us-east-2")
-            .useConverseApi()
-            .setReadTimeout(400)
-            .enableCaching()
+        val manualLoreBookPipe = OpenRouterPipe()
+            .setCacheControl("5m")
             .setModel(deepSeekModelId)
             .setTopP(.9)
             .setTemperature(1.0)
@@ -528,11 +510,8 @@ and the sensual and erotic aspects.
             |for the story that fits the request.
         """.trimMargin()
 
-        val ideaPipe = BedrockMultimodalPipe()
-            .setRegion("us-east-2")
-            .useConverseApi()
-            .enableCaching()
-            .setReadTimeout(350)
+        val ideaPipe = OpenRouterPipe()
+            .setCacheControl("5m")
             .setModel(deepSeekModelId)
             .truncateModuleContext()
             .setContextWindowSize(maxTokenBudgetDeepSeek)
@@ -565,10 +544,12 @@ and the sensual and erotic aspects.
             | implied, or is part of the broader narrative, moral, or hidden themes and concepts in the narrative work.
         """.trimMargin()
 
-        //Declare required settings for aws bedrock.
-        val bedrockSettings = BedrockConfiguration(
-            "us-west-2",
-            ModelConfig.PalmyraX5)
+        //Declare required settings for OpenRouter.
+        val openRouterSettings = OpenRouterConfiguration(
+            model = ModelConfig.PalmyraX5,
+            apiKey = OpenRouterEnv.resolveApiKey(),
+            openRouterTitle = "TPipeWriter",
+            httpReferer = "https://github.com/cage/TPipeWriter")
 
         //Declare settings to define how reasoning will function.
         val reasoningSettings = ReasoningSettings(
@@ -588,11 +569,11 @@ and the sensual and erotic aspects.
         )
 
         // Create reasoning pipe
-        val configuredPipe = ReasoningBuilder.reasonWithBedrock(
-            bedrockSettings,
+        val configuredPipe = reasonWithOpenRouter(
+            openRouterSettings,
             reasoningSettings,
             pipeSettings)
-            .setPipeName("Thinking Pipe") as BedrockPipe
+            .setPipeName("Thinking Pipe")
 
 
         val budgetSettings = TokenBudgetSettings(
@@ -602,10 +583,8 @@ and the sensual and erotic aspects.
 
 
 
-        val discussionPipe = BedrockMultimodalPipe()
-            .useConverseApi()
-            .enableStreaming()
-            .setRegion("us-west-2")
+        val discussionPipe = OpenRouterPipe()
+            .setStreamingCallback(::discussionStreamingChunk)
             .setTemperature(.6)
             .setTopP(.6)
             .setMaxTokens(8000)
@@ -649,11 +628,8 @@ and the sensual and erotic aspects.
             |to your output.
         """.trimMargin()
 
-        val summaryPipe = BedrockMultimodalPipe()
-            .setRegion("us-east-2")
-            .useConverseApi()
-            .setReadTimeout(300)
-            .enableCaching()
+        val summaryPipe = OpenRouterPipe()
+            .setCacheControl("5m")
             .setModel(novaModelId)
             .setContextWindowSize(maxTokenBudgetNova)
             .truncateModuleContext()
@@ -837,9 +813,9 @@ suspend fun recordUserDiscussionContext(content: ContextWindow, multiModal: Mult
     bankedContext.contextElements.add(json)
     ContextBank.emplaceWithMutex("chat", bankedContext)
 
-    val deepSeekModelId = "deepseek.r1-v1:0"
+    val deepSeekModelId = "deepseek/deepseek-r1"
 
-    val blankDeepSeekPipe = BedrockMultimodalPipe()
+    val blankDeepSeekPipe = OpenRouterPipe()
         .setModel(deepSeekModelId)
 
     blankDeepSeekPipe.truncateModuleContext()
@@ -885,7 +861,7 @@ suspend fun genericBranchFunction(original: MultimodalContent, changed: Multimod
         }
 
         //Create a new pipe that will now use deepseek to carry out our order this time.
-        val deepSeekSecondAttempt = constructPipeFromTemplate<BedrockMultimodalPipe>(refusingPipe)
+        val deepSeekSecondAttempt = constructPipeFromTemplate<OpenRouterPipe>(refusingPipe)
 
         //Bind only the validation function to prevent endless pipe recursion.
         deepSeekSecondAttempt?.validatorFunction = refusingPipe?.validatorFunction
@@ -896,4 +872,14 @@ suspend fun genericBranchFunction(original: MultimodalContent, changed: Multimod
     }
 
     return changed //Not implemented yet so just auto-fail.
+}
+
+/**
+ * Top-level streaming sink for OpenRouter chat deltas. Single chosen callback shared by every pipe
+ * that opts into streaming (chat, any future shell overlays) so we don't end up with a fleet of
+ * inline `suspend { ... }` lambdas scattered across the codebase.
+ */
+suspend fun discussionStreamingChunk(c: String) {
+    print(c)
+    System.out.flush()
 }

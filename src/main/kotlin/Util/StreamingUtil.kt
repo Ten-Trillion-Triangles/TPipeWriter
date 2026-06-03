@@ -1,42 +1,30 @@
 package Util
 
-import bedrockPipe.BedrockMultimodalPipe
-import bedrockPipe.BedrockPipe
 import com.TTT.Pipeline.Pipeline
+import Globals.discussionStreamingChunk
+import openrouterPipe.OpenRouterPipe
 
 /**
- * Enables streaming on all Bedrock pipes in a pipeline with real-time screen output.
+ * Enable streaming on every OpenRouter pipe in the pipeline.
+ *
+ * Replaces the old Bedrock-specific `enableStreaming(callback, true)` + `disableStreaming()`
+ * pattern with OpenRouter's `setStreamingCallback` / `setStreamingEnabled`.
  */
 fun enablePipelineStreaming(pipeline: Pipeline) {
-    val callback: (String) -> Unit = { chunk -> 
-        print(chunk)
-        System.out.flush()
-    }
-    
-    var enabledCount = 0
     pipeline.getPipes().forEach { pipe ->
-        when (pipe) {
-            is BedrockMultimodalPipe -> {
-                pipe.enableStreaming(callback, true)
-                enabledCount++
-            }
-            is BedrockPipe -> {
-                pipe.enableStreaming(callback, true)
-                enabledCount++
-            }
+        if (pipe is OpenRouterPipe) {
+            pipe.setStreamingCallback(::discussionStreamingChunk)
         }
     }
-    println("Streaming enabled on $enabledCount pipes")
 }
 
 /**
- * Disables streaming on all Bedrock pipes in a pipeline.
+ * Disable streaming on every OpenRouter pipe in the pipeline.
  */
 fun disablePipelineStreaming(pipeline: Pipeline) {
     pipeline.getPipes().forEach { pipe ->
-        when (pipe) {
-            is BedrockMultimodalPipe -> pipe.disableStreaming()
-            is BedrockPipe -> pipe.disableStreaming()
+        if (pipe is OpenRouterPipe) {
+            pipe.setStreamingEnabled(false)
         }
     }
 }

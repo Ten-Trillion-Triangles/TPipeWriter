@@ -10,9 +10,8 @@ import Globals.Env
 import Globals.isValidGptOssResponse
 import Shell.loadSettings
 import Util.enablePipelineStreaming
-import bedrockPipe.BedrockMultimodalPipe
+import openrouterPipe.OpenRouterPipe
 import com.TTT.Pipeline.Pipeline
-import env.bedrockEnv
 import kotlinx.coroutines.runBlocking
 
 @kotlinx.serialization.Serializable
@@ -26,79 +25,59 @@ data class BreakerList(
 )
 
 fun buildExpansionPipeline (): Pipeline {
-    val deepseekModelName = "deepseek.r1-v1:0" //us-east-2
-    val claudeModelName = "anthropic.claude-sonnet-4-20250514-v1:0" //us-east-1
-    val novaModelName = "amazon.nova-lite-v1:0"
-    val novaProModelName = "amazon.nova-pro-v1:0"
-    val gptOssModelName = "openai.gpt-oss-20b-1:0" //us-west-2
-    val gptOss120bModelName = "openai.gpt-oss-120b-1:0"
+    val deepseekModelName = "deepseek/deepseek-r1"
+    val claudeModelName = "anthropic/claude-sonnet-4"
+    val novaModelName = "amazon/nova-lite-v1"
+    val novaProModelName = "amazon/nova-pro-v1"
+    val gptOssModelName = "openai/gpt-oss-20b"
+    val gptOss120bModelName = "openai/gpt-oss-120b"
 
-    //us-east-2
-    val llamaMaverick = "us.meta.llama4-maverick-17b-instruct-v1:0"
-    val llama70B = "us.meta.llama3-3-70b-instruct-v1:0"
-    val llama405B = "us.meta.llama3-1-405b-instruct-v1:0"
+    val llamaMaverick = "meta-llama/llama-4-maverick"
+    val llama70B = "meta-llama/llama-3.3-70b-instruct"
+    val llama405B = "nousresearch/hermes-3-llama-3.1-405b"
 
-    //us-east-1
-    val jambaModelName = "ai21.jamba-1-5-large-v1:0"
+    val jambaModelName = "ai21/jamba-large-1.7"
 
 
 
 
-
-    //us-west-2
     /**
      * General purpose version of R1 supposedly far better at creative writing. Supports reasoning being turned
      * on or off.
      */
-    val deepseekV31 = "deepseek.v3-v1:0"
+    val deepseekV31 = "deepseek/deepseek-v3.1-terminus"
 
 
-    //us-west-2
     /**
      * 235B parameter mixture of experts model. Supports reasoning. Instruct style assitant.
      */
-    val qwen235B = "qwen.qwen3-235b-a22b-2507-v1:0"
+    val qwen235B = "qwen/qwen3-235b-a22b-2507"
 
     /**
      * Condensed version. Supposedly good at writing. Supports reasoning.
      */
-    val qwen32B = "qwen.qwen3-32b-v1:0"
+    val qwen32B = "qwen/qwen3-32b"
 
     /**
-     * Supposedly optimized for coding. Supports reasoning.
+     * 480B Coder has been replaced with the 235B MoE in the OpenRouter path.
+     * Both are Qwen3 MoE family, similar reasoning/instruct tuning.
      */
-    val qwenCoder480B = "qwen.qwen3-coder-480b-a35b-v1:0"
+    val qwenCoder480B = "qwen/qwen3-235b-a22b-2507"
 
     /**
      * Mixture of experts version of coder.
      */
-    val qwenCoder30B = "qwen.qwen3-coder-30b-a3b-v1:0"
+    val qwenCoder30B = "qwen/qwen3-coder-30b-a3b-instruct"
 
     /**
      * Palmyra by Writer */
-    val PalmyraX5 = "writer.palmyra-x5-v1:0"
+    val PalmyraX5 = "writer/palmyra-x5"
 
     val settings = loadSettings()
 
-    /**
-     * Required boilerplate to map us to the arn, or inference ID. This is because most models cannot be
-     * invoked directly, and must be bound to a profile.
-     */
-    bedrockEnv.loadInferenceConfig()
-    bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-pro-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-pro-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0")
-    bedrockEnv.bindInferenceProfile(claudeModelName, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
-    bedrockEnv.bindInferenceProfile(llamaMaverick, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama4-maverick-17b-instruct-v1:0")
-    bedrockEnv.bindInferenceProfile(llama70B, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama3-3-70b-instruct-v1:0")
-    bedrockEnv.bindInferenceProfile(llama405B, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama3-1-405b-instruct-v1:0")
-    bedrockEnv.bindInferenceProfile(PalmyraX5, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.writer.palmyra-x5-v1:0")
-
 val expansionPipeline = Pipeline()
 
-    val breakerPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val breakerPipe = OpenRouterPipe()
         .setModel(deepseekModelName)
         .requireJsonPromptInjection()
         .setJsonOutput(BreakerList())
@@ -136,9 +115,7 @@ val expansionPipeline = Pipeline()
             |include ONLY ONE target sentence per array element. I repeat: Only ONE target sentence per array element.""")
         .setPipeName("breaker pipe")
 
-    val expanderPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val expanderPipe = OpenRouterPipe()
         .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.8)
@@ -202,9 +179,7 @@ val expansionPipeline = Pipeline()
             |your output should ONLY BE THE FULLY MODIFIED PAGE. DO NOT LIST YOUR CHANGES. DO NOT OUTPUT JSON.""")
         .setPipeName("expander pipe")
 
-        val instructorPipe = BedrockMultimodalPipe()
-            .setRegion("us-east-2")
-            .useConverseApi()
+        val instructorPipe = OpenRouterPipe()
             .setModel(qwenCoder480B)
             .requireJsonPromptInjection()
             .setJsonOutput(RequestList())
@@ -251,9 +226,7 @@ val expansionPipeline = Pipeline()
             """.trimMargin())
             .setPipeName("instructor pipe")
 
-        val implementerPipe = BedrockMultimodalPipe()
-            .setRegion("us-west-2")
-            .useConverseApi()
+        val implementerPipe = OpenRouterPipe()
             .setModel(qwenCoder480B)
             .setTemperature(1.0)
             .setTopP(0.9)
@@ -289,13 +262,11 @@ val expansionPipeline = Pipeline()
             """)
             .setPipeName("implementer pipe")
 
-        val shuntPipe = BedrockMultimodalPipe()
+        val shuntPipe = OpenRouterPipe()
         .setPreInvokeFunction(::preInvokeShunt)
             .setPipeName("shunt pipe")
 
-    val dialoguePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val dialoguePipe = OpenRouterPipe()
         .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
@@ -342,9 +313,7 @@ val expansionPipeline = Pipeline()
         .setPipeName("dialogue pipe")
         .autoInjectContext("New Page is the page of text you must work on.")
 
-    val finalEditPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val finalEditPipe = OpenRouterPipe()
         .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.9)
@@ -376,9 +345,7 @@ val expansionPipeline = Pipeline()
         .setPipeName("final edit pipe")
 
     //the following pipes will attempt to clean up common AI writing practices, as well as fix any lingering style problems.
-    val cleanupStepOnePipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val cleanupStepOnePipe = OpenRouterPipe()
         .setModel(deepseekModelName)
         .setTemperature(1.0)
         .setTopP(0.7)
@@ -412,9 +379,7 @@ val expansionPipeline = Pipeline()
             |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
             |sentences in your output as there were in the provided material.""")
 
-    val cleanupStepTwoPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val cleanupStepTwoPipe = OpenRouterPipe()
         .setModel(deepseekModelName)
         .setTemperature(1.0)
         .setTopP(0.7)
@@ -455,9 +420,7 @@ val expansionPipeline = Pipeline()
             |sentences in your output as there were in the provided material.""")
         .setPipeName("cleanup step two pipe")
 
-    val cleanupStepThreePipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val cleanupStepThreePipe = OpenRouterPipe()
         .setModel(deepseekModelName)
         .setTemperature(0.7)
         .setTopP(0.7)
@@ -490,9 +453,7 @@ val expansionPipeline = Pipeline()
             |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT BEYOND WHAT YOU HAVE BEEN ORDERED TO.""")
         .setPipeName("cleanup step three pipe")
 
-    val benignSkiesMyDialoguePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val benignSkiesMyDialoguePipe = OpenRouterPipe()
         .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
@@ -537,9 +498,7 @@ val expansionPipeline = Pipeline()
         .setPipeName("benign skies my dialogue pipe")
         .autoInjectContext("New Page is the page of text you must work on.")
 
-    val polishMyDialoguePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val polishMyDialoguePipe = OpenRouterPipe()
         .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
@@ -596,9 +555,7 @@ val expansionPipeline = Pipeline()
         .setPipeName("polish my dialogue pipe")
         .autoInjectContext("New Page is the page of text you must work on.")
 
-    val certifyMyDialoguePipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val certifyMyDialoguePipe = OpenRouterPipe()
         .setModel(deepseekModelName)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
@@ -656,9 +613,7 @@ val expansionPipeline = Pipeline()
         .setPipeName("certify my dialogue pipe")
         .autoInjectContext("New Page is the page of text you must work on.")
 
-    val removeBadWritingStepOnePipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val removeBadWritingStepOnePipe = OpenRouterPipe()
         .setModel(deepseekModelName)
         .requireJsonPromptInjection()
         .truncateModuleContext()
@@ -689,9 +644,7 @@ val expansionPipeline = Pipeline()
         .setTransformationFunction(::recordWritingPipePage)
         .setPipeName("remove bad writing step one pipe")
 
-    val removeBadWritingStepTwoPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val removeBadWritingStepTwoPipe = OpenRouterPipe()
         .setModel(deepseekModelName)
         .requireJsonPromptInjection()
         .truncateModuleContext()
@@ -723,9 +676,7 @@ val expansionPipeline = Pipeline()
         .setPipeName("remove bad writing step two pipe")
 
 
-    val styleReapplyPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val styleReapplyPipe = OpenRouterPipe()
         .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.9)

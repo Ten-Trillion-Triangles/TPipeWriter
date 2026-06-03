@@ -17,7 +17,7 @@ repositories {
 dependencies {
     // TPipe library dependencies via composite build
     implementation("com.TTT:TPipe:1.0.0")
-    implementation("com.TTT:TPipe-Bedrock:1.0.0")
+    implementation("com.TTT:TPipe-OpenRouter:1.0.0")
     implementation("com.TTT:TPipe-Defaults:1.0.0")
 
     // Align kotlinx-serialization with Kotlin 2.2.x

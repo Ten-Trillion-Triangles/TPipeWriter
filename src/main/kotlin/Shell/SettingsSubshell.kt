@@ -310,7 +310,7 @@ fun showPipelineConfigMenu(pipelineName: String, settings: ModelSettings)
     println("  13. ${llamaMaverickModelName()} (Llama 4 Maverick)")
     println("  14. ${llama70BModelName()} (Llama 3.3 70B)")
     println("  15. ${llama405BModelName()} (Llama 3.1 405B)")
-    println("  16. ${jambaModelName()} (Jamba 1.5 Large)")
+    println("  16. ${jambaModelName()} (Jamba 1.7 Large)")
     
     println("\nCommands:")
     println("  model <number>     - Select model (shortcut: m)")
@@ -568,7 +568,7 @@ fun resetAllSettings()
     }
     
     val defaultSettings = ModelSettings(
-        provider = ProviderName.Aws,
+        provider = ProviderName.OpenRouter,
         modelName = deepSeekModelName(),
         temperature = 0.7,
         topP = 0.7
@@ -656,7 +656,7 @@ fun applySettingsToAll()
     println("\n=== Apply Settings to All Pipelines ===")
     
     val settings = ModelSettings(
-        provider = ProviderName.Aws,
+        provider = ProviderName.OpenRouter,
         modelName = deepSeekModelName(),
         temperature = 0.7,
         topP = 0.7

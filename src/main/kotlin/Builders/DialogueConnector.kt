@@ -5,13 +5,12 @@ import Builders.Util.recordWritingPipePage
 import Globals.Env
 import Shell.loadSettings
 import Util.enablePipelineStreaming
-import bedrockPipe.BedrockMultimodalPipe
 import com.TTT.Debug.TraceStreamMerger
 import com.TTT.Pipe.MultimodalContent
 import com.TTT.Pipeline.Connector
 import com.TTT.Pipeline.Pipeline
 import com.TTT.Util.extractJson
-import env.bedrockEnv
+import openrouterPipe.OpenRouterPipe
 
 enum class DialogueType
 {
@@ -31,62 +30,50 @@ data class dialogueClass (
  */
 fun buildDialogueConnector() : Pair<Pipeline, Connector>
 {
-    val deepseekModelName = "deepseek.r1-v1:0"
-    val claudeModelName = "anthropic.claude-sonnet-4-20250514-v1:0"
-    val novaModelName = "amazon.nova-lite-v1:0"
-    val novaProModelName = "amazon.nova-pro-v1:0"
-    val gptOssModelName = "openai.gpt-oss-20b-1:0"
-    val gptOss120bModelName = "openai.gpt-oss-120b-1:0"
+    val deepseekModelName = "deepseek/deepseek-r1"
+    val claudeModelName = "anthropic/claude-sonnet-4"
+    val novaModelName = "amazon/nova-lite-v1"
+    val novaProModelName = "amazon/nova-pro-v1"
+    val gptOssModelName = "openai/gpt-oss-20b"
+    val gptOss120bModelName = "openai/gpt-oss-120b"
 
 
     /**
      * General purpose version of R1 supposedly far better at creative writing. Supports reasoning being turned
      * on or off.
      */
-    val deepseekV31 = "deepseek.v3-v1:0"
+    val deepseekV31 = "deepseek/deepseek-v3.1-terminus"
 
 
     /**
      * 235B parameter mixture of experts model. Supports reasoning. Instruct style assitant.
      */
-    val qwen235B = "qwen.qwen3-235b-a22b-2507-v1:0"
+    val qwen235B = "qwen/qwen3-235b-a22b-2507"
 
     /**
      * Condensed version. Supposedly good at writing. Supports reasoning.
      */
-    val qwen32B = "qwen.qwen3-32b-v1:0"
+    val qwen32B = "qwen/qwen3-32b"
 
     /**
      * Supposedly optimized for coding. Supports reasoning.
      */
-    val qwenCoder480B = "qwen.qwen3-coder-480b-a35b-v1:0"
+    val qwenCoder480B = "qwen/qwen3-235b-a22b-2507"
 
     /**
      * Mixture of experts version of coder.
      */
-    val qwenCoder30B = "qwen.qwen3-coder-30b-a3b-v1:0"
+    val qwenCoder30B = "qwen/qwen3-coder-30b-a3b-instruct"
 
     /**
      * Palmyra by Writer */
-    val PalmyraX5 = "writer.palmyra-x5-v1:0"
+    val PalmyraX5 = "writer/palmyra-x5"
 
 
     val settings = loadSettings()
 
-    /**
-     * Required boilerplate to map us to the arn, or inference ID. This is because most models cannot be
-     * invoked directly, and must be bound to a profile.
-     */
-    bedrockEnv.loadInferenceConfig()
-    bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-pro-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-pro-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0")
-    bedrockEnv.bindInferenceProfile(claudeModelName, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
 
-
-    val identifyMyDialogue = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val identifyMyDialogue = OpenRouterPipe()
         .setModel(deepseekModelName)
         .setContextWindowSize(115000)
         .requireJsonPromptInjection()
@@ -129,9 +116,7 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .setPipeName("identify my dialogue pipe")
 
 
-    val benignSkiesMyDialoguePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val benignSkiesMyDialoguePipe = OpenRouterPipe()
         .setModel(PalmyraX5)
         .setContextWindowSize(115000)
         .setMaxTokens(8000)
@@ -182,9 +167,7 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .autoInjectContext("New Page is the page of text you must work on.")
 
 
-    val polishMyDialoguePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val polishMyDialoguePipe = OpenRouterPipe()
         .setModel(PalmyraX5)
         .setContextWindowSize(115000)
         .setMaxTokens(8000)
@@ -247,9 +230,7 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .autoInjectContext("New Page is the page of text you must work on.")
 
 
-    val certifyMyDialoguePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val certifyMyDialoguePipe = OpenRouterPipe()
         .setModel(PalmyraX5)
         .setContextWindowSize(115000)
         .setMaxTokens(8000)

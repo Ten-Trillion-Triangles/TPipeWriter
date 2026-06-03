@@ -10,7 +10,7 @@ import Structs.constructModelSettingsList
 import Structs.convertPipelineToDeepseek
 import Structs.toModelSettings
 
-import bedrockPipe.BedrockPipe
+import openrouterPipe.OpenRouterPipe
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
 import com.TTT.Context.Dictionary
@@ -93,7 +93,7 @@ fun extractRelevantContext(strategy: ContextSelectionStrategy, prompt: String): 
             else {
                 // Use proper token counting to get last 8K tokens
                 val allText = elements.joinToString(" ")
-                val examplePipe = BedrockPipe().truncateModuleContext()
+                val examplePipe = OpenRouterPipe().truncateModuleContext()
                 val settings = examplePipe.getTruncationSettings()
                 
                 // Create temporary context window for truncation
@@ -354,8 +354,8 @@ fun callWriterPipeline(prompt: String)
 
     // Get context and configure token management for DeepSeek model
     val currentGlobalContext = ContextBank.getContextFromBank("main")
-    val exampleBedrockPipe = BedrockPipe().truncateModuleContext()
-    val tokenCountSettings = exampleBedrockPipe.getTruncationSettings()
+    val examplePipe = OpenRouterPipe().truncateModuleContext()
+    val tokenCountSettings = examplePipe.getTruncationSettings()
 
     // Break into advanced context shell if "//" is the prompt or if advancedMode is true
     if (prompt == "//" || Env.advancedMode)
@@ -437,9 +437,9 @@ fun callIdeaPipeline(prompt: String)
     val availableTokens = 107000 - ideaSettings.lorebookTokenBudget
     
     // Configure DeepSeek model for idea generation
-    val deepSeekModelId = "deepseek.r1-v1:0"
-    val exampleBedrockPipe = BedrockPipe().setModel(deepSeekModelId).truncateModuleContext()
-    val tokenCountSettings = exampleBedrockPipe.getTruncationSettings()
+    val deepSeekModelId = "deepseek/deepseek-r1"
+    val exampleOpenRouterPipe = OpenRouterPipe().setModel(deepSeekModelId).truncateModuleContext()
+    val tokenCountSettings = exampleOpenRouterPipe.getTruncationSettings()
     
     // Apply context truncation with lorebook token budget
     contextWindow.selectAndTruncateContext(
@@ -688,10 +688,10 @@ fun callChatPipeline(prompt: String)
     if (request.isEmpty()) return
 
     // Configure DeepSeek for conversational responses
-    val deepSeekModelId = "deepseek.r1-v1:0"
+    val deepSeekModelId = "deepseek/deepseek-r1"
     val currentGlobalContext = ContextBank.getContextFromBank("main")
-    val exampleBedrockPipe = BedrockPipe().setModel(deepSeekModelId).truncateModuleContext()
-    val tokenCountSettings = exampleBedrockPipe.getTruncationSettings()
+    val exampleOpenRouterPipe = OpenRouterPipe().setModel(deepSeekModelId).truncateModuleContext()
+    val tokenCountSettings = exampleOpenRouterPipe.getTruncationSettings()
     
     // Create separate context for chat to prevent bleeding into main context
     val chatContextWindow = com.TTT.Context.ContextWindow()
@@ -745,10 +745,10 @@ fun callLorebookPipeline(prompt: String)
     }
 
     // Setup DeepSeek for lorebook processing
-    val deepSeekModelId = "deepseek.r1-v1:0"
+    val deepSeekModelId = "deepseek/deepseek-r1"
     val currentGlobalContext = ContextBank.getContextFromBank("main")
-    val exampleBedrockPipe = BedrockPipe().setModel(deepSeekModelId).truncateModuleContext()
-    val tokenCountSettings = exampleBedrockPipe.getTruncationSettings()
+    val exampleOpenRouterPipe = OpenRouterPipe().setModel(deepSeekModelId).truncateModuleContext()
+    val tokenCountSettings = exampleOpenRouterPipe.getTruncationSettings()
     val tokenCount = Dictionary.countTokens(currentGlobalContext.contextElements.toString())
 
     currentGlobalContext.selectAndTruncateContext(
@@ -905,10 +905,10 @@ fun summarizeWithCustomPrompt(prompt: String)
 fun executeSummary(text: String)
 {
     // Configure Nova model for summarization (280K token limit)
-    val novaModelId = "amazon.nova-pro-v1:0"
+    val novaModelId = "amazon/nova-pro-v1"
     val currentGlobalContext = ContextBank.getContextFromBank("main")
-    val exampleBedrockPipe = BedrockPipe().setModel(novaModelId).truncateModuleContext()
-    val tokenCountSettings = exampleBedrockPipe.getTruncationSettings()
+    val exampleOpenRouterPipe = OpenRouterPipe().setModel(novaModelId).truncateModuleContext()
+    val tokenCountSettings = exampleOpenRouterPipe.getTruncationSettings()
     val tokenCount = Dictionary.countTokens(text)
 
     // Truncate if text exceeds Nova's context window
