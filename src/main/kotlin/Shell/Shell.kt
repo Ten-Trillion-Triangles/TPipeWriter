@@ -9,6 +9,7 @@ import Structs.ModelSettings
 import Structs.constructModelSettingsList
 import Structs.convertPipelineToDeepseek
 import Structs.toModelSettings
+import Structs.updatePipeWithModelSettings
 
 import bedrockPipe.BedrockPipe
 import com.TTT.Context.ContextBank
@@ -1305,7 +1306,8 @@ fun exportStory()
         // Export settings as JSON with current guides
         val currentSettings = loadSettings().copy(
             chapterGuide = Env.activeChapterGuide,
-            storyGuide = Env.activeStoryGuide
+            storyGuide = Env.activeStoryGuide,
+            authorGuide = Env.activeAuthorGuide
         )
         val settingsJson = com.TTT.Util.serialize(currentSettings)
         val settingsFile = java.io.File(tpipeDir, "$filename-settings.json")
@@ -2316,29 +2318,35 @@ fun linkLorebookKeys(keyName: String, linkedKeys: List<String>)
 {
     val context = ContextBank.getContextFromBank("main")
     val loreEntry = context.loreBookKeys[keyName]
-    
+
     if (loreEntry == null) {
         println("Key '$keyName' not found.")
         return
     }
-    
-    val allLinkedKeys = mutableListOf<String>()
+
+    var anyLinked = false
     linkedKeys.forEach { linkedKey ->
         if (!context.loreBookKeys.containsKey(linkedKey)) {
             println("Linked key '$linkedKey' not found.")
-            return
+            return@forEach
         }
-        allLinkedKeys.add(linkedKey)
-        allLinkedKeys.add(linkedKey.lowercase())
-        allLinkedKeys.add(linkedKey.uppercase())
+        if (linkedKey !in loreEntry.linkedKeys) {
+            loreEntry.linkedKeys.add(linkedKey)
+        }
+        if (linkedKey.lowercase() !in loreEntry.linkedKeys) {
+            loreEntry.linkedKeys.add(linkedKey.lowercase())
+        }
+        if (linkedKey.uppercase() !in loreEntry.linkedKeys) {
+            loreEntry.linkedKeys.add(linkedKey.uppercase())
+        }
+        anyLinked = true
     }
-    
-    allLinkedKeys.forEach { linkedKey ->
-        println("Linked '$keyName' to '$linkedKey'")
-    }
-    
-    runBlocking {
-        ContextBank.emplaceWithMutex("main", context)
+
+    if (anyLinked) {
+        runBlocking {
+            ContextBank.emplaceWithMutex("main", context)
+        }
+        println("Linked '$keyName' to: ${loreEntry.linkedKeys.joinToString(", ")}")
     }
 }
 
@@ -2351,16 +2359,23 @@ fun unlinkLorebookKeys(keyName: String, linkedKeys: List<String>)
 {
     val context = ContextBank.getContextFromBank("main")
     val loreEntry = context.loreBookKeys[keyName]
-    
+
     if (loreEntry == null) {
         println("Key '$keyName' not found.")
         return
     }
-    
+
     linkedKeys.forEach { linkedKey ->
-        println("Unlinked '$keyName' from '$linkedKey'")
+        val forms = listOf(linkedKey, linkedKey.lowercase(), linkedKey.uppercase())
+        val removed = forms.filter { loreEntry.linkedKeys.remove(it) }
+        if (removed.isNotEmpty()) {
+            println("Unlinked '$linkedKey' (${removed.joinToString(", ")}) from '$keyName'")
+        }
+        else {
+            println("'$linkedKey' was not linked to '$keyName'")
+        }
     }
-    
+
     runBlocking {
         ContextBank.emplaceWithMutex("main", context)
     }
@@ -2375,23 +2390,21 @@ fun addLorebookAlias(keyName: String, aliases: List<String>)
 {
     val context = ContextBank.getContextFromBank("main")
     val loreEntry = context.loreBookKeys[keyName]
-    
+
     if (loreEntry == null) {
         println("Key '$keyName' not found.")
         return
     }
-    
-    val allAliases = mutableListOf<String>()
+
     aliases.forEach { alias ->
-        allAliases.add(alias)
-        allAliases.add(alias.lowercase())
-        allAliases.add(alias.uppercase())
-    }
-    
-    allAliases.forEach { alias ->
+        listOf(alias, alias.lowercase(), alias.uppercase()).forEach { form ->
+            if (form !in loreEntry.aliasKeys) {
+                loreEntry.aliasKeys.add(form)
+            }
+        }
         println("Added alias '$alias' to '$keyName'")
     }
-    
+
     runBlocking {
         ContextBank.emplaceWithMutex("main", context)
     }
@@ -2406,16 +2419,23 @@ fun removeLorebookAlias(keyName: String, aliases: List<String>)
 {
     val context = ContextBank.getContextFromBank("main")
     val loreEntry = context.loreBookKeys[keyName]
-    
+
     if (loreEntry == null) {
         println("Key '$keyName' not found.")
         return
     }
-    
+
     aliases.forEach { alias ->
-        println("Removed alias '$alias' from '$keyName'")
+        val forms = listOf(alias, alias.lowercase(), alias.uppercase())
+        val removed = forms.filter { loreEntry.aliasKeys.remove(it) }
+        if (removed.isNotEmpty()) {
+            println("Removed alias '$alias' (${removed.joinToString(", ")}) from '$keyName'")
+        }
+        else {
+            println("'$alias' was not an alias of '$keyName'")
+        }
     }
-    
+
     runBlocking {
         ContextBank.emplaceWithMutex("main", context)
     }
@@ -2502,7 +2522,13 @@ fun callChapterRewritePipeline(prompt: String)
     
     Env.expansionPipeline = buildExpansionPipeline()
     Env.expansionPipeline.enableTracing(traceConfig)
-    
+
+    Env.writingPipelineSettings["Rewrite Pipeline"]?.let { userSettings ->
+        if (userSettings.isNotEmpty()) {
+            updatePipeWithModelSettings(Env.expansionPipeline, userSettings)
+        }
+    }
+
     // Initialize pipeline after tracing is enabled
     runBlocking {
         Env.expansionPipeline.init(true)
@@ -2730,7 +2756,7 @@ fun callChapterRewritePipeline(prompt: String)
 
                         Env.expansionPipeline = convertPipelineToDeepseek(Env.expansionPipeline)
                         val updatedSettings = constructModelSettingsList(Env.expansionPipeline)
-                        Env.writingPipelineSettings["rewritePipeline"] = updatedSettings
+                        Env.writingPipelineSettings["Rewrite Pipeline"] = updatedSettings
 
                     }
                 }

@@ -5,7 +5,11 @@ import com.TTT.Enums.ProviderName
 import com.TTT.Pipe.Pipe
 import com.TTT.Pipeline.Pipeline
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.serializer
 
+@Serializable
 data class ModelSettings(
     var provider: ProviderName,
     var pipeName: String = "",
@@ -57,9 +61,17 @@ data class ModelSettings(
 fun toModelSettings(pipe: Pipe) : ModelSettings
 {
     val pipeSettings = pipe.toPipeSettings()
+    val rawModel = pipeSettings.model ?: ""
+    val afterArn = if (rawModel.contains('/')) rawModel.substringAfterLast('/') else rawModel
+    val simpleModel = when {
+        afterArn.startsWith("us.") -> afterArn.removePrefix("us.")
+        afterArn.startsWith("eu.") -> afterArn.removePrefix("eu.")
+        afterArn.startsWith("ap.") -> afterArn.removePrefix("ap.")
+        else -> afterArn
+    }
     val newModelSettings = ModelSettings(
         provider = pipeSettings.provider!!,
-        modelName = pipeSettings.model ?: "",
+        modelName = simpleModel,
         temperature = pipeSettings.temperature ?: .7,
         topP = pipeSettings.topP ?: .7,
         pipeName = pipeSettings.pipeName ?: "",
@@ -128,8 +140,11 @@ fun updatePipeWithModelSettings(pipeline: Pipeline,  modelSettings: List<ModelSe
             ProviderName.Aws -> {
                 model.setRegion()
                 val bedrockPipe = pipe as BedrockPipe
-                bedrockPipe.setRegion(model.region)
-                    .setModel(model.modelName)
+                if (model.region.isNotEmpty())
+                {
+                    bedrockPipe.setRegion(model.region)
+                }
+                bedrockPipe.setModel(model.modelName)
                     .setTopP(model.topP)
                     .setTemperature(model.temperature)
                     .setMaxTokens(model.maxTokens)
@@ -170,7 +185,27 @@ fun jambaModelName() : String = "ai21.jamba-1-5-large-v1:0"
  */
 fun exportModelSettingsToJson(settingsMap: Map<String, ModelSettings>): String
 {
-    return com.TTT.Util.serialize(settingsMap)
+    val kxMapSerializer = kotlinx.serialization.builtins.MapSerializer(
+        String.serializer(),
+        ModelSettings.serializer()
+    )
+    return try
+    {
+        val tp = com.TTT.Util.serialize(settingsMap)
+        if (tp.isNotEmpty()) tp
+        else kotlinx.serialization.json.Json.encodeToString(kxMapSerializer, settingsMap)
+    }
+    catch (e: Exception)
+    {
+        try
+        {
+            kotlinx.serialization.json.Json.encodeToString(kxMapSerializer, settingsMap)
+        }
+        catch (e2: Exception)
+        {
+            "{}"
+        }
+    }
 }
 
 /**
@@ -178,7 +213,28 @@ fun exportModelSettingsToJson(settingsMap: Map<String, ModelSettings>): String
  */
 fun importModelSettingsFromJson(jsonString: String): Map<String, ModelSettings>?
 {
-    return com.TTT.Util.deserialize<Map<String, ModelSettings>>(jsonString)
+    if (jsonString.isBlank()) return null
+    val kxMapSerializer = kotlinx.serialization.builtins.MapSerializer(
+        String.serializer(),
+        ModelSettings.serializer()
+    )
+    return try
+    {
+        val tp = com.TTT.Util.deserialize<Map<String, ModelSettings>>(jsonString)
+        if (tp != null && tp.isNotEmpty()) tp
+        else kotlinx.serialization.json.Json.decodeFromString(kxMapSerializer, jsonString)
+    }
+    catch (e: Exception)
+    {
+        try
+        {
+            kotlinx.serialization.json.Json.decodeFromString(kxMapSerializer, jsonString)
+        }
+        catch (e2: Exception)
+        {
+            null
+        }
+    }
 }
 
 /**
