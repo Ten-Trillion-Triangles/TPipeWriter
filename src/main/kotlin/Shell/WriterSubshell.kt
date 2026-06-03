@@ -81,11 +81,7 @@ fun writerSubshell(
             "back", "exit" -> return
             "" -> continue
             else -> {
-                // Treat as write command if not a recognized command
-                executeWriterPipeline(input, writingStrength, writerLevelConnector,
-                    if (contextConfigured) writerContext else currentGlobalContext,
-                    if (contextConfigured) input else relevantContext, tokenCountSettings)
-                return
+                println("Unknown command: $command. Type 'help' for available commands.")
             }
         }
     }
@@ -105,8 +101,6 @@ fun showWriterSubshellMenu()
         |  write <prompt>        - Execute with current settings
         |  help                  - Show this menu
         |  back                  - Return to main shell
-        |
-        |Or enter any text to write directly and exit subshell.
     """.trimMargin())
 }
 
@@ -382,7 +376,7 @@ fun executeWriterPipeline(
                 {
                     Env.rewritePipeline = convertPipelineToDeepseek(Env.rewritePipeline)
                     val updatedSettings = constructModelSettingsList(Env.rewritePipeline)
-                    Env.writingPipelineSettings["rewritePipeline"] = updatedSettings
+                    Env.writingPipelineSettings["Rewrite Pipeline"] = updatedSettings
 
                 }
             }

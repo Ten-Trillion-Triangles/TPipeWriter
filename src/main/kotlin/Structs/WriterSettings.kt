@@ -5,8 +5,12 @@ import com.TTT.Pipe.Pipe
 import com.TTT.Pipeline.Pipeline
 import env.OpenRouterEnv
 import kotlinx.coroutines.runBlocking
+import kotlinx.serialization.Serializable
+import kotlinx.serialization.builtins.serializer
+import kotlinx.serialization.serializer
 import openrouterPipe.OpenRouterPipe
 
+@Serializable
 data class ModelSettings(
     var provider: ProviderName,
     var pipeName: String = "",
@@ -39,9 +43,17 @@ data class ModelSettings(
 fun toModelSettings(pipe: Pipe) : ModelSettings
 {
     val pipeSettings = pipe.toPipeSettings()
+    val rawModel = pipeSettings.model ?: ""
+    val afterArn = if (rawModel.contains('/')) rawModel.substringAfterLast('/') else rawModel
+    val simpleModel = when {
+        afterArn.startsWith("us.") -> afterArn.removePrefix("us.")
+        afterArn.startsWith("eu.") -> afterArn.removePrefix("eu.")
+        afterArn.startsWith("ap.") -> afterArn.removePrefix("ap.")
+        else -> afterArn
+    }
     val newModelSettings = ModelSettings(
         provider = pipeSettings.provider!!,
-        modelName = pipeSettings.model ?: "",
+        modelName = simpleModel,
         temperature = pipeSettings.temperature ?: .7,
         topP = pipeSettings.topP ?: .7,
         pipeName = pipeSettings.pipeName ?: "",
@@ -158,7 +170,27 @@ fun jambaModelName() : String = "ai21/jamba-large-1.7"
  */
 fun exportModelSettingsToJson(settingsMap: Map<String, ModelSettings>): String
 {
-    return com.TTT.Util.serialize(settingsMap)
+    val kxMapSerializer = kotlinx.serialization.builtins.MapSerializer(
+        String.serializer(),
+        ModelSettings.serializer()
+    )
+    return try
+    {
+        val tp = com.TTT.Util.serialize(settingsMap)
+        if (tp.isNotEmpty()) tp
+        else kotlinx.serialization.json.Json.encodeToString(kxMapSerializer, settingsMap)
+    }
+    catch (e: Exception)
+    {
+        try
+        {
+            kotlinx.serialization.json.Json.encodeToString(kxMapSerializer, settingsMap)
+        }
+        catch (e2: Exception)
+        {
+            "{}"
+        }
+    }
 }
 
 /**
@@ -166,7 +198,28 @@ fun exportModelSettingsToJson(settingsMap: Map<String, ModelSettings>): String
  */
 fun importModelSettingsFromJson(jsonString: String): Map<String, ModelSettings>?
 {
-    return com.TTT.Util.deserialize<Map<String, ModelSettings>>(jsonString)
+    if (jsonString.isBlank()) return null
+    val kxMapSerializer = kotlinx.serialization.builtins.MapSerializer(
+        String.serializer(),
+        ModelSettings.serializer()
+    )
+    return try
+    {
+        val tp = com.TTT.Util.deserialize<Map<String, ModelSettings>>(jsonString)
+        if (tp != null && tp.isNotEmpty()) tp
+        else kotlinx.serialization.json.Json.decodeFromString(kxMapSerializer, jsonString)
+    }
+    catch (e: Exception)
+    {
+        try
+        {
+            kotlinx.serialization.json.Json.decodeFromString(kxMapSerializer, jsonString)
+        }
+        catch (e2: Exception)
+        {
+            null
+        }
+    }
 }
 
 /**

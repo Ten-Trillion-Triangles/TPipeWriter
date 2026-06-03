@@ -111,25 +111,21 @@ fun showLLMSettingsMenu()
     println("Quick access: Just type pipeline number (e.g., '1' to configure Writer Pipeline)")
 }
 
-// Cache pipelines list for performance
-private val pipelinesCache by lazy {
-    listOf(
-        "Writer Pipeline" to Env.writerPipeline,
-        "Idea Pipeline" to Env.ideaPipeline,
-        "Lorebook Pipeline" to Env.lorebookPipeline,
-        "Rewrite Pipeline" to Env.rewritePipeline,
-        "Chat Pipeline" to Env.discussionPipeline,
-        "Summary Pipeline" to Env.summarizerPipeline,
-        "Style Pipeline" to Env.stylePipeline,
-        "NCC Pipeline" to Env.nccPipeline,
-        "Plus Writer Pipeline" to Env.plusWriterPipe
-    )
-}
-
 /**
- * Get all available pipelines with their names.
+ * Get all available pipelines with their names. Reads the current Env pipeline references
+ * each call so re-inits via Env.init are always observed.
  */
-fun getAllPipelines(): List<Pair<String, Pipeline?>> = pipelinesCache
+fun getAllPipelines(): List<Pair<String, Pipeline?>> = listOf(
+    "Writer Pipeline" to Env.writerPipeline,
+    "Idea Pipeline" to Env.ideaPipeline,
+    "Lorebook Pipeline" to Env.lorebookPipeline,
+    "Rewrite Pipeline" to Env.rewritePipeline,
+    "Chat Pipeline" to Env.discussionPipeline,
+    "Summary Pipeline" to Env.summarizerPipeline,
+    "Style Pipeline" to Env.stylePipeline,
+    "NCC Pipeline" to Env.nccPipeline,
+    "Plus Writer Pipeline" to Env.plusWriterPipe
+)
 
 /**
  * Configure a specific pipeline by its menu number.
@@ -410,10 +406,16 @@ fun applySettingsToPipe(pipeline: Pipeline, pipeName: String, settings: ModelSet
             println("Pipe $pipeName not found in pipeline")
             return false
         }
-        
+
         // Apply settings using existing update mechanism
         val settingsList = listOf(settings)
         updatePipeWithModelSettings(pipeline, settingsList)
+
+        val displayName = displayNameForPipeline(pipeline)
+        if (displayName != null)
+        {
+            Env.writingPipelineSettings[displayName] = constructModelSettingsList(pipeline)
+        }
         true
     }
     catch (e: Exception)
@@ -432,12 +434,42 @@ fun applySettingsToPipeline(pipeline: Pipeline, settings: ModelSettings): Boolea
     {
         val settingsList = listOf(settings)
         updatePipeWithModelSettings(pipeline, settingsList)
+
+        val displayName = displayNameForPipeline(pipeline)
+        if (displayName != null)
+        {
+            Env.writingPipelineSettings[displayName] = constructModelSettingsList(pipeline)
+        }
         true
     }
     catch (e: Exception)
     {
         println("Error applying settings: ${e.message}")
         false
+    }
+}
+
+/**
+ * Map a Pipeline instance to its display name as used in getAllPipelines() and
+ * Env.writingPipelineSettings. Returns null if the pipeline is not one of the
+ * nine named pipelines (in which case we simply skip persisting to the settings
+ * map; the apply still appears successful to the caller).
+ */
+private fun displayNameForPipeline(pipeline: Pipeline?): String?
+{
+    if (pipeline == null) return null
+    return when (pipeline)
+    {
+        Env.writerPipeline -> "Writer Pipeline"
+        Env.ideaPipeline -> "Idea Pipeline"
+        Env.lorebookPipeline -> "Lorebook Pipeline"
+        Env.rewritePipeline -> "Rewrite Pipeline"
+        Env.discussionPipeline -> "Chat Pipeline"
+        Env.summarizerPipeline -> "Summary Pipeline"
+        Env.stylePipeline -> "Style Pipeline"
+        Env.nccPipeline -> "NCC Pipeline"
+        Env.plusWriterPipe -> "Plus Writer Pipeline"
+        else -> null
     }
 }
 
@@ -753,26 +785,33 @@ fun copyPipelineSettings()
         return
     }
     
-    val sourceSettings = extractPipelineSettings(sourcePipeline)
-    if (sourceSettings == null)
+    val sourceSettings = extractAllPipelineSettings(sourcePipeline)
+    if (sourceSettings.isEmpty())
     {
         println("Unable to extract settings from source pipeline")
         return
     }
-    
+
     print("Copy settings from $sourceName to all other pipelines? (y/N): ")
     val confirm = readEnhancedInput().trim().lowercase()
-    
+
     if (confirm == "y" || confirm == "yes")
     {
         var copiedCount = 0
         pipelines.forEach { (name, pipeline) ->
-            if (name != sourceName && pipeline != null && applySettingsToPipeline(pipeline, sourceSettings))
+            if (name != sourceName && pipeline != null)
             {
-                copiedCount++
+                var allApplied = true
+                sourceSettings.forEach { pipeSettings ->
+                    if (!applySettingsToPipe(pipeline, pipeSettings.pipeName, pipeSettings))
+                    {
+                        allApplied = false
+                    }
+                }
+                if (allApplied) copiedCount++
             }
         }
-        
+
         println("Settings copied from $sourceName to $copiedCount other pipelines")
     }
     else

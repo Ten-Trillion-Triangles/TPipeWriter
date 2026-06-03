@@ -15,29 +15,46 @@ import readEnhancedInput
 fun selectGuideMode()
 {
     val guideModeEntry = """
-        
+
         Select one of the following:
-        
+
         1. Save Chapter Guide
         2. Load Chapter Guide
         3. Save Story Guide
         4. Load Story Guide
         5. Save Author Guide
         6. Load Author Guide
+        back - Return to main shell
     """.trimIndent()
 
-    println(guideModeEntry)
-    
-    val userChoice = readEnhancedInput().toInt()
-
-    when (userChoice)
+    while (true)
     {
-        1 -> saveChapterGuide()
-        2 -> loadChapterGuide()
-        3 -> saveStoryGuide()
-        4 -> loadStoryGuide()
-        5 -> saveAuthorGuide()
-        6 -> loadAuthorGuide()
+        println(guideModeEntry)
+        print("guide> ")
+
+        val raw = readEnhancedInput().trim()
+        if (raw.equals("back", ignoreCase = true) || raw.equals("exit", ignoreCase = true) || raw.equals("q", ignoreCase = true))
+        {
+            return
+        }
+
+        val userChoice = raw.toIntOrNull()
+        if (userChoice == null)
+        {
+            println("Invalid choice: '$raw'. Enter a number 1-6 or 'back' to exit.")
+            continue
+        }
+
+        when (userChoice)
+        {
+            1 -> saveChapterGuide()
+            2 -> loadChapterGuide()
+            3 -> saveStoryGuide()
+            4 -> loadStoryGuide()
+            5 -> saveAuthorGuide()
+            6 -> loadAuthorGuide()
+            else -> println("Invalid choice: $userChoice. Enter a number 1-6 or 'back' to exit.")
+        }
     }
 }
 
@@ -219,6 +236,8 @@ fun saveAuthorGuide()
     //Store to env as first step of our saving process.
     Env.authorPrompt = authorGuide
 
+    Env.activeAuthorGuide = authorGuide
+
     println("\n\nEnter the name of your guide file here.")
 
     val filePath = readln()
@@ -245,17 +264,34 @@ fun saveAuthorGuide()
 fun loadAuthorGuide()
 {
     println("""
-        
+
         Enter the name of the author guide you wish to load.
     """.trimIndent())
 
     val guideName = readEnhancedInput()
 
-    val guide = readStringFromFile("${getHomeFolder()}/TPipeWriter/${guideName}-author-guide.txt")
+    return try {
+        val guide = readStringFromFile("${getHomeFolder()}/TPipeWriter/${guideName}-author-guide.txt")
 
-    val settings = loadSettings()
-    settings.authorGuide = guide
+        if (guide.isEmpty())
+        {
+            return
+        }
 
+        //Propagate to in-memory prompt and persist to disk settings.
+        Env.authorPrompt = guide
+
+        Env.activeAuthorGuide = guide
+
+        val currentSettings = loadSettings().copy(authorGuide = guide)
+        saveSettings(currentSettings)
+
+        println("\n\nAuthor Guide:\n\n${guide}")
+    }
+    catch (e: Exception)
+    {
+        println("Error loading author guide: ${e.message}")
+    }
 }
 
 
@@ -315,6 +351,8 @@ fun saveRichardTreadwell()
          */
         settings.competingAuthorGuide = richardTreadwell
 
+        Env.richardTreadwell = richardTreadwell
+
         /**
          * Could this really save everyone? Was trusting Ben after everything he's done a good idea?
          * I didn't know. I didn't know, but I was out of options.
@@ -356,6 +394,8 @@ fun loadRichardTreadwell()
          */
         val settings = loadSettings()
         settings.competingAuthorGuide = richardTreadwell
+
+        Env.richardTreadwell = richardTreadwell
 
         /**
          * Could this really save everyone? Was trusting Ben after everything he's done a good idea?

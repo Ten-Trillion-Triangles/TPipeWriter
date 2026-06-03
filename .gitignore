@@ -40,3 +40,4 @@ merge-trash/PlusWriterPipeline.kt
 /.idea
 /docs/maestro
 /.claude
+/~/.TPipe-Debug
