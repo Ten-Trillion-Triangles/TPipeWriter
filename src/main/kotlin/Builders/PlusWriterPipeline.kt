@@ -46,7 +46,8 @@ data class VibeInstruct(
 @kotlinx.serialization.Serializable
 data class SurgicalChanges(
     var subStringToChange: String = "",
-    var replacementSubString: String = ""
+    var replacementSubString: String = "",
+    var mode: String = "replace"
 )
 
 /**
