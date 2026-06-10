@@ -61,6 +61,79 @@ suspend fun recordWritingPipePage(content: MultimodalContent) : MultimodalConten
     return content //Return content to correctly exit.
 }
 
+/**
+ * Read the prior "new page" text from the bank, apply a list of surgical replacements
+ * emitted by an LLM, and bank the result. Designed to be used as a pipe's
+ * setTransformationFunction so each fix pipe sees only the changes it explicitly made.
+ *
+ * The LLM is expected to emit a JSON object with shape:
+ *   {"changeList": [{"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}]}
+ * (See Builders.SurgicalChangeList and Builders.SurgicalChanges.)
+ *
+ * Semantics:
+ *  - mode "replace"     (default): replace the first occurrence of subStringToChange with replacementSubString
+ *  - mode "delete"     : remove the first occurrence of subStringToChange
+ *  - mode "insertAfter": replace the first occurrence with subStringToChange + replacementSubString
+ *  - unknown mode:      treated as "replace" (lenient, log via the existing per-pipe token report)
+ *  - blank subStringToChange: skipped
+ *  - subStringToChange not found in current text: skipped, logged in the per-pipe token report
+ *
+ * Length sanity: if the patched text is less than minLengthRatio of the prior text, the prior text
+ * is preserved and returned unchanged. This catches the "LLM pretends to be surgical by replacing
+ * everything at once" failure mode and any apply-function bug.
+ *
+ * On JSON parse failure (both extractJson and the cleanJsonString fallback), the prior text is
+ * preserved. The pipe effectively becomes a no-op; the next pipe sees the unchanged bank.
+ */
+suspend fun applySurgicalReplacementsAndBank(
+    content: MultimodalContent,
+    minLengthRatio: Double = 0.25
+): MultimodalContent
+{
+    // 1. Read prior "new page" from the bank. Empty string if not banked or bank is empty.
+    val prior: String = try {
+        ContextBank.getContextFromBank("new page").contextElements.lastOrNull() ?: ""
+    } catch (e: Exception) {
+        ""
+    }
+
+    // 2. Parse the LLM's SurgicalChangeList. Two-pass: extractJson first, then cleanJsonString fallback.
+    val list: SurgicalChangeList? = extractJson<SurgicalChangeList>(content.text)
+        ?: extractJson<SurgicalChangeList>(cleanJsonString(content.text))
+
+    // 3. Apply each change in array order with strict-match drop-on-miss.
+    var patched = prior
+    if (list != null) {
+        for (change in list.changeList) {
+            if (change.subStringToChange.isBlank()) continue
+            val idx = patched.indexOf(change.subStringToChange)
+            if (idx < 0) continue
+            val replacement: String = when (change.mode) {
+                "delete" -> ""
+                "insertAfter" -> change.subStringToChange + change.replacementSubString
+                else -> change.replacementSubString
+            }
+            patched = patched.substring(0, idx) +
+                replacement +
+                patched.substring(idx + change.subStringToChange.length)
+        }
+    }
+
+    // 4. Length sanity check. If the prior was non-empty and the result is too small, preserve prior.
+    val result: String = if (prior.isNotEmpty() && patched.length < (prior.length * minLengthRatio).toInt()) {
+        prior
+    } else {
+        patched
+    }
+
+    // 5. Bank the result and propagate to content.text.
+    val newContext = ContextWindow()
+    newContext.contextElements.add(result)
+    ContextBank.emplaceWithMutex("new page", newContext)
+    content.text = result
+    return content
+}
+
 
 /**
  * Pre-Validation function to copy the lorebook and replace "main" with it prior to the llm getting called.

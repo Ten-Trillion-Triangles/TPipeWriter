@@ -19,11 +19,13 @@ class PlusWriterUtilTest {
     @BeforeEach
     fun clearBankBefore() {
         ContextBank.clearBankedContext()
+        ContextBank.evictAllFromMemory()
     }
 
     @AfterEach
     fun clearBankAfter() {
         ContextBank.clearBankedContext()
+        ContextBank.evictAllFromMemory()
     }
 
     /**
@@ -255,8 +257,9 @@ class PlusWriterUtilTest {
     @Test
     fun testApplyLengthSanityFails() = runBlocking {
         seedBank("a".repeat(1000))
-        val content = llmOutput("""{"changeList": [{"subStringToChange": "${"$"}a", "replacementSubString": "", "mode": "delete"}]}""")
-        // Note: this will only delete the first 'a' (10 chars of 1000 removed -> ratio 0.99 -> passes).
+        val findChar = "a"
+        val content = llmOutput("""{"changeList": [{"subStringToChange": "$findChar", "replacementSubString": "", "mode": "delete"}]}""")
+        // Note: this will only delete the first 'a' (1 char of 1000 removed -> ratio 0.999 -> passes).
         // The real sanity test is below: a change that would shrink past the threshold.
         val result = applySurgicalReplacementsAndBank(content)
         // 999 chars left, ratio 0.999, well above 0.25, so it should pass.
