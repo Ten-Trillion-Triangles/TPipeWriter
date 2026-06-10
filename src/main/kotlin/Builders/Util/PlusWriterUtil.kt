@@ -44,21 +44,10 @@ suspend fun recordAuthorPlan(content: MultimodalContent) : MultimodalContent
  */
 suspend fun recordWritingPipePage(content: MultimodalContent) : MultimodalContent
 {
-    var result = content.text //Get the new page the llm wrote.
-
-    val changes = extractJson<SurgicalChangeList>(result)
-    if(changes != null)
-    {
-        var workingPage = ContextBank.getContextFromBank("new page").contextElements.last()
-        workingPage = surgicalReplace(changes, workingPage)
-        result = workingPage
-    }
-
-    val newContext = ContextWindow() //Declare for boilerplate reasons.
-    newContext.contextElements.add(result) //Store the new page in the generic storage area of the class.
-    ContextBank.emplaceWithMutex("new page", newContext) //Save to the bank as a new global key.
-
-    return content //Return content to correctly exit.
+    val newContext = ContextWindow()
+    newContext.contextElements.add(content.text)
+    ContextBank.emplaceWithMutex("new page", newContext)
+    return content
 }
 
 /**
@@ -230,23 +219,13 @@ suspend fun recordStyleRewriteTransform(content: MultimodalContent) : Multimodal
  */
 suspend fun secondPassTransform(content: MultimodalContent) : MultimodalContent
 {
-    var result = content.text //Get the written page.
-    result = result.replace("*", "\"")
+    val result = content.text.replace("*", "\"")
 
-    val changes = extractJson<SurgicalChangeList>(result)
-    if(changes != null)
-    {
-        //Get the working page so that we can modify it.
-        var lastBankElem = ContextBank.getContextFromBank("new page").contextElements.last()
-        lastBankElem = surgicalReplace(changes, result) //Update data.
-        result = lastBankElem
-    }
-
-    val newContext = ContextWindow() //Construct to store page.
-    newContext.contextElements.add(result) //Store page.
-    val chapters = ContextBank.getContextFromBank("main") //Get existing text.
-    chapters.merge(newContext)  //Merge the two together.
-    ContextBank.emplaceWithMutex("main", chapters) //Emplace back this will be printed by the UI.
+    val newContext = ContextWindow()
+    newContext.contextElements.add(result)
+    val chapters = ContextBank.getContextFromBank("main")
+    chapters.merge(newContext)
+    ContextBank.emplaceWithMutex("main", chapters)
     return content
 }
 
@@ -469,21 +448,4 @@ fun bulkStringReplace(text: String, replacements: Map<String, String>): String {
     return result
 }
 
-
-/**
- * Replace all changes that are marked bad with desired changes.
- *
- * @param supersets List of changes to perform
- * @param content The content to perform the changes on
- * @return The modified content with all replacements applied
- */
-fun surgicalReplace(supersets: SurgicalChangeList, content: String) : String
-{
-    for(it in supersets.changeList)
-    {
-        content.replace(it.subStringToChange, it.replacementSubString)
-    }
-
-    return content
-}
 
