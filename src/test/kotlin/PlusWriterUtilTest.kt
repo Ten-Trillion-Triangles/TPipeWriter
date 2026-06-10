@@ -5,6 +5,7 @@ import Builders.Util.applySurgicalReplacementsAndBank
 import Builders.Util.bulkStringReplace
 import Builders.Util.extractQuotedTextWithMultiplePeriods
 import Builders.Util.extractSentencesWithEmDashes
+import Builders.Util.preInvokeLoreRepairPipe
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
 import com.TTT.Pipe.MultimodalContent
@@ -341,5 +342,37 @@ class PlusWriterUtilTest {
         val content = llmOutput("""{"changeList": [{"subStringToChange": "foo", "replacementSubString": "FOO", "mode": "replace"}]}""")
         val result = applySurgicalReplacementsAndBank(content)
         assertEquals("FOO bar foo baz foo qux", result.text)
+    }
+
+    @Test
+    fun testPreInvokeEmptyListSkipsAndRestoresPrior() = runBlocking {
+        seedBank("the prior page text")
+        val content = llmOutput("""{"changeList": []}""")
+        val shouldSkip = preInvokeLoreRepairPipe(content)
+        assertTrue(shouldSkip)
+        assertEquals("the prior page text", content.text)
+    }
+
+    @Test
+    fun testPreInvokeNonEmptyListDoesNotSkip() = runBlocking {
+        seedBank("the prior page text")
+        val content = llmOutput("""{"changeList": [{"subStringToChange": "foo", "replacementSubString": "bar", "mode": "replace"}]}""")
+        val shouldSkip = preInvokeLoreRepairPipe(content)
+        assertFalse(shouldSkip)
+        // content.text is NOT overwritten when we don't skip -- the LLM will see the original JSON.
+        assertEquals("""{"changeList": [{"subStringToChange": "foo", "replacementSubString": "bar", "mode": "replace"}]}""", content.text)
+    }
+
+    @Test
+    fun testPreInvokeMalformedJsonTerminates() = runBlocking {
+        seedBank("the prior page text")
+        val content = llmOutput("This is just prose, no JSON here at all.")
+        val shouldSkip = preInvokeLoreRepairPipe(content)
+        // We can't easily test content.terminate() here, but we can check that the function
+        // returns false (do not skip) so the repair pipe would run. The actual termination
+        // happens in the framework, not in this function's return value.
+        // The contract: malformed JSON => terminate() is called on content AND the function returns false.
+        // (When the framework sees terminate(), it will halt the pipeline.)
+        assertFalse(shouldSkip)
     }
 }

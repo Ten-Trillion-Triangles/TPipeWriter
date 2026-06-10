@@ -143,33 +143,34 @@ suspend fun copyLorebookFromMain(bank: MiniBank, content: MultimodalContent? = n
 }
 
 /**
- * Pre invoke call for lore repair. If we don't need changes exit true and bail on this pipe moving us forward.
+ * Pre-invoke check for the lore-repair and logical-correction pipes. If the upstream judge pipe
+ * emitted an empty SurgicalChangeList (i.e. "no changes needed"), skip the repair pipe's LLM
+ * call by restoring the prior "new page" text to content.text and returning true.
+ *
+ * If the JSON can't be deserialized, terminate the pipeline -- the judge output is malformed
+ * and the repair pipe cannot operate on it.
  */
 suspend fun preInvokeLoreRepairPipe(content: MultimodalContent) : Boolean
 {
-    val output = content.text
-    val json = extractJson<WorldFixes>(output)
+    val json = extractJson<SurgicalChangeList>(content.text)
 
-    if(json != null)
+    if (json != null)
     {
-        if(!json.needsChanges)
+        if (json.changeList.isEmpty())
         {
-            //Restore prior work as current writing before moving forward.
-            try{
+            try {
                 val prevPage = ContextBank.getContextFromBank("new page")
                 content.text = prevPage.contextElements[0]
                 return true
-            }
-
-            catch (e: Exception)
-            {
+            } catch (e: Exception) {
                 return false
             }
-
         }
+        // Non-empty list: let the repair pipe run.
+        return false
     }
 
-    //Blow up the pipeline if we can't deserialize the json.
+    // JSON could not be parsed -- the judge output is malformed; abort.
     content.terminate()
     return false
 }

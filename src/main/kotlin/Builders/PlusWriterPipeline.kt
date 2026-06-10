@@ -627,25 +627,37 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPageKey("new page, main, user prompt")
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setValidatorFunction(::isValidGptOssResponse)
-        .requireJsonPromptInjection()
-        //.setReasoningPipe(structuredCotBuilder())
-        .setJsonOutput(WorldFixes())
-        .setSystemPrompt("You are now reviewing your work to make sure that what you have written " +
-                "conforms to your existing world building. You are attempting, and desire at all costs, to avoid plot " +
-                "holes. Therefor, you shall now make a plan on how to fix any lore and world building errors in the" +
-                "page you have just written. HOWEVER: if something appears in the text that isn't in the lorebook, " +
-                "so long as it doesn't contradict anything in the lorebook, it is NOT an error, " +
-                "and should not be removed! Likewise, if something is NOT mentioned in the text that has " +
-                "an associated lorebook key, it not being there is NOT a lore error, and it should not be added in!")
-        .autoInjectContext("You will be provided with a json context object that contains the following: " +
-                "\"new page\": This the page you just wrote. \"main\": This is the lorebook that contains all of" +
-                "your world building, characters, events, and other important notes about your story so far. " +
-                "\"user prompt\": This the request from your editor regarding changes they want to see you make " +
-                "to the page you wrote. When writing your plan you must check for the following: \n" +
-                "- Check that \"new page\" conforms to the request of \"user prompt\".\n" +
-                "- Check that \"new page\" does not contain plot holes with the existing lore in \"main\"\n" +
-                "\n If either case confirms that there are issues you need to fix. Include the changes that need" +
-                " to be made in your output.")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setSystemPrompt("""You are now reviewing the page provided under the "new page" key to make sure
+            |that what has been written conforms to the existing world building. You are attempting, and desire
+            |at all costs, to avoid plot holes.
+            |
+            |HOWEVER: if something appears in the text that isn't in the lorebook, so long as it doesn't
+            |contradict anything in the lorebook, it is NOT an error and should not be removed! Likewise,
+            |if something is NOT mentioned in the text that has an associated lorebook key, its absence is
+            |NOT a lore error and should not be added in!
+            |
+            |The "main" key contains the lorebook with all world building, characters, events, and other
+            |important notes so far. The "user prompt" key contains the editor's request for changes to
+            |the page.
+            |
+            |Emit a JSON SurgicalChangeList. For each lore issue you find, emit one entry. subStringToChange
+            |must be a VERBATIM, CHARACTER-EXACT copy of the bad text in the "new page" (include enough
+            |surrounding context -- a sentence or two -- to uniquely identify the passage). replacementSubString
+            |is the corrected text. mode is "replace" (correct the text) or "delete" (remove the passage).
+            |
+            |If the page conforms to the lore, emit {"changeList": []}.
+            |
+            |Output ONLY the JSON. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+        """.trimMargin())
         .setPipeName("lore check pipe")
 
 
@@ -654,7 +666,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .useConverseApi()
         .setModel(qwenCoder480B)
         .requireJsonPromptInjection()
-        .setJsonInput(WorldFixes())
+        .setJsonInput(SurgicalChangeList())
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .truncateModuleContext()
@@ -662,21 +674,36 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPageKey("new page, main, user prompt")
         .setTemperature(.9)
         .setTopP(.8)
-        //.setReasoningPipe(structuredCotBuilder())
-        .setPreInvokeFunction(::preInvokeLoreRepairPipe) //Skip this pipe if we don't need any actual changes.
-        .setTransformationFunction(::recordWritingPipePage)
-        .setSystemPrompt("Currently, you are looking at a revision request that you wrote up prior in the " +
-                "form of json. You need to edit the new page you've written and return the edit as your output.")
-        .autoInjectContext("The following is the context for the story you've written so far. First is " +
-                "\"new page\", which was the page you wrote prior that you now need to edit. The second is " +
-                "\"main\", which is the current story you've written prior to your latest page. Third is " +
-                "\"user prompt\", which is the request your editor has made to you regarding changes they want you" +
-                "to make. ")
-        .setFooterPrompt("Using the provided context, you must now make surgical changes to \"new page\" in accordance with the revision request." +
-                "Make only the changes specified in the revision request, and NO OTHER CHANGES. Furthermore, do NOT truncate the text:" +
-                "there must at least as many paragraphs and at least as many sentences in your output as there were in the provided material." +
-                "You must return only the edited story: do NOT output JSON; do not output JSON of ANY KIND.")
-        .applySystemPrompt()
+        .setPreInvokeFunction(::preInvokeLoreRepairPipe)
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setSystemPrompt("""You received a JSON SurgicalChangeList as input (the lore issues identified by the
+            |previous pipe). Your job is to confirm and refine those surgical changes. Look at each entry in
+            |the changeList:
+            |- Verify that subStringToChange is still a verbatim match in the "new page" (if the LLM that
+            |  generated the judge's output was sloppy, the find may not match).
+            |- Refine the replacementSubString to make the corrected text fit naturally with the surrounding prose.
+            |- If the entry is no longer relevant (the issue was already fixed, or the context changed), drop it.
+            |
+            |Then, if you find ADDITIONAL lore issues that the judge missed, add them as new entries.
+            |
+            |Output a JSON SurgicalChangeList with the verified and refined changes (and any additions).
+            |Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("lore repair pipe")
 
 
@@ -694,45 +721,59 @@ fun buildPlusWriterPipeline() : Pipeline
         .setTemperature(.8)
         .setTopP(.8)
         .applySystemPrompt()
-        //.setReasoningPipe(structuredCotBuilder())
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
         .autoInjectContext("###CONTEXT: \"story guide\" is the outline for the story" +
                 "as a whole. \"chapter guide\" is the outline for the current chapter. \"user prompt\"" +
                 "is the current instructions from the user. \"last page\" is the previous page of the chapter/story.")
         .pullGlobalContext()
         .setPageKey("new page, story guide, chapter guide, user prompt")
-        .setSystemPrompt("""You are now reviewing your work to determine whether or not it
-            |advances the story and has progressed logically since the previous page. Carefully check against
-            |the "story guide" and "chapter guide" to ensure that the written page progresses the story towards
-            |its next stage and conclusion, and to ensure that the content itself actually makes sense from a 
-            |human readable point of view, including making sure written dialogue is written in the way humans
-            |normally write dialogue, unless not talking like a human is a feature of a specific character. Carefully
-            |check against "last page" to make sure that the content logically follows from and is easy to read 
-            |immediately after the previous page.
+        .setSystemPrompt("""You are now reviewing the page provided under the "new page" key to determine whether
+            |or not it advances the story and has progressed logically since the previous page. Carefully check
+            |against the "story guide" and "chapter guide" to ensure that the written page progresses the story
+            |towards its next stage and conclusion, and to ensure that the content itself actually makes sense
+            |from a human-readable point of view, including making sure written dialogue is written in the way
+            |humans normally write dialogue (unless not talking like a human is a feature of a specific character).
+            |Carefully check against "last page" to make sure that the content logically follows from and is easy
+            |to read immediately after the previous page.
+            |
             |NOTABLE TYPES OF ILLOGICAL PROGRESSION:
-            |1. Unexplained time-skips (if we are all of a sudden at a different time of day, 
-            |that needs to be either eliminated or explained)
-            |2. Unexplained jumps in location (if the character is inexplicably in an entirely different location, 
-            |we need to be told how they got there:
-            |for example, on a bus when they were in their apartment on the last page, 
-            |their transit from their living quarters to the bus needs to be demonstrated)
-            |3. Pages that open as though they're the first page of a new chapter rather than a page that follows from the previous
-            |existing page.
+            |1. Unexplained time-skips (if we are all of a sudden at a different time of day, that needs to be
+            |   either eliminated or explained)
+            |2. Unexplained jumps in location (if the character is inexplicably in an entirely different location,
+            |   we need to be told how they got there: for example, on a bus when they were in their apartment on
+            |   the last page, their transit from their living quarters to the bus needs to be demonstrated)
+            |3. Pages that open as though they're the first page of a new chapter rather than a page that follows
+            |   from the previous existing page.
+            |
             |NOTABLE TYPES OF ILLOGICAL WRITING:
             |1. If something has serious ambiguity problems, it should be corrected to eliminate them.
-            |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
-            |NO TEXT CAN BE DELETED: ONLY ADDED. Also, DO NOT WRITE THE CHANGES YOURSELF: ONLY LIST PLACES AND RECOMMENDED
-            |CORRECTIVE ACTIONS.
-            |Produce requested additions as a numbered list.
-            |""".trimMargin())
-        .setJsonOutput(WorldFixes())
-        .setFooterPrompt("""If no changes need to be made, set the "needsChanges" boolean to false. Also,
-            | when suggesting changes, ensure that you are not requesting changes that will result in truncation
-            | or substantial content changes.
+            |
+            |Emit a JSON SurgicalChangeList. For each issue you find, emit one entry. subStringToChange must
+            |be a VERBATIM, CHARACTER-EXACT copy of the bad text in the "new page" (include enough surrounding
+            |context -- a sentence or two -- to uniquely identify the passage). replacementSubString is the
+            |corrected text. mode is "replace" (correct the text), "delete" (remove the passage), or
+            |"insertAfter" (add a clarifying sentence after an existing anchor -- use this for additions
+            |rather than replacements, so you don't accidentally lose text).
+            |
+            |If the page progresses logically, emit {"changeList": []}.
+            |
+            |Output ONLY the JSON. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
         """.trimMargin())
+        .setJsonOutput(SurgicalChangeList())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
         .setPreValidationMiniBankFunction(::logicalProgressionPreValidationMiniBank)
         .setValidatorFunction(::isValidGptOssResponse)
-        .applySystemPrompt()
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("logical progression pipe")
 
 
@@ -747,7 +788,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .requireJsonPromptInjection()
-        .setJsonInput(WorldFixes())
+        .setJsonInput(SurgicalChangeList())
         .setPreInvokeFunction(::preInvokeLoreRepairPipe)
         .setPreValidationMiniBankFunction(::chapterPreValidate)
         .pullGlobalContext()
@@ -755,27 +796,39 @@ fun buildPlusWriterPipeline() : Pipeline
         .setTemperature(0.8)
         .setTopP(.8)
         .applySystemPrompt()
-        //.setReasoningPipe(explicitCotBuilder())
-        .setSystemPrompt("""${settings.writingStyle} As you have completed the list of additions that need to be made
-            |to "new page" in order to make it logically follow from the previous parts of the story, 
-            |you must now execute on that list. With surgical precision and taking care not to change anything else, 
-            |implement all listed additions as listed in your instructions. Ensure that implemented corrections obey
-            |both existing lore and your style guide. Again, your listed changes should be executed as additions to the
-            |text: ONLY ADD TO THE TEXT. DO NOT DELETE ANY TEXT.
-            |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material.
-            |###WARNING: DO NOT MODIFY THE CONTENT BEYOND THE LISTED CORRECTIONS. 
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setSystemPrompt("""${settings.writingStyle} You received a JSON SurgicalChangeList as input (the logical-
+            |progression issues identified by the previous pipe). Your job is to confirm and refine those
+            |surgical changes:
+            |- Verify that subStringToChange is still a verbatim match in the "new page" (if the LLM that
+            |  generated the judge's output was sloppy, the find may not match).
+            |- Refine the replacementSubString to make the corrected text fit naturally with the surrounding prose.
+            |- IMPORTANT: the upstream instructions said "ONLY ADD TO THE TEXT. DO NOT DELETE ANY TEXT." Honor
+            |  that -- for any "delete" entries from the judge, convert them to "replace" entries that keep
+            |  the original text but add the correction alongside it. If you cannot do this, drop the entry.
+            |- If the entry is no longer relevant (the issue was already fixed, or the context changed), drop it.
+            |
+            |Then, if you find ADDITIONAL logical-progression issues that the judge missed, add them as new
+            |entries (prefer "insertAfter" mode so you add text without modifying existing text).
+            |
+            |Output a JSON SurgicalChangeList with the verified and refined changes (and any additions).
+            |Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
         """.trimMargin())
-        .autoInjectContext("""You have been provided with a context object that contains the 
-            |page you are working on fixing. The json schema for the context is as follows: 
-        """.trimMargin())
-        .setFooterPrompt("""Using the page you are going to fix as context, and the instructions for the changes
-            |you need to make, rewrite the page making only the changes you have been instructed to make and following
-            |all of the above rules. Do not truncate the text: there must be at least as many paragraphs and at least
-            |as many sentences in your output as there were in the provided material.
-        """.trimMargin())
-        .setTransformationFunction(::recordWritingPipePage)
-        .applySystemPrompt()
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("logical correction pipe")
 
 
