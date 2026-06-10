@@ -219,13 +219,26 @@ suspend fun recordStyleRewriteTransform(content: MultimodalContent) : Multimodal
  */
 suspend fun secondPassTransform(content: MultimodalContent) : MultimodalContent
 {
-    val result = content.text.replace("*", "\"")
+    // 1. Quote fix: replace * with " (LLMs sometimes emit * for dialogue quotes).
+    val quoted = content.text.replace("*", "\"")
 
+    // 2. Apply any surgical changes embedded in the LLM output. The LLM emits a SurgicalChangeList
+    //    describing edits against the prior "new page" text. The quote fix above does NOT change
+    //    "new page" -- it only normalizes content.text so the JSON parses cleanly. Then we apply
+    //    the surgical changes to the prior "new page" (NOT to the quote-fixed text) so the
+    //    surgical changes operate against the actual bank state.
+    val normalizedContent = MultimodalContent().apply { text = quoted }
+    val patched = applySurgicalReplacementsAndBank(normalizedContent).text
+
+    // 3. Merge into "main".
     val newContext = ContextWindow()
-    newContext.contextElements.add(result)
+    newContext.contextElements.add(patched)
     val chapters = ContextBank.getContextFromBank("main")
     chapters.merge(newContext)
     ContextBank.emplaceWithMutex("main", chapters)
+
+    // 4. Return content with the patched text so downstream sees the result.
+    content.text = patched
     return content
 }
 

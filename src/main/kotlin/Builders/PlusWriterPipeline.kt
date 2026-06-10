@@ -578,25 +578,40 @@ fun buildPlusWriterPipeline() : Pipeline
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .pullGlobalContext()
-        .setPageKey("user prompt")
-        .truncateModuleContext()
-        .setTransformationFunction(::recordWritingPipePage)
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.editorPrompt)) }
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
         .setReasoningPipe(authorBuilder(Env.editorPrompt))
         .setSystemPrompt("""You are ${Env.editorPrompt}. You nod slowly as you think back on all those years spent studying history books
             |instead of reading novels or short stories or even comic books as you should have done had you known better:
-            |now you review the output of the previous pipe and compare it against your values (Your values == the values
-            |and character traits represented by the character you are intended to roleplay as). 
-            |You must make changes to the output so that it conforms to your personality and values. MAKE SURGICAL CHANGES:
-            |make the minimum number of changes to the text necessary to make it conform to your instructions, and only
-            |insofar as they don't contradict the user prompt. DO NOT TALK ABOUT YOURSELF. **EVER**.
-            |###WARNING: DO NOT MODIFY THE DIALOGUE: LEAVE ALL DIALOGUE UNMODIFIED.
-            |###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. Finally, DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at
-            |least as many sentences in your output as there were in the input material.
+            |now you review the page provided under the "new page" key and compare it against your values (your values ==
+            |the values and character traits represented by the character you are intended to roleplay as). You must make
+            |surgical changes so that the page conforms to your personality and values. MAKE AS FEW CHANGES AS POSSIBLE:
+            |only modify the specific passages that violate your character traits. Make changes ONLY insofar as they
+            |don't contradict the user prompt.
+            |
+            |DO NOT TALK ABOUT YOURSELF. EVER. DO NOT MODIFY THE DIALOGUE: leave all dialogue unmodified.
+            |
+            |Emit a JSON SurgicalChangeList. For each change, subStringToChange is the exact bad passage (with enough
+            |surrounding context to uniquely identify it) and replacementSubString is the corrected text. mode is
+            |"replace" or "delete" as appropriate.
+            |
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
         """.trimMargin())
-        .setFooterPrompt("Your output must be the edited page ONLY: apply your changes and DO NOT include them as a list in your output." +
-                "Your output must not be truncated: there must be at least as many paragraphs and at least as many sentences in your output as in the original (more is fine).")
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("post writer pipe")
 
     val loreCheckPipe = BedrockMultimodalPipe()
@@ -1157,29 +1172,42 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
-        .setTransformationFunction(::recordWritingPipePage)
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.authorPrompt)) }
-        .setReasoningPipe(authorBuilder(Env.authorPrompt))
         .setPageKey("user prompt, new page, themes")
-        .setSystemPrompt("""${Env.authorPrompt}. 
-            |Now that the page is nearly finished, you are going to put on the finishing touches. Taking care not
-            |to change any major details, make some tweaks around the edges so that it aligns with the themes
-            |you wrote earlier for this page. 
-            |MAKE AS FEW CHANGES POSSIBLE. Make sure to follow the style guide: ${settings.writingStyle}.
-            |##PROCEDURE: MAKE THE BARE NUMBER OF CHANGES POSSIBLE:
-            |YOU ARE MAKING SURGICAL CHANGES ONLY. DO NOT ADD LARGE QUANTITIES OF STUFF. DO NOT CHANGE MORE THAN 
-            |A FEW THINGS. Also, implement your changes ONLY AS ADDITIONS. DO NOT DELETE THINGS.
-            |###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material.
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setReasoningPipe(authorBuilder(Env.authorPrompt))
+        .setSystemPrompt("""${Env.authorPrompt}.
+            |Now that the page is nearly finished (you will find it under the "new page" key), you are going to put on
+            |the finishing touches. The "themes" key contains the themes you wrote earlier for this page. Read the page
+            |and emit a JSON SurgicalChangeList describing the surgical changes that reinforce those themes.
+            |
+            |MAKE THE BARE NUMBER OF CHANGES POSSIBLE. Take care not to change any major details. You are making
+            |SURGICAL CHANGES ONLY. DO NOT ADD LARGE QUANTITIES OF STUFF. DO NOT CHANGE MORE THAN A FEW THINGS.
+            |Implement your changes ONLY AS ADDITIONS (use mode "insertAfter" to add text after an existing anchor
+            |without modifying the anchor itself). DO NOT DELETE THINGS.
+            |
+            |Make sure to follow the style guide: ${settings.writingStyle}.
+            |
+            |For each change, subStringToChange is the exact anchor (with enough surrounding context to uniquely
+            |identify it) and replacementSubString is the text to add. mode is "insertAfter" for pure additions
+            |or "replace" for substitutions.
+            |
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
         """.trimMargin())
-        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material.""")
-        .autoInjectContext("""Additional context:
-            |"themes" is the list of themes that you wrote to help you plan out the page to begin with. Now you must
-            |reinforce those themes using careful and precise edits.
-        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("tweaks around the edges pipe")
 
 
@@ -1225,27 +1253,47 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
-        .setTransformationFunction(::secondPassTransform)
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.richardTreadwell)) }
-        .setReasoningPipe(authorBuilder(Env.richardTreadwell))
         .setPageKey("user prompt, new page")
-        .setSystemPrompt("""${Env.richardTreadwell} Now that the new page is finished, it is time to do a second pass.
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::secondPassTransform)
+        .setReasoningPipe(authorBuilder(Env.richardTreadwell))
+        .setSystemPrompt("""${Env.richardTreadwell} Now that the page is finished (you will find it under the "new page"
+            |key), it is time to do a second pass.
             |You are ${Env.richardTreadwell}.
-            You are sitting in your office, seated opposite ${Env.authorPrompt}, each working on this manuscript as though
+            |You are sitting in your office, seated opposite ${Env.authorPrompt}, each working on this manuscript as though
             |you are competing authors rather than colleagues working together towards the same goal. You have been
             |friends for many years but only recently have you begun collaborating on manuscripts together. You
             |each learned early on that working together requires you both to write as though each of you has written
-            |every word the other one has wrote. In accordance with these facts and your values, you must make a 
+            |every word the other one has wrote. In accordance with these facts and your values, you must make a
             |surgical list of changes to deliver the optimal version of this page. Make sure you maintain consistency
             |with the user prompt, however: it is very important you satisfy the user's request at the end of your work.
+            |
             |MAKE AS FEW CHANGES POSSIBLE. Also, DO NOT TOUCH THE DIALOGUE (unless you deem the dialogue to be not human
             |readable, in which case, fix it to be as such). Make sure you follow the style guide: ${settings.writingStyle}.
-            |DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. Finally, DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at
-            |least as many sentences in your output as there were in the input material.
+            |
+            |Emit a JSON SurgicalChangeList. For each change, subStringToChange is the exact bad passage (with enough
+            |surrounding context to uniquely identify it) and replacementSubString is the corrected text. mode is
+            |"replace" or "delete" as appropriate.
+            |
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+            |
             |##NOTE: DO NOT INSERT INFORMATION ABOUT YOURSELF INTO THE PAGE. NOBODY CARES WHO YOU ARE OR WHAT
             |YOUR BACKGROUND AND PERSONAL STORY IS.
         """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("second pass pipe")
 
     val loreBookPipeSystemPrompt = """You are a lore book assistant. Your job is to look at a user's story
