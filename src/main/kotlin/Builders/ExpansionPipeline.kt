@@ -1,6 +1,7 @@
 package Builders
 
 import Builders.Util.chapterPreValidate
+import Builders.Util.applySurgicalReplacementsAndBank
 import Builders.Util.copyLorebookFromMain
 import Builders.Util.preInvokeShunt
 import Builders.Util.recordAuthorPlan
@@ -11,6 +12,7 @@ import Globals.isValidGptOssResponse
 import Shell.loadSettings
 import Util.enablePipelineStreaming
 import bedrockPipe.BedrockMultimodalPipe
+import com.TTT.Context.ContextBank
 import com.TTT.Pipeline.Pipeline
 import env.bedrockEnv
 import kotlinx.coroutines.runBlocking
@@ -660,66 +662,115 @@ val expansionPipeline = Pipeline()
         .setRegion("us-east-2")
         .useConverseApi()
         .setModel(deepseekModelName)
-        .requireJsonPromptInjection()
         .truncateModuleContext()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setTemperature(1.0)
         .setTopP(0.7)
-        .applySystemPrompt()
+        .setValidatorFunction(::isValidGptOssResponse)
         .pullGlobalContext()
-        .setPageKey("user prompt")
-        .setSystemPrompt("""Your job is simple, but will require effort. You are looking for the following things
-            |that if you find, YOU MUST REMOVE!
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setSystemPrompt("""Your job is simple, but requires effort. Read the page provided under the "new page" key and
+            |emit a JSON SurgicalChangeList describing the surgical replacements that remove the following four classes
+            |of "LLM trash" writing. Be conservative -- only flag genuine offenders, not borderline cases.
             |
-            |1. Variety for variety’s sake: synonym churn to avoid repetition, producing near-synonyms that slightly shift meaning.
-            |2. Over-specific numerics: “~60%” or “exactly 10 steps” without provocation.
-            |3. Emotion beats template: nods, sighs, smiles, glances—cycled at reliable intervals. This includes stage directions
-            |following dialogue or in-between sections of a character's own dialogue.
-            |4. Scene “wrap-up cadence”: paragraphs end with summary or moral (“And that’s when she realized…”), even mid-page.
+            |1. Variety for variety's sake: synonym churn that avoids repetition by producing near-synonyms that
+            |slightly shift meaning. Use mode "delete" to drop the redundant phrase, or mode "replace" to collapse
+            |multiple synonyms down to a single direct word.
+            |2. Over-specific numerics: precise figures (“~60%”, “exactly 10 steps”, “347 degrees”) introduced without
+            |narrative provocation. Use mode "delete" to drop the spurious number, or mode "replace" to soften it.
+            |3. Emotion beats template: cycled physical tics -- nods, sighs, smiles, glances, small laughs, sharp
+            |exhales -- at reliable intervals. Includes stage directions following dialogue or intercut with a single
+            |character's own dialogue. Use mode "delete" to remove the beat, or mode "replace" to keep one per scene
+            |and cut the rest.
+            |4. Scene "wrap-up cadence": paragraphs that end with summary or moralizing ("And that's when she
+            |realized...", "In that moment, everything changed..."), even mid-page. Use mode "delete" to cut the
+            |wrap-up line, or mode "replace" to fold the substance into the prior sentence.
             |
-            | ###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. FURTHERMORE, you can only truncate the page by REMOVING THE THINGS YOU WERE INSTRUCTED
-            |TO REMOVE: DO NOT TRUNCATE THE TEXT BEYOND WHAT YOU HAVE BEEN INSTRUCTED TO DO.
-        """.trimMargin()
-        )
-        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. ###WARNING: ONLY TRUNCATE BY REMOVING THE MATERIAL YOU HAVE BEEN INSTRUCTED TO REMOVE. No other text
-            |should be removed.""")
-        .setTransformationFunction(::recordWritingPipePage)
+            |###NOTE: DO NOT TOUCH DIALOGUE. Any text inside quotation marks that is spoken by a character is exempt
+            |from this rule -- leave it alone.
+            |
+            |For each occurrence, emit one entry in the changeList. subStringToChange must include enough surrounding
+            |context to uniquely identify the passage. mode is "delete" or "replace" as noted above.
+            |
+            |If none of the four classes are present, emit {"changeList": []}.
+            |
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("remove bad writing step one pipe")
 
     val removeBadWritingStepTwoPipe = BedrockMultimodalPipe()
         .setRegion("us-east-2")
         .useConverseApi()
         .setModel(deepseekModelName)
-        .requireJsonPromptInjection()
         .truncateModuleContext()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setTemperature(1.0)
         .setTopP(0.7)
-        .applySystemPrompt()
+        .setValidatorFunction(::isValidGptOssResponse)
         .pullGlobalContext()
-        .setPageKey("user prompt")
-        .setSystemPrompt("""Your job is simple, but will require effort. You are looking for the following things
-            |that if you find, YOU MUST REMOVE!
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setSystemPrompt("""Your job is simple, but requires effort. Read the page provided under the "new page" key and
+            |emit a JSON SurgicalChangeList describing the surgical replacements that remove the following three
+            |classes of "LLM trash" writing. Be conservative -- only flag genuine offenders, not borderline cases.
             |
-            |1. Emphasis on symbolism and importance: writing often puffs up the importance of the subject matter by 
-            |adding statements about how arbitrary aspects of the topic represent or contribute to a broader topic.
-            |2. Superficial analyses: insertions of analysis of information, often in relation to its significance, recognition, or impact.
-            |3. Rule of three: This can take different forms, from "adjective, adjective, adjective" to "short phrase, short phrase, and short phrase".
-            |For this one specifically, if you see it, reduce it to the first line item only.
+            |1. Emphasis on symbolism and importance: statements that puff up the importance of the subject by
+            |asserting how arbitrary aspects of it represent or contribute to a broader topic
+            |("...a symbol of...", "...representing the larger struggle of...", "...the weight of generations...").
+            |Use mode "delete" to drop the entire sentence, or mode "replace" to neutralize the symbolism claim.
             |
-            | ###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. FURTHERMORE, you can only truncate the page by REMOVING THE THINGS YOU WERE INSTRUCTED
-            |TO REMOVE: DO NOT TRUNCATE THE TEXT BEYOND WHAT YOU HAVE BEEN INSTRUCTED TO DO.
-        """.trimMargin()
-        )
-        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. ###WARNING: ONLY TRUNCATE BY REMOVING THE MATERIAL YOU HAVE BEEN INSTRUCTED TO REMOVE. No other text
-            |should be removed.""")
-        .setTransformationFunction(::recordWritingPipePage)
+            |2. Superficial analyses: insertions of analysis of information, often in relation to its significance,
+            |recognition, or impact ("This is significant because...", "It marked a turning point in...",
+            |"Little did they know..."). Use mode "delete" to cut the analysis paragraph or sentence, or mode
+            |"replace" to fold the substance into the action it analyzes.
+            |
+            |3. Rule of three: the "adjective, adjective, adjective" or "short phrase, short phrase, and short phrase"
+            |pattern. For this one specifically, when you see a three-item list that is really two items padded with
+            |a third, emit a mode "replace" entry that reduces it to the first item only.
+            |
+            |###NOTE: DO NOT TOUCH DIALOGUE. Any text inside quotation marks that is spoken by a character is exempt
+            |from this rule -- leave it alone.
+            |
+            |For each occurrence, emit one entry in the changeList. subStringToChange must include enough surrounding
+            |context to uniquely identify the passage.
+            |
+            |If none of the three classes are present, emit {"changeList": []}.
+            |
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("remove bad writing step two pipe")
 
 
@@ -763,8 +814,8 @@ val expansionPipeline = Pipeline()
         //.add(certifyMyDialoguePipe)
         //.add(polishMyDialoguePipe)
         .add(finalEditPipe)
-        //.add(removeBadWritingStepOnePipe)
-        //.add(removeBadWritingStepTwoPipe)
+        .add(removeBadWritingStepOnePipe)
+        .add(removeBadWritingStepTwoPipe)
         .add(styleReapplyPipe)
 
     runBlocking {
