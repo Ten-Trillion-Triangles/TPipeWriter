@@ -1,5 +1,6 @@
 package Builders
 
+import Builders.Util.applySurgicalReplacementsAndBank
 import Builders.Util.chapterPreValidate
 import Builders.Util.copyLorebookFromMain
 import Builders.Util.logicalProgressionPreValidationMiniBank
@@ -45,7 +46,8 @@ data class VibeInstruct(
 @kotlinx.serialization.Serializable
 data class SurgicalChanges(
     var subStringToChange: String = "",
-    var replacementSubString: String = ""
+    var replacementSubString: String = "",
+    var mode: String = "replace"
 )
 
 /**
@@ -425,105 +427,169 @@ fun buildPlusWriterPipeline() : Pipeline
     //The next step removes unwanted twists.
     val untwistPipe = OpenRouterPipe()
         .setModel(deepseekModelName)
-        .requireJsonPromptInjection()
         .truncateModuleContext()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setTemperature(0.8)
         .setTopP(0.8)
-        .applySystemPrompt()
+        .setValidatorFunction(::isValidGptOssResponse)
         .pullGlobalContext()
-        .setPageKey("user prompt")
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
-        //.setReasoningPipe(explicitCotBuilder())
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setReasoningPipe(explicitCotBuilder())
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
-        .setSystemPrompt("""Your job is simple, but will require effort. Seek out all twists in the written page 
-            |THAT ARE NOT SPECIFICALLY REQUESTED BY THE USER PROMPT OR SUBSTANTIATED BY THE LOREBOOK
-            |and remove them. You will have to rewrite certain passages in order to accomplish this. 
-            |When you rewrite a passage
-            |make sure that the page still has a natural flow and strong progression. 
-            |###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. Finally, DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at
-            |least as many sentences in your output as there were in the input material.
-            | Here are examples of key phrases that indicate you're dealing with an unwanted twist:
+        .setSystemPrompt("""Your job is simple, but requires effort. Read the page provided under the "new page" key
+            |and seek out all "unwanted twists" -- reveal-the-butcher / pivot-to-revelation moments in the prose
+            |THAT ARE NOT SPECIFICALLY REQUESTED BY THE USER PROMPT OR SUBSTANTIATED BY THE LOREBOOK.
+            |For each one, emit a JSON SurgicalChangeList entry that surgically removes or replaces the twist.
+            |
+            |Here are examples of key phrases that indicate you're dealing with an unwanted twist:
             | 1. ...it's not 'X', it's 'Y.' ; ...it wasn't 'X', it was 'Y.'
             | 2. ...it's actually an 'X'. ; ...not 'X': 'Y.'
             | 3. ...it's possible that actually 'Z.'
             | 4. ...it's not just 'X', it's 'Y.'
-        """.trimMargin()
-        )
-        .setFooterPrompt("Your output must be the edited page ONLY: apply your changes and DO NOT include them as a list in your output." +
-                "Your output must not be truncated: there must be at least as many paragraphs and at least as many sentences in your output as in the original (more is fine).")
-        .setTransformationFunction(::recordWritingPipePage)
+            | 5. ...but in reality, 'Z.' ; ...what he didn't know was 'Z.'
+            | 6. Reveal-of-the-mystery paragraphs that retroactively re-frame prior narration.
+            |
+            |For each twist, subStringToChange is the full twist passage (with enough surrounding context to
+            |uniquely identify it) and replacementSubString is the same passage with the twist removed -- typically
+            |either mode "delete" (drop the passage entirely) or mode "replace" (collapse it to a single neutral
+            |declarative sentence). DO NOT REWRITE THE WHOLE PAGE. Make as few surgical changes as possible while
+            |preserving the page's natural flow.
+            |
+            |If no unwanted twists are present, emit {"changeList": []}.
+            |
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("untwist pipe")
 
     val removeBadWritingStepOnePipe = OpenRouterPipe()
         .setModel(qwenCoder480B)
-        .requireJsonPromptInjection()
         .truncateModuleContext()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setTemperature(1.0)
         .setTopP(0.8)
-        .applySystemPrompt()
+        .setValidatorFunction(::isValidGptOssResponse)
         .pullGlobalContext()
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(structuredCotBuilder()) }
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
         .setReasoningPipe(explicitCotBuilder())
-        .setPageKey("user prompt")
-        .setSystemPrompt("""Your job is simple, but will require effort. You are looking for the following things
-            |that if you find, YOU MUST REMOVE!
+        .setSystemPrompt("""Your job is simple, but requires effort. Read the page provided under the "new page" key and
+            |emit a JSON SurgicalChangeList describing the surgical replacements that remove the following four classes
+            |of "LLM trash" writing. Be conservative -- only flag genuine offenders, not borderline cases.
             |
-            |1. Variety for variety’s sake: synonym churn to avoid repetition, producing near-synonyms that slightly shift meaning.
-            |2. Over-specific numerics: “~60%” or “exactly 10 steps” without provocation.
-            |3. Emotion beats template: nods, sighs, smiles, glances—cycled at reliable intervals. This includes stage directions
-            |following dialogue or in-between sections of a character's own dialogue.
-            |4. Scene “wrap-up cadence”: paragraphs end with summary or moral (“And that’s when she realized…”), even mid-page.
+            |1. Variety for variety's sake: synonym churn that avoids repetition by producing near-synonyms that
+            |slightly shift meaning. Use mode "delete" to drop the redundant phrase, or mode "replace" to collapse
+            |multiple synonyms down to a single direct word.
+            |2. Over-specific numerics: precise figures (“~60%”, “exactly 10 steps”, “347 degrees”) introduced without
+            |narrative provocation. Use mode "delete" to drop the spurious number, or mode "replace" to soften it.
+            |3. Emotion beats template: cycled physical tics -- nods, sighs, smiles, glances, small laughs, sharp
+            |exhales -- at reliable intervals. Includes stage directions following dialogue or intercut with a single
+            |character's own dialogue. Use mode "delete" to remove the beat, or mode "replace" to keep one per scene
+            |and cut the rest.
+            |4. Scene "wrap-up cadence": paragraphs that end with summary or moralizing ("And that's when she
+            |realized...", "In that moment, everything changed..."), even mid-page. Use mode "delete" to cut the
+            |wrap-up line, or mode "replace" to fold the substance into the prior sentence.
             |
-            | ###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. FURTHERMORE, you can only truncate the page by REMOVING THE THINGS YOU WERE INSTRUCTED
-            |TO REMOVE: DO NOT TRUNCATE THE TEXT BEYOND WHAT YOU HAVE BEEN INSTRUCTED TO DO.
-            |###NOTE: DO NOT ADJUST DIALOGUE.
-        """.trimMargin()
-        )
-        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. ###WARNING: ONLY TRUNCATE BY REMOVING THE MATERIAL YOU HAVE BEEN INSTRUCTED TO REMOVE. No other text
-            |should be removed.""")
-        .setTransformationFunction(::recordWritingPipePage)
+            |###NOTE: DO NOT TOUCH DIALOGUE. Any text inside quotation marks that is spoken by a character is exempt
+            |from this rule -- leave it alone.
+            |
+            |For each occurrence, emit one entry in the changeList. subStringToChange must include enough surrounding
+            |context to uniquely identify the passage. mode is "delete" or "replace" as noted above.
+            |
+            |If none of the four classes are present, emit {"changeList": []}.
+            |
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("remove bad writing step one pipe")
 
     val removeBadWritingStepTwoPipe = OpenRouterPipe()
         .setModel(qwenCoder480B)
-        .requireJsonPromptInjection()
         .truncateModuleContext()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setTemperature(0.8)
         .setTopP(0.8)
-        .applySystemPrompt()
+        .setValidatorFunction(::isValidGptOssResponse)
         .pullGlobalContext()
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
-        //.setReasoningPipe(structuredCotBuilder())
-        .setPageKey("user prompt")
-        .setSystemPrompt("""Your job is simple, but will require effort. You are looking for the following things
-            |that if you find, YOU MUST REMOVE! Make sure your edits conform to ${settings.writingStyle}.
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setReasoningPipe(explicitCotBuilder())
+        .setSystemPrompt("""Your job is simple, but requires effort. Read the page provided under the "new page" key and
+            |emit a JSON SurgicalChangeList describing the surgical replacements that remove the following three
+            |classes of "LLM trash" writing. Make sure your edits conform to ${settings.writingStyle}. Be conservative --
+            |only flag genuine offenders, not borderline cases.
             |
-            |1. Emphasis on symbolism and importance: writing often puffs up the importance of the subject matter by 
-            |adding statements about how arbitrary aspects of the topic represent or contribute to a broader topic.
-            |2. Superficial analyses: insertions of analysis of information, often in relation to its significance, recognition, or impact.
-            |3. Rule of three: This can take different forms, from "adjective, adjective, adjective" to "short phrase, short phrase, and short phrase".
-            |For this one specifically, if you see it, reduce it to the first two line items only.
+            |1. Emphasis on symbolism and importance: statements that puff up the importance of the subject by
+            |asserting how arbitrary aspects of it represent or contribute to a broader topic
+            |("...a symbol of...", "...representing the larger struggle of...", "...the weight of generations...").
+            |Use mode "delete" to drop the entire sentence, or mode "replace" to neutralize the symbolism claim.
             |
-            |Procedure: DO NOT REMOVE DIALOGUE. DO NOT FUCKING TOUCH THE DIALOGUE. NEVER EVER REMOVE ANY DIALOGUE.
-            | ###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. FURTHERMORE, you can only truncate the page by REMOVING THE THINGS YOU WERE INSTRUCTED
-            |TO REMOVE: DO NOT TRUNCATE THE TEXT BEYOND WHAT YOU HAVE BEEN INSTRUCTED TO DO.
-            |###NOTE: DO NOT ADJUST DIALOGUE.
-        """.trimMargin()
-        )
-        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. ###WARNING: ONLY TRUNCATE BY REMOVING THE MATERIAL YOU HAVE BEEN INSTRUCTED TO REMOVE. No other text
-            |should be removed.""")
-        .setTransformationFunction(::recordWritingPipePage)
+            |2. Superficial analyses: insertions of analysis of information, often in relation to its significance,
+            |recognition, or impact ("This is significant because...", "It marked a turning point in...",
+            |"Little did they know..."). Use mode "delete" to cut the analysis paragraph or sentence, or mode
+            |"replace" to fold the substance into the action it analyzes.
+            |
+            |3. Rule of three: the "adjective, adjective, adjective" or "short phrase, short phrase, and short phrase"
+            |pattern. For this one specifically, when you see a three-item list that is really two items padded with
+            |a third, emit a mode "replace" entry that reduces it to the first two items only.
+            |
+            |###NOTE: DO NOT TOUCH DIALOGUE. Any text inside quotation marks that is spoken by a character is exempt
+            |from this rule -- leave it alone.
+            |
+            |For each occurrence, emit one entry in the changeList. subStringToChange must include enough surrounding
+            |context to uniquely identify the passage.
+            |
+            |If none of the three classes are present, emit {"changeList": []}.
+            |
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("remove bad writing step two pipe")
 
     //Now we have the author review the written material for thematic consistency and desired traits.
@@ -535,25 +601,40 @@ fun buildPlusWriterPipeline() : Pipeline
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
         .pullGlobalContext()
-        .setPageKey("user prompt")
-        .truncateModuleContext()
-        .setTransformationFunction(::recordWritingPipePage)
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.editorPrompt)) }
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
         .setReasoningPipe(authorBuilder(Env.editorPrompt))
         .setSystemPrompt("""You are ${Env.editorPrompt}. You nod slowly as you think back on all those years spent studying history books
             |instead of reading novels or short stories or even comic books as you should have done had you known better:
-            |now you review the output of the previous pipe and compare it against your values (Your values == the values
-            |and character traits represented by the character you are intended to roleplay as). 
-            |You must make changes to the output so that it conforms to your personality and values. MAKE SURGICAL CHANGES:
-            |make the minimum number of changes to the text necessary to make it conform to your instructions, and only
-            |insofar as they don't contradict the user prompt. DO NOT TALK ABOUT YOURSELF. **EVER**.
-            |###WARNING: DO NOT MODIFY THE DIALOGUE: LEAVE ALL DIALOGUE UNMODIFIED.
-            |###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. Finally, DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at
-            |least as many sentences in your output as there were in the input material.
+            |now you review the page provided under the "new page" key and compare it against your values (your values ==
+            |the values and character traits represented by the character you are intended to roleplay as). You must make
+            |surgical changes so that the page conforms to your personality and values. MAKE AS FEW CHANGES AS POSSIBLE:
+            |only modify the specific passages that violate your character traits. Make changes ONLY insofar as they
+            |don't contradict the user prompt.
+            |
+            |DO NOT TALK ABOUT YOURSELF. EVER. DO NOT MODIFY THE DIALOGUE: leave all dialogue unmodified.
+            |
+            |Emit a JSON SurgicalChangeList. For each change, subStringToChange is the exact bad passage (with enough
+            |surrounding context to uniquely identify it) and replacementSubString is the corrected text. mode is
+            |"replace" or "delete" as appropriate.
+            |
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
         """.trimMargin())
-        .setFooterPrompt("Your output must be the edited page ONLY: apply your changes and DO NOT include them as a list in your output." +
-                "Your output must not be truncated: there must be at least as many paragraphs and at least as many sentences in your output as in the original (more is fine).")
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("post writer pipe")
 
     val loreCheckPipe = OpenRouterPipe()
@@ -567,32 +648,44 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPageKey("new page, main, user prompt")
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         .setValidatorFunction(::isValidGptOssResponse)
-        .requireJsonPromptInjection()
-        //.setReasoningPipe(structuredCotBuilder())
-        .setJsonOutput(WorldFixes())
-        .setSystemPrompt("You are now reviewing your work to make sure that what you have written " +
-                "conforms to your existing world building. You are attempting, and desire at all costs, to avoid plot " +
-                "holes. Therefor, you shall now make a plan on how to fix any lore and world building errors in the" +
-                "page you have just written. HOWEVER: if something appears in the text that isn't in the lorebook, " +
-                "so long as it doesn't contradict anything in the lorebook, it is NOT an error, " +
-                "and should not be removed! Likewise, if something is NOT mentioned in the text that has " +
-                "an associated lorebook key, it not being there is NOT a lore error, and it should not be added in!")
-        .autoInjectContext("You will be provided with a json context object that contains the following: " +
-                "\"new page\": This the page you just wrote. \"main\": This is the lorebook that contains all of" +
-                "your world building, characters, events, and other important notes about your story so far. " +
-                "\"user prompt\": This the request from your editor regarding changes they want to see you make " +
-                "to the page you wrote. When writing your plan you must check for the following: \n" +
-                "- Check that \"new page\" conforms to the request of \"user prompt\".\n" +
-                "- Check that \"new page\" does not contain plot holes with the existing lore in \"main\"\n" +
-                "\n If either case confirms that there are issues you need to fix. Include the changes that need" +
-                " to be made in your output.")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setSystemPrompt("""You are now reviewing the page provided under the "new page" key to make sure
+            |that what has been written conforms to the existing world building. You are attempting, and desire
+            |at all costs, to avoid plot holes.
+            |
+            |HOWEVER: if something appears in the text that isn't in the lorebook, so long as it doesn't
+            |contradict anything in the lorebook, it is NOT an error and should not be removed! Likewise,
+            |if something is NOT mentioned in the text that has an associated lorebook key, its absence is
+            |NOT a lore error and should not be added in!
+            |
+            |The "main" key contains the lorebook with all world building, characters, events, and other
+            |important notes so far. The "user prompt" key contains the editor's request for changes to
+            |the page.
+            |
+            |Emit a JSON SurgicalChangeList. For each lore issue you find, emit one entry. subStringToChange
+            |must be a VERBATIM, CHARACTER-EXACT copy of the bad text in the "new page" (include enough
+            |surrounding context -- a sentence or two -- to uniquely identify the passage). replacementSubString
+            |is the corrected text. mode is "replace" (correct the text) or "delete" (remove the passage).
+            |
+            |If the page conforms to the lore, emit {"changeList": []}.
+            |
+            |Output ONLY the JSON. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+        """.trimMargin())
         .setPipeName("lore check pipe")
 
 
     val loreRepairPipe = OpenRouterPipe()
         .setModel(qwenCoder480B)
         .requireJsonPromptInjection()
-        .setJsonInput(WorldFixes())
+        .setJsonInput(SurgicalChangeList())
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .truncateModuleContext()
@@ -600,21 +693,36 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPageKey("new page, main, user prompt")
         .setTemperature(.9)
         .setTopP(.8)
-        //.setReasoningPipe(structuredCotBuilder())
-        .setPreInvokeFunction(::preInvokeLoreRepairPipe) //Skip this pipe if we don't need any actual changes.
-        .setTransformationFunction(::recordWritingPipePage)
-        .setSystemPrompt("Currently, you are looking at a revision request that you wrote up prior in the " +
-                "form of json. You need to edit the new page you've written and return the edit as your output.")
-        .autoInjectContext("The following is the context for the story you've written so far. First is " +
-                "\"new page\", which was the page you wrote prior that you now need to edit. The second is " +
-                "\"main\", which is the current story you've written prior to your latest page. Third is " +
-                "\"user prompt\", which is the request your editor has made to you regarding changes they want you" +
-                "to make. ")
-        .setFooterPrompt("Using the provided context, you must now make surgical changes to \"new page\" in accordance with the revision request." +
-                "Make only the changes specified in the revision request, and NO OTHER CHANGES. Furthermore, do NOT truncate the text:" +
-                "there must at least as many paragraphs and at least as many sentences in your output as there were in the provided material." +
-                "You must return only the edited story: do NOT output JSON; do not output JSON of ANY KIND.")
-        .applySystemPrompt()
+        .setPreInvokeFunction(::preInvokeLoreRepairPipe)
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setSystemPrompt("""You received a JSON SurgicalChangeList as input (the lore issues identified by the
+            |previous pipe). Your job is to confirm and refine those surgical changes. Look at each entry in
+            |the changeList:
+            |- Verify that subStringToChange is still a verbatim match in the "new page" (if the LLM that
+            |  generated the judge's output was sloppy, the find may not match).
+            |- Refine the replacementSubString to make the corrected text fit naturally with the surrounding prose.
+            |- If the entry is no longer relevant (the issue was already fixed, or the context changed), drop it.
+            |
+            |Then, if you find ADDITIONAL lore issues that the judge missed, add them as new entries.
+            |
+            |Output a JSON SurgicalChangeList with the verified and refined changes (and any additions).
+            |Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("lore repair pipe")
 
 
@@ -630,45 +738,59 @@ fun buildPlusWriterPipeline() : Pipeline
         .setTemperature(.8)
         .setTopP(.8)
         .applySystemPrompt()
-        //.setReasoningPipe(structuredCotBuilder())
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) }
         .autoInjectContext("###CONTEXT: \"story guide\" is the outline for the story" +
                 "as a whole. \"chapter guide\" is the outline for the current chapter. \"user prompt\"" +
                 "is the current instructions from the user. \"last page\" is the previous page of the chapter/story.")
         .pullGlobalContext()
         .setPageKey("new page, story guide, chapter guide, user prompt")
-        .setSystemPrompt("""You are now reviewing your work to determine whether or not it
-            |advances the story and has progressed logically since the previous page. Carefully check against
-            |the "story guide" and "chapter guide" to ensure that the written page progresses the story towards
-            |its next stage and conclusion, and to ensure that the content itself actually makes sense from a 
-            |human readable point of view, including making sure written dialogue is written in the way humans
-            |normally write dialogue, unless not talking like a human is a feature of a specific character. Carefully
-            |check against "last page" to make sure that the content logically follows from and is easy to read 
-            |immediately after the previous page.
+        .setSystemPrompt("""You are now reviewing the page provided under the "new page" key to determine whether
+            |or not it advances the story and has progressed logically since the previous page. Carefully check
+            |against the "story guide" and "chapter guide" to ensure that the written page progresses the story
+            |towards its next stage and conclusion, and to ensure that the content itself actually makes sense
+            |from a human-readable point of view, including making sure written dialogue is written in the way
+            |humans normally write dialogue (unless not talking like a human is a feature of a specific character).
+            |Carefully check against "last page" to make sure that the content logically follows from and is easy
+            |to read immediately after the previous page.
+            |
             |NOTABLE TYPES OF ILLOGICAL PROGRESSION:
-            |1. Unexplained time-skips (if we are all of a sudden at a different time of day, 
-            |that needs to be either eliminated or explained)
-            |2. Unexplained jumps in location (if the character is inexplicably in an entirely different location, 
-            |we need to be told how they got there:
-            |for example, on a bus when they were in their apartment on the last page, 
-            |their transit from their living quarters to the bus needs to be demonstrated)
-            |3. Pages that open as though they're the first page of a new chapter rather than a page that follows from the previous
-            |existing page.
+            |1. Unexplained time-skips (if we are all of a sudden at a different time of day, that needs to be
+            |   either eliminated or explained)
+            |2. Unexplained jumps in location (if the character is inexplicably in an entirely different location,
+            |   we need to be told how they got there: for example, on a bus when they were in their apartment on
+            |   the last page, their transit from their living quarters to the bus needs to be demonstrated)
+            |3. Pages that open as though they're the first page of a new chapter rather than a page that follows
+            |   from the previous existing page.
+            |
             |NOTABLE TYPES OF ILLOGICAL WRITING:
             |1. If something has serious ambiguity problems, it should be corrected to eliminate them.
-            |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
-            |NO TEXT CAN BE DELETED: ONLY ADDED. Also, DO NOT WRITE THE CHANGES YOURSELF: ONLY LIST PLACES AND RECOMMENDED
-            |CORRECTIVE ACTIONS.
-            |Produce requested additions as a numbered list.
-            |""".trimMargin())
-        .setJsonOutput(WorldFixes())
-        .setFooterPrompt("""If no changes need to be made, set the "needsChanges" boolean to false. Also,
-            | when suggesting changes, ensure that you are not requesting changes that will result in truncation
-            | or substantial content changes.
+            |
+            |Emit a JSON SurgicalChangeList. For each issue you find, emit one entry. subStringToChange must
+            |be a VERBATIM, CHARACTER-EXACT copy of the bad text in the "new page" (include enough surrounding
+            |context -- a sentence or two -- to uniquely identify the passage). replacementSubString is the
+            |corrected text. mode is "replace" (correct the text), "delete" (remove the passage), or
+            |"insertAfter" (add a clarifying sentence after an existing anchor -- use this for additions
+            |rather than replacements, so you don't accidentally lose text).
+            |
+            |If the page progresses logically, emit {"changeList": []}.
+            |
+            |Output ONLY the JSON. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
         """.trimMargin())
+        .setJsonOutput(SurgicalChangeList())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
         .setPreValidationMiniBankFunction(::logicalProgressionPreValidationMiniBank)
         .setValidatorFunction(::isValidGptOssResponse)
-        .applySystemPrompt()
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("logical progression pipe")
 
 
@@ -681,7 +803,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .requireJsonPromptInjection()
-        .setJsonInput(WorldFixes())
+        .setJsonInput(SurgicalChangeList())
         .setPreInvokeFunction(::preInvokeLoreRepairPipe)
         .setPreValidationMiniBankFunction(::chapterPreValidate)
         .pullGlobalContext()
@@ -689,27 +811,39 @@ fun buildPlusWriterPipeline() : Pipeline
         .setTemperature(0.8)
         .setTopP(.8)
         .applySystemPrompt()
-        //.setReasoningPipe(explicitCotBuilder())
-        .setSystemPrompt("""${settings.writingStyle} As you have completed the list of additions that need to be made
-            |to "new page" in order to make it logically follow from the previous parts of the story, 
-            |you must now execute on that list. With surgical precision and taking care not to change anything else, 
-            |implement all listed additions as listed in your instructions. Ensure that implemented corrections obey
-            |both existing lore and your style guide. Again, your listed changes should be executed as additions to the
-            |text: ONLY ADD TO THE TEXT. DO NOT DELETE ANY TEXT.
-            |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material.
-            |###WARNING: DO NOT MODIFY THE CONTENT BEYOND THE LISTED CORRECTIONS. 
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setSystemPrompt("""${settings.writingStyle} You received a JSON SurgicalChangeList as input (the logical-
+            |progression issues identified by the previous pipe). Your job is to confirm and refine those
+            |surgical changes:
+            |- Verify that subStringToChange is still a verbatim match in the "new page" (if the LLM that
+            |  generated the judge's output was sloppy, the find may not match).
+            |- Refine the replacementSubString to make the corrected text fit naturally with the surrounding prose.
+            |- IMPORTANT: the upstream instructions said "ONLY ADD TO THE TEXT. DO NOT DELETE ANY TEXT." Honor
+            |  that -- for any "delete" entries from the judge, convert them to "replace" entries that keep
+            |  the original text but add the correction alongside it. If you cannot do this, drop the entry.
+            |- If the entry is no longer relevant (the issue was already fixed, or the context changed), drop it.
+            |
+            |Then, if you find ADDITIONAL logical-progression issues that the judge missed, add them as new
+            |entries (prefer "insertAfter" mode so you add text without modifying existing text).
+            |
+            |Output a JSON SurgicalChangeList with the verified and refined changes (and any additions).
+            |Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
         """.trimMargin())
-        .autoInjectContext("""You have been provided with a context object that contains the 
-            |page you are working on fixing. The json schema for the context is as follows: 
-        """.trimMargin())
-        .setFooterPrompt("""Using the page you are going to fix as context, and the instructions for the changes
-            |you need to make, rewrite the page making only the changes you have been instructed to make and following
-            |all of the above rules. Do not truncate the text: there must be at least as many paragraphs and at least
-            |as many sentences in your output as there were in the provided material.
-        """.trimMargin())
-        .setTransformationFunction(::recordWritingPipePage)
-        .applySystemPrompt()
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("logical correction pipe")
 
 
@@ -957,22 +1091,36 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
-        .setTransformationFunction(::recordWritingPipePage)
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(structuredCotBuilder()) }
-        .setReasoningPipe(structuredCotBuilder())
         .setPageKey("user prompt, new page")
-        .setSystemPrompt("""Your job is simple. REMOVE ALL EM DASHES.
-            |LLMs consistently overuse em dashes and use them consistently inappropriately. 
-            |WHEREVER YOU FIND AN EM DASH, REPLACE IT WITH EITHER A COMMA, COLON, OR SEMICOLON.
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setReasoningPipe(structuredCotBuilder())
+        .setSystemPrompt("""Your job is simple. Find every em dash (—) in the page provided under the
+            |"new page" key, and emit a JSON SurgicalChangeList describing the surgical replacements.
+            |For each em dash, emit one entry in the changeList. Each entry's subStringToChange must
+            |include enough surrounding context (a few words before and after) to uniquely identify
+            |which em dash you mean, since the same em dash pattern may appear multiple times in
+            |the page. Set replacementSubString to the same text with the em dash replaced by an
+            |appropriate comma, colon, or semicolon (your choice based on which punctuation fits
+            |the surrounding grammar). Set mode to "replace".
             |
-            |Fix the above problems using surgical changes. DO NOT MAKE ANY CHANGES ASIDE FROM THE ONES YOU HAVE BEEN
-            |INSTRUCTED TO MAKE. DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material.  DO NOT include the list of changes in your
-            |output. THE OUTPUT SHOULD ONLY BE THE FINAL, FULLY ADJUSTED PAGE.
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |Do not include the list of changes outside the JSON.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "replace"}
+            |  ]
+            |}
         """.trimMargin())
-        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material.""")
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("cleanup step one pipe")
 
     val cleanupStepTwoPipe = OpenRouterPipe()
@@ -982,28 +1130,41 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
-        .setTransformationFunction(::recordWritingPipePage)
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(structuredCotBuilder()) }
-        .setReasoningPipe(explicitCotBuilder())
         .setPageKey("user prompt, new page")
-        .setSystemPrompt("""Your task is fairly simple: you must fix the text in accordance to the
-            |following rule:
-            |1. Character thoughts should be written as INTERNAL MONOLOGUE: You will in places in the text where character opinions
-            |or thoughts are written out as body text. Instances
-            |of these things should ALL BE CONVERTED INTO DIALOGUE/INTERNAL MONOLOGUE. Example: instead of "These weren't urgent problems, 
-            |but he wondered about their cause. An environmental shift? 
-            |The growth rings told a story he couldn't read, but he felt concern for its wellbeing", it should read 
-            |"'It's not that urgent, but what could have caused this? Environmental shifts? I'm not well read on
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setReasoningPipe(explicitCotBuilder())
+        .setSystemPrompt("""Your job is fairly simple. Find every place in the page (under the "new page"
+            |key) where a character's opinions or thoughts are written out as body text (narrator-voiced
+            |prose describing what a character is thinking or feeling), and emit a JSON SurgicalChangeList
+            |describing the surgical replacements. For each occurrence, emit one entry in the changeList
+            |with mode "replace" -- the subStringToChange is the bad body-text passage (with enough
+            |surrounding context to uniquely identify it), and the replacementSubString is the same
+            |passage converted to internal monologue / first-person dialogue.
+            |
+            |Example transformation: instead of "These weren't urgent problems, but he wondered about
+            |their cause. An environmental shift? The growth rings told a story he couldn't read, but
+            |he felt concern for its wellbeing", emit subStringToChange = "These weren't urgent
+            |problems, but he wondered about their cause..." and replacementSubString = "'It's not
+            |that urgent, but what could have caused this? Environmental shifts? I'm not well read on
             |growth rings, but I can't help but wonder how its doing.'"
             |
-            |Fix the above problems using surgical changes. DO NOT MAKE ANY CHANGES ASIDE FROM THE ONES YOU HAVE BEEN
-            |INSTRUCTED TO MAKE. DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material.  DO NOT include the list of changes in your
-            |output. THE OUTPUT SHOULD ONLY BE THE FINAL, FULLY ADJUSTED PAGE.
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "replace"}
+            |  ]
+            |}
         """.trimMargin())
-        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material.""")
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("cleanup step two pipe")
 
     val cleanupStepThreePipe = OpenRouterPipe()
@@ -1013,31 +1174,46 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
-        .setTransformationFunction(::recordWritingPipePage)
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(structuredCotBuilder()) }
-        .setReasoningPipe(explicitCotBuilder())
         .setPageKey("user prompt, new page")
-        .setSystemPrompt("""Your task is fairly simple: you must fix the text in accordance to the
-            |following rules:
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setReasoningPipe(explicitCotBuilder())
+        .setSystemPrompt("""Your job is fairly simple. Read the page provided under the "new page" key
+            |and emit a JSON SurgicalChangeList describing the surgical replacements. Look for:
             |
-            |1. STAGE DIRECTIONS SUCK: WE ARE WRITING A BOOK, NOT A MOVIE SCRIPT: You will find frequently throughout
-            |the written page that dialogue is interrupted with, or followed by, bullshit stage directions.
-            |You must eliminate all instances of these things that you find, and merge together bodies of dialogue text
-            |as necessary when you do so. Examples of things that you would remove: "Geno observed, his analytical mind unable to fully rest";
-            |"She paused, feathers rustling."; "her voice cutting through the noise of the market." 
+            |1. STAGE DIRECTIONS: places where dialogue is interrupted with or followed by third-person
+            |narration about how a character is speaking or what they are doing ("she observed, her
+            |analytical mind unable to fully rest", "She paused, feathers rustling.", "her voice
+            |cutting through the noise of the market."). For each stage direction, emit a replace
+            |entry that removes it and merges the surrounding dialogue together.
             |
-            |2. Any statements of hyperbole, hype, and particularly strong adjectives in places where the user prompt
-            |has not demanded, or in scenes that are otherwise climactic,
-            |it must either be removed in their entirety or converted into character dialogue, depending
-            |on what's more convenient. You're looking for strong visual metaphors, like "shattered" or "downpour", to describe
-            |character mental states or reaction to a situation. DO NOT EDIT DIALOGUE: DIALOGUE IS EXEMPT FROM THIS RULE.
+            |2. HYPERBOLE / HYPE / STRONG ADJECTIVES: places where the prose uses strong visual
+            |metaphors ("shattered", "downpour") to describe a character's mental state or reaction
+            |to a situation, unless the scene is genuinely climactic or the user prompt demands it.
+            |For each, emit a replace entry that removes the strong language and replaces it with
+            |plainer prose, OR converts the hyperbole into character dialogue.
             |
-            |Fix the above problems using surgical changes. DO NOT MAKE ANY CHANGES ASIDE FROM THE ONES YOU HAVE BEEN
-            |INSTRUCTED TO MAKE. DO NOT TRUNCATE THE TEXT BEYOND WHAT YOU HAVE BEEN ORDERED TO DO. DO NOT include the list of changes in your
-            |output. THE OUTPUT SHOULD ONLY BE THE FINAL, FULLY ADJUSTED PAGE.
+            |DO NOT TOUCH EXISTING DIALOGUE. Dialogue is exempt from this rule.
+            |
+            |For each occurrence, emit one entry in the changeList. subStringToChange must include
+            |enough surrounding context to uniquely identify the passage. mode is "replace".
+            |
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "replace"}
+            |  ]
+            |}
         """.trimMargin())
-        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT BEYOND WHAT YOU HAVE BEEN ORDERED TO.""")
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("cleanup step three pipe")
 
 
@@ -1048,29 +1224,42 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
-        .setTransformationFunction(::recordWritingPipePage)
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.authorPrompt)) }
-        .setReasoningPipe(authorBuilder(Env.authorPrompt))
         .setPageKey("user prompt, new page, themes")
-        .setSystemPrompt("""${Env.authorPrompt}. 
-            |Now that the page is nearly finished, you are going to put on the finishing touches. Taking care not
-            |to change any major details, make some tweaks around the edges so that it aligns with the themes
-            |you wrote earlier for this page. 
-            |MAKE AS FEW CHANGES POSSIBLE. Make sure to follow the style guide: ${settings.writingStyle}.
-            |##PROCEDURE: MAKE THE BARE NUMBER OF CHANGES POSSIBLE:
-            |YOU ARE MAKING SURGICAL CHANGES ONLY. DO NOT ADD LARGE QUANTITIES OF STUFF. DO NOT CHANGE MORE THAN 
-            |A FEW THINGS. Also, implement your changes ONLY AS ADDITIONS. DO NOT DELETE THINGS.
-            |###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material.
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setReasoningPipe(authorBuilder(Env.authorPrompt))
+        .setSystemPrompt("""${Env.authorPrompt}.
+            |Now that the page is nearly finished (you will find it under the "new page" key), you are going to put on
+            |the finishing touches. The "themes" key contains the themes you wrote earlier for this page. Read the page
+            |and emit a JSON SurgicalChangeList describing the surgical changes that reinforce those themes.
+            |
+            |MAKE THE BARE NUMBER OF CHANGES POSSIBLE. Take care not to change any major details. You are making
+            |SURGICAL CHANGES ONLY. DO NOT ADD LARGE QUANTITIES OF STUFF. DO NOT CHANGE MORE THAN A FEW THINGS.
+            |Implement your changes ONLY AS ADDITIONS (use mode "insertAfter" to add text after an existing anchor
+            |without modifying the anchor itself). DO NOT DELETE THINGS.
+            |
+            |Make sure to follow the style guide: ${settings.writingStyle}.
+            |
+            |For each change, subStringToChange is the exact anchor (with enough surrounding context to uniquely
+            |identify it) and replacementSubString is the text to add. mode is "insertAfter" for pure additions
+            |or "replace" for substitutions.
+            |
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
         """.trimMargin())
-        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material.""")
-        .autoInjectContext("""Additional context:
-            |"themes" is the list of themes that you wrote to help you plan out the page to begin with. Now you must
-            |reinforce those themes using careful and precise edits.
-        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("tweaks around the edges pipe")
 
 
@@ -1112,27 +1301,47 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
-        .setTransformationFunction(::secondPassTransform)
-        //.setReasoningPipe(explicitCotBuilder()).apply { setReasoningPipe(authorBuilder(Env.richardTreadwell)) }
-        .setReasoningPipe(authorBuilder(Env.richardTreadwell))
         .setPageKey("user prompt, new page")
-        .setSystemPrompt("""${Env.richardTreadwell} Now that the new page is finished, it is time to do a second pass.
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::secondPassTransform)
+        .setReasoningPipe(authorBuilder(Env.richardTreadwell))
+        .setSystemPrompt("""${Env.richardTreadwell} Now that the page is finished (you will find it under the "new page"
+            |key), it is time to do a second pass.
             |You are ${Env.richardTreadwell}.
-            You are sitting in your office, seated opposite ${Env.authorPrompt}, each working on this manuscript as though
+            |You are sitting in your office, seated opposite ${Env.authorPrompt}, each working on this manuscript as though
             |you are competing authors rather than colleagues working together towards the same goal. You have been
             |friends for many years but only recently have you begun collaborating on manuscripts together. You
             |each learned early on that working together requires you both to write as though each of you has written
-            |every word the other one has wrote. In accordance with these facts and your values, you must make a 
+            |every word the other one has wrote. In accordance with these facts and your values, you must make a
             |surgical list of changes to deliver the optimal version of this page. Make sure you maintain consistency
             |with the user prompt, however: it is very important you satisfy the user's request at the end of your work.
+            |
             |MAKE AS FEW CHANGES POSSIBLE. Also, DO NOT TOUCH THE DIALOGUE (unless you deem the dialogue to be not human
             |readable, in which case, fix it to be as such). Make sure you follow the style guide: ${settings.writingStyle}.
-            |DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. Finally, DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at
-            |least as many sentences in your output as there were in the input material.
+            |
+            |Emit a JSON SurgicalChangeList. For each change, subStringToChange is the exact bad passage (with enough
+            |surrounding context to uniquely identify it) and replacementSubString is the corrected text. mode is
+            |"replace" or "delete" as appropriate.
+            |
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+            |
             |##NOTE: DO NOT INSERT INFORMATION ABOUT YOURSELF INTO THE PAGE. NOBODY CARES WHO YOU ARE OR WHAT
             |YOUR BACKGROUND AND PERSONAL STORY IS.
         """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("second pass pipe")
 
     val loreBookPipeSystemPrompt = """You are a lore book assistant. Your job is to look at a user's story
@@ -1195,7 +1404,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .add(newMurderPipe)
         //.add(writingPipe)
         .add(chasingShadowsWritingPipe)
-        //.add(untwistPipe)
+        .add(untwistPipe)
         .add(postWriterPipe)
         .add(loreCheckPipe)
         .add(loreRepairPipe)
@@ -1204,8 +1413,8 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .add(cleanupStepOnePipe)
         .add(cleanupStepTwoPipe)
         .add(cleanupStepThreePipe)
-        //.add(removeBadWritingStepOnePipe)
-        //.add(removeBadWritingStepTwoPipe)
+        .add(removeBadWritingStepOnePipe)
+        .add(removeBadWritingStepTwoPipe)
         .add(dummyPipe)
         //.add(benignSkiesMyDialoguePipe)
         //.add(certifyMyDialoguePipe)
