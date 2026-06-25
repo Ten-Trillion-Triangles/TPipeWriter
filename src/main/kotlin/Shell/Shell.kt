@@ -27,6 +27,11 @@ import com.TTT.Util.writeStringToFile
 import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
 import genericOpenAIPipe.api.ApiMode
 import genericOpenAIPipe.GenericOpenAIPipe
+import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.GlobalScope
+import kotlinx.coroutines.delay
+import kotlinx.coroutines.isActive
+import kotlinx.coroutines.launch
 import kotlinx.coroutines.runBlocking
 import readEnhancedInput
 import stripMultiLineDelimiter
@@ -712,16 +717,40 @@ fun callChatPipeline(prompt: String)
 
     println("Thinking...")
 
+    // Periodic trace flush so the user can monitor progress in real-time
+    // (the trace file at ~/TPipeWriter/Trace.html is otherwise only written
+    // AFTER the pipeline completes — leaving the user staring at "Thinking..."
+    // for 30+ seconds with no feedback).
+    //
+    // Architecture note: we use a SEPARATE GlobalScope.launch so the flush
+    // coroutine runs on a background dispatcher and isn't tied to this
+    // thread's lifecycle. Using `runBlocking { launch { ... } }` would block
+    // forever because runBlocking waits for all child coroutines to complete,
+    // and `while(isActive) { ... }` is infinite. Cancelling the returned Job
+    // at the end stops the loop.
+    val flushJob = GlobalScope.launch(Dispatchers.IO) {
+        while(isActive) {
+            delay(2000)
+            try {
+                val trace = Env.discussionPipeline.getTraceReport(TraceFormat.HTML)
+                writeStringToFile("${getHomeFolder()}/TPipeWriter/Trace.html", trace)
+            } catch(e: Exception) {
+                // Silently ignore — flush is best-effort, don't crash the user-visible command
+            }
+        }
+    }
+
     runBlocking {
         result = Env.discussionPipeline.execute(result)
     }
+    flushJob.cancel()
 
-    // Output chat response without updating main context
-    if(result.text.isNotEmpty())
-    {
-        println("\n\n\n" + result.text)
-    }
-    else
+    // Output chat response without updating main context.
+    // The streaming callback already wrote chunks to stdout in real time as
+    // the model emitted them, so we don't re-print the full result.text here
+    // (that would double-print). If the response is empty we show the
+    // failure message as before.
+    if(result.text.isEmpty())
     {
         println("The model failed to return a result")
     }
