@@ -3,7 +3,8 @@ package Globals
 import Builders.buildNccWriter
 import Builders.buildPitchSlideWriterPipeline
 import Builders.buildPlusWriterPipeline
-import Defaults.BedrockConfiguration
+import Builders.reasonWithMiniMax
+import Defaults.GenericOpenAIConfiguration
 import Defaults.reasoning.ReasoningBuilder
 import Defaults.reasoning.ReasoningDepth
 import Defaults.reasoning.ReasoningDuration
@@ -14,9 +15,6 @@ import Shell.CommandState
 import Structs.ModelSettings
 import Util.cleanJsonString
 import Util.enablePipelineStreaming
-import bedrockPipe.BedrockMultimodalPipe
-import bedrockPipe.BedrockPipe
-import bedrockPipe.BedrockPriorityTier
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
 import com.TTT.Context.LoreBook
@@ -34,7 +32,9 @@ import com.TTT.Util.getHomeFolder
 import com.TTT.Util.repairAndDeserialize
 import com.TTT.Util.serialize
 import com.TTT.Util.writeStringToFile
-import env.bedrockEnv
+import env.genericOpenAIEnv
+import genericOpenAIPipe.ApiMode
+import genericOpenAIPipe.GenericOpenAIPipe
 import kotlinx.coroutines.runBlocking
 import java.io.File
 
@@ -260,13 +260,8 @@ and the sensual and erotic aspects.
     var authorReasoning: Pipe? = null
 
 
-    val deepSeekModelId = "deepseek.r1-v1:0"
-    val novaModelId = "amazon.nova-pro-v1:0"
-    val gptModelId = "openai.gpt-oss-20b-1:0"
-    val novaLiteId = "amazon.nova-lite-v1:0"
-    val nova2LiteId = "amazon.nova-2-lite-v1:0"
-    val nova2ProId = "amazon.nova-2-pro-preview-v1:0"
-    val claudeModelId = "anthropic.claude-sonnet-4-20250514-v1:0"
+    // Single-model edition: every pipe uses MiniMax-M3 (see ModelConfig.primaryModelName).
+    // Bedrock-era per-model-id constants removed.
 
 
 
@@ -300,19 +295,13 @@ and the sensual and erotic aspects.
          */
         writerPipeline.useGlobalContext("main") //Ensure it's using the global context so we can read from it correctly.
 
-        //Declare region and arn for deepseek in preparation to start creating Bedrock pipes.
-        val region = "us-east-2"
-        val maxTokenBudgetDeepSeek = 106 //Tokens in the thousands. 106K tokens.
-        val maxTokenBudgetNova = 280 //Tokens in the thousands. 280K tokens.
-
-
-        bedrockEnv.loadInferenceConfig()
-        bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
-        bedrockEnv.bindInferenceProfile("amazon.nova-pro-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-pro-v1:0")
-        bedrockEnv.bindInferenceProfile("amazon.nova-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0")
-        bedrockEnv.bindInferenceProfile(nova2LiteId, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-2-lite-v1:0")
-        bedrockEnv.bindInferenceProfile(nova2ProId, "arn:aws:bedrock:us-east-1:521369004927:inference-profile/global.amazon.nova-2-pro-preview-v1:0")
-        bedrockEnv.bindInferenceProfile(claudeModelId, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
+        // MiniMax-M3 is hosted at api.minimax.io/v1. No ARN, no region, no
+        // inference profile. Authentication is the MINIMAX_API_KEY environment
+        // variable; wire it into genericOpenAIEnv so all pipes pick it up via
+        // genericOpenAIEnv.resolveApiKey().
+        System.getenv("MINIMAX_API_KEY")?.takeIf { it.isNotBlank() }?.let {
+            genericOpenAIEnv.setApiKey(it)
+        }
 
 //=============================================Construct Pipes =========================================================
 
@@ -335,18 +324,19 @@ and the sensual and erotic aspects.
          * Declare the writer pipe. This pipe continues writing the story based on context from prior portions of
          * the story.
          */
-        val writerEntryPipe = BedrockMultimodalPipe()
-            .setRegion("us-east-2")
-            .useConverseApi()
-            .setReadTimeout(800)
-            .setModel(deepSeekModelId)
+        val writerEntryPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+            .setBaseUrl("https://api.minimax.io/v1")
+            .setApiKey(genericOpenAIEnv.resolveApiKey())
+            .setApiMode(ApiMode.OpenAIResponses)
+            .setModel(ModelConfig.primaryModelName)
+            .setModel(ModelConfig.primaryModelName)
             .pullPipelineContext()
             .setTemperature(temperature)
             .setTopP(topP)
             .truncateModuleContext()
             .requireJsonPromptInjection()
             .setPromptMode(PromptMode.internalContext)
-            .setContextWindowSize(108000)
+            .setContextWindowSize(512000)
             .setMaxTokens(maxTokens)
             .setContextWindowSettings(ContextWindowSettings.TruncateTop)
             .setSystemPrompt(writerEntrySystemPrompt)
@@ -375,11 +365,12 @@ and the sensual and erotic aspects.
          * The cleanup pipe handles removal of json, html, any code, markdown contents, and any other computer generated
          * code, file metadata, or other content that's not part of the actual story.
          */
-        val cleanUpPipe = BedrockMultimodalPipe()
-            .setRegion("us-east-2")
-            .useConverseApi()
-            .enableCaching()
-            .setModel(gptModelId)
+        val cleanUpPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+            .setBaseUrl("https://api.minimax.io/v1")
+            .setApiKey(genericOpenAIEnv.resolveApiKey())
+            .setApiMode(ApiMode.OpenAIResponses)
+            .setModel(ModelConfig.primaryModelName)
+            .setModel(ModelConfig.primaryModelName)
             .setTopP(.7)
             .setTemperature(.7)
             .setMaxTokens(maxTokens)
@@ -422,14 +413,14 @@ and the sensual and erotic aspects.
 
         val blankLoreBookExample = ContextWindow()
 
-        val loreBookPipe = BedrockMultimodalPipe()
-            .setRegion("us-east-2")
-            .useConverseApi()
-            .enableCaching()
-            .setReadTimeout(400)
+        val loreBookPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+            .setBaseUrl("https://api.minimax.io/v1")
+            .setApiKey(genericOpenAIEnv.resolveApiKey())
+            .setApiMode(ApiMode.OpenAIResponses)
+            .setModel(ModelConfig.primaryModelName)
             .requireJsonPromptInjection()
             .pullPipelineContext()
-            .setModel(deepSeekModelId)
+            .setModel(ModelConfig.primaryModelName)
             .setPromptMode(PromptMode.singlePrompt)
             .setTemperature(1.0)
             .setTopP(.9)
@@ -441,7 +432,7 @@ and the sensual and erotic aspects.
             .autoInjectContext("The following json schema will be used to supply context for the story. " +
                     "The context will be provided in the user's prompt. Use it to assist in deciding how to generate " +
                     "lorebook keys and values.")
-            .setContextWindowSize(107000)
+            .setContextWindowSize(512000)
             .setTransformationFunction(::recordLoreBook)
             .setPipeName("Lorebook")
 
@@ -489,16 +480,16 @@ and the sensual and erotic aspects.
          * Pipe responsible for handling any user requested manual lorebook updates. Supports being given keys,
          * or explicit instructions by the user.
          */
-        val manualLoreBookPipe = BedrockMultimodalPipe()
-            .setRegion("us-east-2")
-            .useConverseApi()
-            .setReadTimeout(400)
-            .enableCaching()
-            .setModel(deepSeekModelId)
+        val manualLoreBookPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+            .setBaseUrl("https://api.minimax.io/v1")
+            .setApiKey(genericOpenAIEnv.resolveApiKey())
+            .setApiMode(ApiMode.OpenAIResponses)
+            .setModel(ModelConfig.primaryModelName)
+            .setModel(ModelConfig.primaryModelName)
             .setTopP(.9)
             .setTemperature(1.0)
             .setJsonOutput(blankLoreBookExample)
-            .setContextWindowSize(maxTokenBudgetDeepSeek)
+            .setContextWindowSize(512000)
             .truncateModuleContext()
             .pullPipelineContext()
             .updatePipelineContextOnExit()
@@ -528,14 +519,14 @@ and the sensual and erotic aspects.
             |for the story that fits the request.
         """.trimMargin()
 
-        val ideaPipe = BedrockMultimodalPipe()
-            .setRegion("us-east-2")
-            .useConverseApi()
-            .enableCaching()
-            .setReadTimeout(350)
-            .setModel(deepSeekModelId)
+        val ideaPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+            .setBaseUrl("https://api.minimax.io/v1")
+            .setApiKey(genericOpenAIEnv.resolveApiKey())
+            .setApiMode(ApiMode.OpenAIResponses)
+            .setModel(ModelConfig.primaryModelName)
+            .setModel(ModelConfig.primaryModelName)
             .truncateModuleContext()
-            .setContextWindowSize(maxTokenBudgetDeepSeek)
+            .setContextWindowSize(512000)
             .setTemperature(1.0)
             .setTopP(.9)
             .updatePipelineContextOnExit()
@@ -565,11 +556,6 @@ and the sensual and erotic aspects.
             | implied, or is part of the broader narrative, moral, or hidden themes and concepts in the narrative work.
         """.trimMargin()
 
-        //Declare required settings for aws bedrock.
-        val bedrockSettings = BedrockConfiguration(
-            "us-west-2",
-            ModelConfig.PalmyraX5)
-
         //Declare settings to define how reasoning will function.
         val reasoningSettings = ReasoningSettings(
             reasoningMethod = ReasoningMethod.ExplicitCot,
@@ -584,32 +570,36 @@ and the sensual and erotic aspects.
             temperature = 1.0,
             topP = .9,
             maxTokens = 8000,
-            contextWindowSize = 990000
+            contextWindowSize = 512000
         )
 
         // Create reasoning pipe
-        val configuredPipe = ReasoningBuilder.reasonWithBedrock(
-            bedrockSettings,
+        val configuredPipe = reasonWithMiniMax(
+            GenericOpenAIConfiguration(
+                model = ModelConfig.primaryModelName,
+                apiKey = genericOpenAIEnv.resolveApiKey()
+            ),
             reasoningSettings,
             pipeSettings)
-            .setPipeName("Thinking Pipe") as BedrockPipe
+            .setPipeName("Thinking Pipe")
 
 
         val budgetSettings = TokenBudgetSettings(
             maxTokens = 8000,
-            contextWindowSize = 990000,
+            contextWindowSize = 512000,
             )
 
 
 
-        val discussionPipe = BedrockMultimodalPipe()
-            .useConverseApi()
-            .enableStreaming()
-            .setRegion("us-west-2")
+        val discussionPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+            .setBaseUrl("https://api.minimax.io/v1")
+            .setApiKey(genericOpenAIEnv.resolveApiKey())
+            .setApiMode(ApiMode.OpenAIResponses)
+            .setModel(ModelConfig.primaryModelName)
             .setTemperature(.6)
             .setTopP(.6)
             .setMaxTokens(8000)
-            .setModel(ModelConfig.PalmyraX5)
+            .setModel(ModelConfig.primaryModelName)
             .truncateModuleContext()
             .requireJsonPromptInjection()
             .setTokenBudget(budgetSettings)
@@ -649,13 +639,13 @@ and the sensual and erotic aspects.
             |to your output.
         """.trimMargin()
 
-        val summaryPipe = BedrockMultimodalPipe()
-            .setRegion("us-east-2")
-            .useConverseApi()
-            .setReadTimeout(300)
-            .enableCaching()
-            .setModel(novaModelId)
-            .setContextWindowSize(maxTokenBudgetNova)
+        val summaryPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+            .setBaseUrl("https://api.minimax.io/v1")
+            .setApiKey(genericOpenAIEnv.resolveApiKey())
+            .setApiMode(ApiMode.OpenAIResponses)
+            .setModel(ModelConfig.primaryModelName)
+            .setModel(ModelConfig.primaryModelName)
+            .setContextWindowSize(512000)
             .truncateModuleContext()
             .setContextWindowSettings(ContextWindowSettings.TruncateTop)
             .setSystemPrompt(summarySystemPrompt)
@@ -837,10 +827,12 @@ suspend fun recordUserDiscussionContext(content: ContextWindow, multiModal: Mult
     bankedContext.contextElements.add(json)
     ContextBank.emplaceWithMutex("chat", bankedContext)
 
-    val deepSeekModelId = "deepseek.r1-v1:0"
-
-    val blankDeepSeekPipe = BedrockMultimodalPipe()
-        .setModel(deepSeekModelId)
+    val blankDeepSeekPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
+        .setModel(ModelConfig.primaryModelName)
 
     blankDeepSeekPipe.truncateModuleContext()
     val truncationSettings = blankDeepSeekPipe.getTruncationSettings()
@@ -885,7 +877,7 @@ suspend fun genericBranchFunction(original: MultimodalContent, changed: Multimod
         }
 
         //Create a new pipe that will now use deepseek to carry out our order this time.
-        val deepSeekSecondAttempt = constructPipeFromTemplate<BedrockMultimodalPipe>(refusingPipe)
+        val deepSeekSecondAttempt = constructPipeFromTemplate<GenericOpenAIPipe>(refusingPipe)
 
         //Bind only the validation function to prevent endless pipe recursion.
         deepSeekSecondAttempt?.validatorFunction = refusingPipe?.validatorFunction
