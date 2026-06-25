@@ -31,6 +31,11 @@ dependencies {
     testImplementation(kotlin("test"))
     testImplementation("org.jetbrains.kotlin:kotlin-test-junit5")
     testImplementation("org.junit.jupiter:junit-jupiter:5.10.1")
+    // Ktor — used by RawKtorStreamingTest to verify CIO streaming behavior
+    // without depending on GenericOpenAIPipe's wrapper. 3.3.x is the minimum
+    // version that ships with the SSE plugin.
+    testImplementation("io.ktor:ktor-client-core:3.3.3")
+    testImplementation("io.ktor:ktor-client-cio:3.3.3")
 }
 
 // Enforce consistent serialization versions across transitive deps
