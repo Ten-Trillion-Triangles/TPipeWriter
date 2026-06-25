@@ -1,7 +1,6 @@
 package Builders
 
 import Shell.loadSettings
-import Util.enablePipelineStreaming
 import com.TTT.Context.ConverseHistory
 import com.TTT.Context.ConverseRole
 import com.TTT.Debug.withTracing
@@ -115,7 +114,7 @@ fun buildCharacterPipeline(character: String) : Pipeline
         .add(chatPipe)
 
     runBlocking {
-        enablePipelineStreaming(chatPipeline)
+
         chatPipeline.init(true)
     }
 
@@ -236,7 +235,7 @@ fun buildCharacterPipelineWithStory(character: String) : Pipeline
         .add(chatPipe)
 
     runBlocking {
-        enablePipelineStreaming(chatPipeline)
+
         chatPipeline.init(true)
     }
 

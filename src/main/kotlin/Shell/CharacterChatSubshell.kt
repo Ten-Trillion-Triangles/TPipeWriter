@@ -175,10 +175,11 @@ private fun runCharacterChat(message: String) {
     println("Thinking...\n\n\n\n")
 
     try {
-        runBlocking {
-            pipeline.context = storedContext
-            pipeline.enableTracing()
-            result = pipeline.execute(MultimodalContent(text = serializedHistory))
+        pipeline.context = storedContext
+        result = Util.runWithLiveTrace(pipeline, "CharTrace.html") {
+            runBlocking {
+                pipeline.execute(MultimodalContent(text = serializedHistory))
+            }
         }
     } catch (e: Exception) {
         println("Character chat failed: ${e.message}")
@@ -195,9 +196,6 @@ private fun runCharacterChat(message: String) {
 
     println("\n\n\n------------------------------")
     println("\n\n\n" + assistantReply)
-
-    val trace = pipeline.getTraceReport(TraceFormat.HTML)
-    val traceFile = writeStringToFile("${getHomeFolder()}/TPipeWriter/CharTrace.html", trace)
 }
 
 private fun printCharacterChatHelp() {

@@ -9,7 +9,6 @@ import Builders.Util.storeUserPrompt
 import Globals.Env
 import Globals.isValidGptOssResponse
 import Globals.ModelConfig
-import Util.enablePipelineStreaming
 import com.TTT.Pipeline.Pipeline
 import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
 import genericOpenAIPipe.api.ApiMode
@@ -364,7 +363,7 @@ pitchSlideWriterPipeline
         pitchSlideWriterPipeline.init(true)
     }
 
-    enablePipelineStreaming(pitchSlideWriterPipeline)
+
 
     return pitchSlideWriterPipeline
 

@@ -5,7 +5,6 @@ import Builders.Util.recordWritingPipePage
 import Globals.Env
 import Globals.ModelConfig
 import Shell.loadSettings
-import Util.enablePipelineStreaming
 import com.TTT.Debug.TraceStreamMerger
 import com.TTT.Pipe.MultimodalContent
 import com.TTT.Pipeline.Connector
@@ -321,10 +320,10 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
             .add(DialogueType.InformalSerious, informalSeriousPipeline)
             .add(DialogueType.FormalFreeform, formalFreeformPipeline)
 
-    enablePipelineStreaming(evaluateDialoguePipeline)
-    enablePipelineStreaming(informalSeriousPipeline)
-    enablePipelineStreaming(informalCasualPipeline)
-    enablePipelineStreaming(formalFreeformPipeline)
+
+
+
+
 
     return Pair<Pipeline, Connector>(evaluateDialoguePipeline, dialogueConnector)
 }

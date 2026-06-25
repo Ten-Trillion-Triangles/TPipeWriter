@@ -24,6 +24,7 @@ import com.TTT.Pipe.TruncationSettings
 import com.TTT.Pipeline.Connector
 import com.TTT.Util.getHomeFolder
 import com.TTT.Util.writeStringToFile
+import Util.runWithLiveTrace
 import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
 import genericOpenAIPipe.api.ApiMode
 import genericOpenAIPipe.GenericOpenAIPipe
@@ -471,14 +472,17 @@ fun callIdeaPipeline(prompt: String)
 
     println("Thinking...")
 
-    runBlocking {
-        result = Env.ideaPipeline.execute(result)
+    result = Util.runWithLiveTrace(Env.ideaPipeline, "Trace.html") {
+        runBlocking {
+            Env.ideaPipeline.execute(result)
+        }
     }
 
     // Display generated ideas or error message
     if(result.text.isNotEmpty())
     {
-        println("\n\n\n" + result.text)
+        // Streaming callback already wrote chunks to stdout; no need to
+        // re-print the full result.text here.
         // Store idea result in bankedContext for writer pipeline
         runBlocking {
             ContextBank.swapBankWithMutex("idea")
@@ -709,54 +713,20 @@ fun callChatPipeline(prompt: String)
     chatContextWindow.merge(chatContext)
 
     // Execute discussion pipeline with isolated context
-    var result = MultimodalContent()
-    result.addText(request)
-
     Env.discussionPipeline.context = chatContextWindow
-    Env.discussionPipeline.enableTracing(TraceConfig(detailLevel = TraceDetailLevel.DEBUG))
 
     println("Thinking...")
 
-    // Periodic trace flush so the user can monitor progress in real-time
-    // (the trace file at ~/TPipeWriter/Trace.html is otherwise only written
-    // AFTER the pipeline completes — leaving the user staring at "Thinking..."
-    // for 30+ seconds with no feedback).
-    //
-    // Architecture note: we use a SEPARATE GlobalScope.launch so the flush
-    // coroutine runs on a background dispatcher and isn't tied to this
-    // thread's lifecycle. Using `runBlocking { launch { ... } }` would block
-    // forever because runBlocking waits for all child coroutines to complete,
-    // and `while(isActive) { ... }` is infinite. Cancelling the returned Job
-    // at the end stops the loop.
-    val flushJob = GlobalScope.launch(Dispatchers.IO) {
-        while(isActive) {
-            delay(2000)
-            try {
-                val trace = Env.discussionPipeline.getTraceReport(TraceFormat.HTML)
-                writeStringToFile("${getHomeFolder()}/TPipeWriter/Trace.html", trace)
-            } catch(e: Exception) {
-                // Silently ignore — flush is best-effort, don't crash the user-visible command
-            }
+    val result = Util.runWithLiveTrace(Env.discussionPipeline, "Trace.html") {
+        runBlocking {
+            Env.discussionPipeline.execute(MultimodalContent(text = request))
         }
     }
 
-    runBlocking {
-        result = Env.discussionPipeline.execute(result)
-    }
-    flushJob.cancel()
-
-    // Output chat response without updating main context.
-    // The streaming callback already wrote chunks to stdout in real time as
-    // the model emitted them, so we don't re-print the full result.text here
-    // (that would double-print). If the response is empty we show the
-    // failure message as before.
     if(result.text.isEmpty())
     {
         println("The model failed to return a result")
     }
-
-    val trace = Env.discussionPipeline.getTraceReport(TraceFormat.HTML)
-    writeStringToFile("${getHomeFolder()}/TPipeWriter/Trace.html", trace)
 }
 
 /**
@@ -803,22 +773,15 @@ fun callLorebookPipeline(prompt: String)
 
     println("thinking...")
 
-    Env.lorebookPipeline.enableTracing(TraceConfig(detailLevel = TraceDetailLevel.DEBUG))
-
-    runBlocking {
-        result = Env.lorebookPipeline.execute(result)
+    result = Util.runWithLiveTrace(Env.lorebookPipeline, "trace.html") {
+        runBlocking {
+            Env.lorebookPipeline.execute(result)
+        }
     }
 
-    val trace = Env.lorebookPipeline.getTraceReport(TraceFormat.HTML)
-    writeStringToFile("${getHomeFolder()}/TPipeWriter/trace.html", trace)
-
-    // Display lorebook update results
-    if(result.text.isNotEmpty())
-    {
-        println("\n\n" + result.text)
-    }
-
-    else
+    // Display lorebook update results — streaming callback already wrote
+    // chunks; only print a separator + failure message if empty.
+    if(result.text.isEmpty())
     {
         println("The model failed to return a result")
     }
@@ -962,16 +925,16 @@ fun executeSummary(text: String)
     var result = MultimodalContent()
     result.addText(text)
 
-    runBlocking {
-        result = Env.summarizerPipeline.execute(result)
+    println("Thinking...")
+
+    result = Util.runWithLiveTrace(Env.summarizerPipeline, "trace.html") {
+        runBlocking {
+            Env.summarizerPipeline.execute(result)
+        }
     }
 
-    // Output result or error message
-    if(result.text.isNotEmpty())
-    {
-        println(result.text)
-    }
-    else
+    // Streaming callback already wrote chunks; only show failure if empty.
+    if(result.text.isEmpty())
     {
         println("The model failed to return a result")
     }
@@ -1206,25 +1169,19 @@ fun runTest()
     println("Input your prompt")
     val prompt = readEnhancedInput()
 
-    Env.stylePipeline.enableTracing()
+    println("Thinking...")
 
-    runBlocking {
-        val result = Env.stylePipeline.execute(prompt)
-
-        if(result.isEmpty())
-        {
-            println("The model failed to return a result")
-
-            val trace = Env.stylePipeline.getTraceReport(format = TraceFormat.HTML)
-            writeStringToFile("${getHomeFolder()}/TPipeWriter/trace.html", trace)
-        }
-
-        else
-        {
-            println("\n\n\n" + result)
+    val result = Util.runWithLiveTrace(Env.stylePipeline, "trace.html") {
+        runBlocking {
+            Env.stylePipeline.execute(prompt)
         }
     }
 
+    if(result.isEmpty())
+    {
+        println("The model failed to return a result")
+    }
+    // else: streaming callback already wrote the chunks to stdout
 }
 
 /**
@@ -2743,88 +2700,68 @@ fun callChapterRewritePipeline(prompt: String)
 //----------------------------------------------Rewriting the chapter---------------------------------------------------
 
     println("Rewriting chapter $chapterIndex...")
-    
-    try {
-        runBlocking {
 
+    try {
+        // Wire the rewrite pipeline's context into the bank
+        runBlocking {
             val prevChapterWindow = ContextWindow()
             prevChapterWindow.contextElements.add(originalChapter)
             ContextBank.emplaceWithMutex("prevChapter", prevChapterWindow)
-            
+
             val userPromptWindow = ContextWindow()
             userPromptWindow.contextElements.add(instructions)
             ContextBank.emplaceWithMutex("user prompt", userPromptWindow)
-            val result = Env.expansionPipeline.execute(instructions)
-            
-            println("DEBUG: Pipeline execution completed, result length: ${result.length}")
-            
-            if (result.isNotEmpty())
+        }
+
+        // Execute via the unified runtime helper so streaming + live trace
+        // flush work consistently with /chat, /write, /idea, etc.
+        val result = Util.runWithLiveTrace(Env.expansionPipeline, "trace.html") {
+            runBlocking {
+                Env.expansionPipeline.execute(instructions)
+            }
+        }
+
+        println("DEBUG: Pipeline execution completed, result length: ${result.length}")
+
+        if (result.isNotEmpty())
+        {
+            //Handle results.
+            presentRewriteResults(chapterManager, adjustedIndex, originalChapter, result, context)
+
+            //Handle warning the user that refusals occurred.
+            val refusalWarning = Env.expansionPipeline.content.metadata["refusalWarning"] as? Boolean
+
+            if(refusalWarning != null && refusalWarning)
             {
-                //Handle results.
-                presentRewriteResults(chapterManager, adjustedIndex, originalChapter, result, context)
+                println("\n\nWARNING!!! \n\n A refusal by an llm in this pipeline has occurred. " +
+                        "Would you like to convert this entire pipeline to deepseek to evade model censorship?")
 
-                //Handle warning the user that refusals occurred.
-                val refusalWarning = Env.expansionPipeline.content.metadata["refusalWarning"] as? Boolean
+                val answer = readln()
 
-                if(refusalWarning != null && refusalWarning)
+                //Force it to deepseek to reduce refusal rate.
+                if(answer.lowercase() == "y")
                 {
-                    println("\n\nWARNING!!! \n\n A refusal by an llm in this pipeline has occurred. " +
-                            "Would you like to convert this entire pipeline to deepseek to evade model censorship?")
+                    /**todo: We need to update the map of pipeline names to settings. Also make getters for
+                     * for certain pipe settings to help simplify constructing our object.
+                     * Perhaps we should consider actually moving the data class that handles this task
+                     * into TPipe itself? I'm not sure honestly...
+                     */
 
-                    val answer = readln()
+                    Env.expansionPipeline = convertPipelineToDeepseek(Env.expansionPipeline)
+                    val updatedSettings = constructModelSettingsList(Env.expansionPipeline)
+                    Env.writingPipelineSettings["Rewrite Pipeline"] = updatedSettings
 
-                    //Force it to deepseek to reduce refusal rate.
-                    if(answer.lowercase() == "y")
-                    {
-                        /**todo: We need to update the map of pipeline names to settings. Also make getters for
-                         * for certain pipe settings to help simplify constructing our object.
-                         * Perhaps we should consider actually moving the data class that handles this task
-                         * into TPipe itself? I'm not sure honestly...
-                         */
-
-                        Env.expansionPipeline = convertPipelineToDeepseek(Env.expansionPipeline)
-                        val updatedSettings = constructModelSettingsList(Env.expansionPipeline)
-                        Env.writingPipelineSettings["Rewrite Pipeline"] = updatedSettings
-
-                    }
                 }
-                
-            } else {
-                println("Rewrite pipeline failed to produce results.")
-
-                val trace = Env.expansionPipeline.getTraceReport(TraceFormat.HTML)
-
-                println("DEBUG: Writing trace to file...")
-                writeStringToFile("${getHomeFolder()}/TPipeWriter/trace.html", trace)
-
             }
 
-
+        } else {
+            println("Rewrite pipeline failed to produce results.")
         }
+
+
     } catch (e: Exception) {
         println("Rewrite failed: ${e.message}")
-        println("DEBUG: Exception occurred, getting trace report...")
-        try {
-            val trace = Env.expansionPipeline.getTraceReport(TraceFormat.HTML)
-            writeStringToFile("${getHomeFolder()}/TPipeWriter/trace.html", trace)
-            println("DEBUG: Exception trace written successfully")
-        } catch (traceException: Exception) {
-            println("DEBUG: Failed to get trace report: ${traceException.message}")
-        }
     }
-
-    println("DEBUG: Getting final trace report...")
-    try {
-        val trace = Env.expansionPipeline.getTraceReport(TraceFormat.HTML)
-        writeStringToFile("${getHomeFolder()}/TPipeWriter/trace.html", trace)
-
-        val traceTxt = Env.expansionPipeline.getTraceReport(TraceFormat.CONSOLE)
-        writeStringToFile("${getHomeFolder()}/TPipeWriter/trace.txt", traceTxt)
-        println("DEBUG: Final trace written successfully")
-    } catch (e: Exception) {
-        println("DEBUG: Failed to get final trace report: ${e.message}")
-    }
-
 }
 
 /**

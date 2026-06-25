@@ -15,7 +15,6 @@ import Globals.isValidGptOssResponse
 import Globals.recordLoreBook
 import Globals.ModelConfig
 import Shell.loadSettings
-import Util.enablePipelineStreaming
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
 import com.TTT.Enums.PromptMode
@@ -1517,7 +1516,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         plusWriterPipeline.init(true)
     }
 
-    enablePipelineStreaming(plusWriterPipeline)
+
 
     return plusWriterPipeline.apply {
         getPipes().forEach {

@@ -13,7 +13,6 @@ import Defaults.reasoning.ReasoningSettings
 import Shell.CommandState
 import Structs.ModelSettings
 import Util.cleanJsonString
-import Util.enablePipelineStreaming
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
 import com.TTT.Context.LoreBook
@@ -631,7 +630,7 @@ and the sensual and erotic aspects.
         runBlocking {
             discussionPipeline.init(true) }
 
-        enablePipelineStreaming(discussionPipeline)
+
 
 //-------------------------------------------------Summary pipeline-----------------------------------------------------
 

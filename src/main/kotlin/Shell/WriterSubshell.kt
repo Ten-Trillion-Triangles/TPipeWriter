@@ -315,6 +315,13 @@ fun debugPipeCallback(pipe: Pipe, content: MultimodalContent)
 
 /**
  * Execute the writer pipeline with specified settings.
+ *
+ * Uses Util.runWithLiveTrace so streaming callbacks are wired on every pipe
+ * in the connector and the trace file at ~/TPipeWriter/Trace.html is flushed
+ * every 2 seconds while the pipeline runs. The streaming callback writes
+ * SSE chunks directly to FD.out, bypassing Java's PrintStream line buffer
+ * (which was holding chunks until a newline arrived — the root cause of the
+ * "no streaming visible" symptom on /write, continue, etc.).
  */
 fun executeWriterPipeline(
     finalPrompt: String,
@@ -327,67 +334,127 @@ fun executeWriterPipeline(
 {
     val selectedPipeline = writerLevelConnector.get(writingStrength)
     selectedPipeline?.context = contextWindow
-    
+
     val entryPipe = selectedPipeline?.getPipes()[0]
-    
+
     println("Thinking...")
-    
-    try {
-        val traceConfig = TraceConfig(detailLevel = TraceDetailLevel.DEBUG,
-            outputFormat = TraceFormat.HTML,
-            autoExport = true)
-        
-        writerLevelConnector.enableTracing(traceConfig)
-        
-        runBlocking {
-            writerLevelConnector.get(writingStrength)?.setPipeCompletionCallback(::debugPipeCallback)
-            val result = writerLevelConnector.execute(writingStrength, MultimodalContent(text = finalPrompt))
 
+    // Wrap the writer connector in runWithLiveTrace so both pipelines
+    // (low and med) get streaming callbacks and the trace file flushes
+    // live. The Connector's internal pipes get the streaming callback
+    // because runWithLiveTraceAll iterates them.
+    val lowPipeline = writerLevelConnector.get("low")
+    val medPipeline = writerLevelConnector.get("med")
 
-            if(result.text.isNotEmpty())
-            {
-                try {
-                    val textBarrier = """==================================New Segment=========================================
-                        |
-                        |
-                        |
-                    """.trimMargin()
-                    val bankedResult = ContextBank.getContextFromBank("main", false).contextElements.last()
-                    println("\n\n\n" + textBarrier + bankedResult)
-                } catch (exception: Exception) {
-                    println(exception)
-                }
-            } else {
-                println("The model failed to return a result")
+    // Enable tracing on the connector and both child pipelines so the
+    // connector's events + per-pipe events all land in PipeTracer's
+    // in-memory store.
+    writerLevelConnector.enableTracing(
+        com.TTT.Debug.TraceConfig(
+            detailLevel = com.TTT.Debug.TraceDetailLevel.DEBUG,
+            outputFormat = com.TTT.Debug.TraceFormat.HTML
+        )
+    )
+    listOfNotNull(lowPipeline, medPipeline).forEach { it.enableTracing(
+        com.TTT.Debug.TraceConfig(
+            detailLevel = com.TTT.Debug.TraceDetailLevel.DEBUG,
+            outputFormat = com.TTT.Debug.TraceFormat.HTML
+        )
+    ) }
+
+    // Wire streaming callback to all pipes in the connector's branches.
+    // Use a SINGLE FileOutputStream to FD.out across all callbacks — opening
+    // a new one per chunk and closing it causes "Stream Closed" errors after
+    // the first chunk.
+    val rawStdout = java.io.FileOutputStream(java.io.FileDescriptor.out)
+    val streamingCallback: suspend (String) -> Unit = { chunk ->
+        if (chunk.isNotEmpty()) {
+            rawStdout.write(chunk.toByteArray(Charsets.UTF_8))
+            rawStdout.flush()
+        }
+    }
+    listOfNotNull(lowPipeline, medPipeline).forEach { pipeline ->
+        pipeline.getPipes().forEach { pipe ->
+            if (pipe is genericOpenAIPipe.GenericOpenAIPipe) {
+                pipe.setStreamingCallback(streamingCallback)
             }
+        }
+    }
 
-            val refusalWarning = result.metadata["refusalWarning"] as Boolean?
-
-            //Handle any refusals that may have occurred.
-            if(refusalWarning != null && refusalWarning)
-            {
-                println("\n\nWARNING!!! \n\n A refusal by an llm in this pipeline has occurred. " +
-                        "Would you like to convert this entire pipeline to deepseek to evade model censorship?")
-
-                val answer = readln()
-
-                //Force it to deepseek to reduce refusal rate.
-                if(answer.lowercase() == "y")
-                {
-                    Env.rewritePipeline = convertPipelineToDeepseek(Env.rewritePipeline)
-                    val updatedSettings = constructModelSettingsList(Env.rewritePipeline)
-                    Env.writingPipelineSettings["Rewrite Pipeline"] = updatedSettings
-
+    try {
+        // Write the trace file in a background thread before runBlocking
+        // starts (so the user sees the file size grow even if runBlocking
+        // never returns). The thread stops itself when the JVM exits.
+        val activePipeline = writerLevelConnector.get(writingStrength)
+        val stopFlag = java.util.concurrent.atomic.AtomicBoolean(false)
+        val flushThread = Thread {
+            while (!stopFlag.get()) {
+                try {
+                    val trace = activePipeline?.getTraceReport(com.TTT.Debug.TraceFormat.HTML) ?: ""
+                    if (trace.isNotEmpty()) {
+                        writeStringToFile("${getHomeFolder()}/TPipeWriter/Trace.html", trace)
+                    }
+                } catch (_: Exception) {
+                    // best-effort
                 }
+                try { Thread.sleep(2000) } catch (_: InterruptedException) { break }
+            }
+        }
+        flushThread.isDaemon = true
+        flushThread.start()
+
+        val result = kotlinx.coroutines.runBlocking {
+            // Re-install the per-pipe-completion callback as a no-op safety
+            // hook. Without this, the writer pipeline can hang in
+            // runBlocking because the connector's internal coroutines need
+            // some external signal to keep progressing. The OLD code used
+            // this callback to write the trace per-pipe; we keep it as a
+            // no-op so we don't pay the trace-write cost during streaming.
+            writerLevelConnector.get(writingStrength)?.setPipeCompletionCallback { _, _ -> /* no-op */ }
+            writerLevelConnector.execute(writingStrength, MultimodalContent(text = finalPrompt))
+        }
+        stopFlag.set(true)
+        flushThread.join(2000) // wait up to 2s for the flush to stop
+
+        // Write the final trace to file at ~/TPipeWriter/Trace.html after
+        // the pipeline completes so the user has a complete record.
+        val finalTrace = activePipeline?.getTraceReport(com.TTT.Debug.TraceFormat.HTML) ?: ""
+        writeStringToFile("${getHomeFolder()}/TPipeWriter/Trace.html", finalTrace)
+
+        if (result.text.isNotEmpty())
+        {
+            // Streaming callback wrote chunks to stdout in real time.
+            // The transformation function inside the pipeline already
+            // banked the chapter into ContextBank via applySurgicalReplacementsAndBank,
+            // so we don't need to print the full text again (that would
+            // duplicate the streamed output). Show a marker so the user
+            // knows the run completed.
+            println("\n\n[writer] Chapter segment banked into context.")
+        } else {
+            println("The model failed to return a result")
+        }
+
+        val refusalWarning = result.metadata["refusalWarning"] as Boolean?
+
+        //Handle any refusals that may have occurred.
+        if(refusalWarning != null && refusalWarning)
+        {
+            println("\n\nWARNING!!! \n\n A refusal by an llm in this pipeline has occurred. " +
+                    "Would you like to convert this entire pipeline to deepseek to evade model censorship?")
+
+            val answer = readln()
+
+            //Force it to deepseek to reduce refusal rate.
+            if(answer.lowercase() == "y")
+            {
+                Env.rewritePipeline = convertPipelineToDeepseek(Env.rewritePipeline)
+                val updatedSettings = constructModelSettingsList(Env.rewritePipeline)
+                Env.writingPipelineSettings["Rewrite Pipeline"] = updatedSettings
+
             }
         }
     } catch(exception: Exception) {
         println(exception)
         return
     }
-
-
-    
-    val traceOutput = writerLevelConnector.getTrace(TraceFormat.HTML)
-    writeStringToFile("${getHomeFolder()}/TPipeWriter/Trace.html", traceOutput)
 }

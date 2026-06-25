@@ -11,7 +11,6 @@ import Globals.Env
 import Globals.isValidGptOssResponse
 import Globals.ModelConfig
 import Shell.loadSettings
-import Util.enablePipelineStreaming
 import com.TTT.Context.ContextBank
 import com.TTT.Pipeline.Pipeline
 import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
@@ -830,7 +829,7 @@ val expansionPipeline = Pipeline()
         expansionPipeline.init(true)
     }
 
-    enablePipelineStreaming(expansionPipeline)
+
 
     return expansionPipeline
 }
