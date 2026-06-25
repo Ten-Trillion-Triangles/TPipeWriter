@@ -288,7 +288,6 @@ fun buildChapterRewritePipeline(
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
         .setPipeName("Style suggest pipe")
-        .setModel(gptOssModelName)
         .truncateModuleContext()
         .setTemperature(.7)
         .setTopP(.7)

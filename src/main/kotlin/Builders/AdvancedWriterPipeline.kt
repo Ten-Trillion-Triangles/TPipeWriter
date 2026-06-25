@@ -273,7 +273,6 @@ fun buildNccWriter(style : String = "",
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
         .requireJsonPromptInjection()
-        .setModel(gptOssModelName)
         .setPromptMode(PromptMode.singlePrompt)
         .setTemperature(1.0)
         .setTopP(.9)
