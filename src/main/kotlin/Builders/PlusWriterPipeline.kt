@@ -15,12 +15,13 @@ import Globals.isValidGptOssResponse
 import Globals.recordLoreBook
 import Shell.loadSettings
 import Util.enablePipelineStreaming
-import bedrockPipe.BedrockMultimodalPipe
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
 import com.TTT.Enums.PromptMode
 import com.TTT.Pipeline.Pipeline
-import env.bedrockEnv
+import env.genericOpenAIEnv
+import genericOpenAIPipe.ApiMode
+import genericOpenAIPipe.GenericOpenAIPipe
 import kotlinx.coroutines.runBlocking
 
 /**
@@ -63,7 +64,6 @@ data class SurgicalChangeList(
 fun buildPlusWriterPipeline() : Pipeline
 {
     val deepseekModelName = "deepseek.r1-v1:0" //us-east-2
-    val claudeModelName = "anthropic.claude-sonnet-4-20250514-v1:0" //us-east-1
     val novaModelName = "amazon.nova-lite-v1:0"
     val novaProModelName = "amazon.nova-pro-v1:0"
     val gptOssModelName = "openai.gpt-oss-20b-1:0" //us-west-2
@@ -120,18 +120,6 @@ fun buildPlusWriterPipeline() : Pipeline
      * Required boilerplate to map us to the arn, or inference ID. This is because most models cannot be
      * invoked directly, and must be bound to a profile.
      */
-    bedrockEnv.loadInferenceConfig()
-    bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-pro-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-pro-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0")
-    bedrockEnv.bindInferenceProfile(claudeModelName, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
-    bedrockEnv.bindInferenceProfile(llamaMaverick, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama4-maverick-17b-instruct-v1:0")
-    bedrockEnv.bindInferenceProfile(llama70B, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama3-3-70b-instruct-v1:0")
-    bedrockEnv.bindInferenceProfile(llama405B, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama3-1-405b-instruct-v1:0")
-    bedrockEnv.bindInferenceProfile(PalmyraX5, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.writer.palmyra-x5-v1:0")
-
-
-
     /**
      * Acts as part of the system prompt for each writer aspect of the pipeline. The user can define an author.
      * This author is a character the AI plays as, and thinks as instead of acting very dogmatically as a standard
@@ -149,9 +137,11 @@ fun buildPlusWriterPipeline() : Pipeline
 
    //This pipe analyzes the user prompt to create a list of themes that align with author values
 
-    val preGuidePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val preGuidePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .requireJsonPromptInjection()
         .setJsonOutput(VibeInstruct())
@@ -178,9 +168,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .applySystemPrompt()
         .autoInjectContext("Use the user prompt, and the story guide to complete your task.")
 
-    val simplifierPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val simplifierPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.3)
@@ -215,10 +207,12 @@ fun buildPlusWriterPipeline() : Pipeline
      * This pipe is responsible for loading the chapter guide, and testing the current
      * story's progress against the chapter guide
      */
-    val guidePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
-        .setModel(PalmyraX5)
+    val guidePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
+        .setModel(ModelConfig.primaryModelName)
         .requireJsonPromptInjection()
         .setJsonInput(VibeInstruct())
         .setJsonOutput(TodoList())
@@ -266,9 +260,11 @@ fun buildPlusWriterPipeline() : Pipeline
 
     //Now we will introduce the murderPipe, whose job it is to murder undesirable JSON array elems.
 
-    val murderPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val murderPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.3)
@@ -301,9 +297,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPipeName("murder pipe")
         .applySystemPrompt()
 
-    val newMurderPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val newMurderPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.3)
@@ -353,9 +351,11 @@ fun buildPlusWriterPipeline() : Pipeline
      * Second step. After the plan has been created the writing pipe will write the given page using the plan,
      * existing story content, and the "editors note" to execute on the plan for the next page of the story.
      */
-    val writingPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val writingPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(1.0)
@@ -387,9 +387,11 @@ fun buildPlusWriterPipeline() : Pipeline
         |any time soon.""")
         .setPipeName("writing pipe")
 
-    val chasingShadowsWritingPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val chasingShadowsWritingPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .requireJsonPromptInjection()
         .setJsonInput(TodoList())
@@ -458,9 +460,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPipeName("chasing shadows writing pipe")
 
     //The next step removes unwanted twists.
-    val untwistPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val untwistPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(deepseekModelName)
         .truncateModuleContext()
         .setContextWindowSize(115000)
@@ -513,9 +517,11 @@ fun buildPlusWriterPipeline() : Pipeline
         }
         .setPipeName("untwist pipe")
 
-    val removeBadWritingStepOnePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val removeBadWritingStepOnePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .truncateModuleContext()
         .setContextWindowSize(115000)
@@ -571,9 +577,11 @@ fun buildPlusWriterPipeline() : Pipeline
         }
         .setPipeName("remove bad writing step one pipe")
 
-    val removeBadWritingStepTwoPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val removeBadWritingStepTwoPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .truncateModuleContext()
         .setContextWindowSize(115000)
@@ -632,9 +640,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPipeName("remove bad writing step two pipe")
 
     //Now we have the author review the written material for thematic consistency and desired traits.
-    val postWriterPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val postWriterPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.7)
@@ -678,9 +688,11 @@ fun buildPlusWriterPipeline() : Pipeline
         }
         .setPipeName("post writer pipe")
 
-    val loreCheckPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val loreCheckPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(deepseekModelName)
         .setContextWindowSize(120000)
         .setMaxTokens(20000)
@@ -725,9 +737,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPipeName("lore check pipe")
 
 
-    val loreRepairPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val loreRepairPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .requireJsonPromptInjection()
         .setJsonInput(SurgicalChangeList())
@@ -774,9 +788,11 @@ fun buildPlusWriterPipeline() : Pipeline
     /**
      * Logical progression pipe.
      */
-    val logicalProgressionPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val logicalProgressionPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(deepseekModelName)
         .requireJsonPromptInjection()
         .truncateModuleContext()
@@ -845,9 +861,11 @@ fun buildPlusWriterPipeline() : Pipeline
      * Called after the logical progression pipe. If the boolean to ask for changes is true this will be run. If it's false
      * this pipe will be skipped over.
      */
-    val logicalCorrectionPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val logicalCorrectionPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
@@ -896,13 +914,19 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPipeName("logical correction pipe")
 
 
-    val dummyPipe = BedrockMultimodalPipe()
+    val dummyPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setPreInvokeFunction(::preInvokeShunt)
         .setPipeName("dummy pipe")
 
-    val benignSkiesMyDialoguePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val benignSkiesMyDialoguePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
@@ -951,9 +975,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .autoInjectContext("New Page is the page of text you must work on.")
 
 
-    val polishMyDialoguePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val polishMyDialoguePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
@@ -1013,9 +1039,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .autoInjectContext("New Page is the page of text you must work on.")
 
 
-    val certifyMyDialoguePipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val certifyMyDialoguePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(deepseekModelName)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
@@ -1077,9 +1105,11 @@ fun buildPlusWriterPipeline() : Pipeline
 
 
     //This pipe removes the attempt to forcefully wrap up the chapter when the user does not tell the llm to do so.
-    val unmessupendingPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val unmessupendingPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(deepseekModelName)
         .truncateModuleContext()
         .setContextWindowSize(115000)
@@ -1141,9 +1171,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setPipeName("un-mess-up ending pipe")
 
 //the following pipes will attempt to clean up common AI writing practices, as well as fix any lingering style problems.
-    val cleanupStepOnePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val cleanupStepOnePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.7)
@@ -1182,9 +1214,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         }
         .setPipeName("cleanup step one pipe")
 
-    val cleanupStepTwoPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val cleanupStepTwoPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .setTemperature(0.8)
         .setTopP(0.9)
@@ -1228,9 +1262,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         }
         .setPipeName("cleanup step two pipe")
 
-    val cleanupStepThreePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val cleanupStepThreePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .setTemperature(0.8)
         .setTopP(0.8)
@@ -1280,9 +1316,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setPipeName("cleanup step three pipe")
 
 
-    val tweaksAroundTheEdgesPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val tweaksAroundTheEdgesPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.7)
@@ -1328,9 +1366,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setPipeName("tweaks around the edges pipe")
 
 
-    val applyFetishPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val applyFetishPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .setTemperature(0.7)
         .setTopP(0.8)
@@ -1361,9 +1401,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
     /**
      * Final step. Author sweeps over the result and makes any final tweaks and desired changes.
      */
-    val secondPassPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val secondPassPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(qwenCoder480B)
         .setTemperature(0.8)
         .setTopP(0.8)
@@ -1444,11 +1486,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
 
     val blankLoreBookExample = ContextWindow()
 
-    val loreBookPipe = BedrockMultimodalPipe()
-        .setRegion("")
-        .useConverseApi()
-        .enableCaching()
-        .setReadTimeout(400)
+    val loreBookPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .requireJsonPromptInjection()
         .setModel(gptOss120bModelName)
         .setPromptMode(PromptMode.singlePrompt)
@@ -1463,7 +1505,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .autoInjectContext("The following json schema will be used to supply context for the story. " +
                 "The context will be provided in the user's prompt. Use it to assist in deciding how to generate " +
                 "lorebook keys and values. MULTIPLY THE WEIGHTS OF ALL LOREBOOK ENTRIES BY 10. THERE SHOULD BE NO NUMBERS LESS THAN 1.")
-        .setContextWindowSize(107000)
+        .setContextWindowSize(512000)
         .setTransformationFunction(::recordLoreBook)
         .setPipeName("Lorebook pipe")
 

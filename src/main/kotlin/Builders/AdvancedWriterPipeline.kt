@@ -6,12 +6,13 @@ import Builders.Util.transformStyle
 import Builders.Util.validateGenericGptOss
 import Builders.Util.validateLoreChecker
 import Globals.recordLoreBook
-import bedrockPipe.BedrockMultimodalPipe
 import com.TTT.Context.ContextWindow
 import com.TTT.Enums.ContextWindowSettings
 import com.TTT.Enums.PromptMode
 import com.TTT.Pipeline.Pipeline
-import env.bedrockEnv
+import env.genericOpenAIEnv
+import genericOpenAIPipe.ApiMode
+import genericOpenAIPipe.GenericOpenAIPipe
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 
@@ -41,7 +42,6 @@ fun buildNccWriter(style : String = "",
      * Declare model names for my sanity, so I don't have to keep typing them all into the pipes.
      */
     val deepseekModelName = "deepseek.r1-v1:0"
-    val claudeModelName = "anthropic.claude-sonnet-4-20250514-v1:0"
     val novaModelName = "amazon.nova-lite-v1:0"
     val gptOssModelName = "openai.gpt-oss-20b-1:0"
     val gptOss120bModelName = "openai.gpt-oss-120b-1:0"
@@ -50,12 +50,6 @@ fun buildNccWriter(style : String = "",
      * Required boilerplate to map us to the arn, or inference ID. This is because most models cannot be
      * invoked directly, and must be bound to a profile.
      */
-    bedrockEnv.loadInferenceConfig()
-    bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-pro-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-pro-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0")
-    bedrockEnv.bindInferenceProfile(claudeModelName, "arn:aws:bedrock:us-east-1:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
-
     val nccPipeline = Pipeline()
 
  //---------------------------------------------Writer Entry Pipe-------------------------------------------------------
@@ -63,10 +57,11 @@ fun buildNccWriter(style : String = "",
     /**
      * Initial entry pipe. Handles user's request and will begin to write based on the story content provided.
      */
-    val writerEntryPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
-        .setReadTimeout(500)
+    val writerEntryPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(deepseekModelName)
         .setTopP(topP)
         .setTemperature(temperature)
@@ -121,10 +116,11 @@ fun buildNccWriter(style : String = "",
      * This has to be forward declared because kotlin is not able to inference an object not yet declared in the file
      * order. So this happens if the branch fails but is declared prior to the lore checker pipe.
      */
-    val loreRepairPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
-        .setReadTimeout(500)
+    val loreRepairPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(deepseekModelName)
         .setTopP(topP)
         .setTemperature(temperature)
@@ -163,10 +159,11 @@ fun buildNccWriter(style : String = "",
      * output of the story conforms to existing lore, or if it outright contradicts existing lore. This pipe will return
      * the status and branch fail into a corrective rewrite pipe.
      */
-    val loreCheckerPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-1")
-        .useConverseApi()
-        .setReadTimeout(500)
+    val loreCheckerPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(gptOssModelName)
         .setTopP(topP)
         .setTemperature(temperature)
@@ -206,10 +203,11 @@ fun buildNccWriter(style : String = "",
 
 //------------------------------------------------Style pipe------------------------------------------------------------
 
-    val styleCheckerPipe = BedrockMultimodalPipe()
-        .setReadTimeout(300)
-        .setRegion("us-east-2")
-        .useConverseApi()
+    val styleCheckerPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setModel(gptOssModelName)
         .setTopP(topP)
         .setTemperature(temperature)
@@ -274,11 +272,11 @@ fun buildNccWriter(style : String = "",
 
     val blankLoreBookExample = ContextWindow()
 
-    val loreBookPipe = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
-        .enableCaching()
-        .setReadTimeout(400)
+    val loreBookPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .requireJsonPromptInjection()
         .setModel(gptOssModelName)
         .setPromptMode(PromptMode.singlePrompt)
@@ -292,7 +290,7 @@ fun buildNccWriter(style : String = "",
         .autoInjectContext("The following json schema will be used to supply context for the story. " +
                 "The context will be provided in the user's prompt. Use it to assist in deciding how to generate " +
                 "lorebook keys and values.")
-        .setContextWindowSize(107000)
+        .setContextWindowSize(512000)
         .setTransformationFunction(::recordLoreBook)
         .setPipeName("Lorebook pipe")
 

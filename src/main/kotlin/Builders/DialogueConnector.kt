@@ -5,14 +5,14 @@ import Builders.Util.recordWritingPipePage
 import Globals.Env
 import Shell.loadSettings
 import Util.enablePipelineStreaming
-import bedrockPipe.BedrockMultimodalPipe
 import com.TTT.Debug.TraceStreamMerger
 import com.TTT.Pipe.MultimodalContent
 import com.TTT.Pipeline.Connector
 import com.TTT.Pipeline.Pipeline
 import com.TTT.Util.extractJson
-import env.bedrockEnv
-
+import env.genericOpenAIEnv
+import genericOpenAIPipe.ApiMode
+import genericOpenAIPipe.GenericOpenAIPipe
 enum class DialogueType
 {
     InformalCasual,
@@ -32,7 +32,6 @@ data class dialogueClass (
 fun buildDialogueConnector() : Pair<Pipeline, Connector>
 {
     val deepseekModelName = "deepseek.r1-v1:0"
-    val claudeModelName = "anthropic.claude-sonnet-4-20250514-v1:0"
     val novaModelName = "amazon.nova-lite-v1:0"
     val novaProModelName = "amazon.nova-pro-v1:0"
     val gptOssModelName = "openai.gpt-oss-20b-1:0"
@@ -77,17 +76,11 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
      * Required boilerplate to map us to the arn, or inference ID. This is because most models cannot be
      * invoked directly, and must be bound to a profile.
      */
-    bedrockEnv.loadInferenceConfig()
-    bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-pro-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-pro-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0")
-    bedrockEnv.bindInferenceProfile(claudeModelName, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
-
-
-    val identifyMyDialogue = BedrockMultimodalPipe()
-        .setRegion("us-east-2")
-        .useConverseApi()
-        .setModel(deepseekModelName)
+    val identifyMyDialogue: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .setContextWindowSize(115000)
         .requireJsonPromptInjection()
         .setJsonOutput(dialogueClass())
@@ -129,10 +122,12 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .setPipeName("identify my dialogue pipe")
 
 
-    val benignSkiesMyDialoguePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
-        .setModel(PalmyraX5)
+    val benignSkiesMyDialoguePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
+        .setModel(ModelConfig.primaryModelName)
         .setContextWindowSize(115000)
         .setMaxTokens(8000)
         .pullGlobalContext()
@@ -182,10 +177,12 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .autoInjectContext("New Page is the page of text you must work on.")
 
 
-    val polishMyDialoguePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
-        .setModel(PalmyraX5)
+    val polishMyDialoguePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
+        .setModel(ModelConfig.primaryModelName)
         .setContextWindowSize(115000)
         .setMaxTokens(8000)
         .pullGlobalContext()
@@ -247,10 +244,12 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .autoInjectContext("New Page is the page of text you must work on.")
 
 
-    val certifyMyDialoguePipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
-        .setModel(PalmyraX5)
+    val certifyMyDialoguePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
+        .setModel(ModelConfig.primaryModelName)
         .setContextWindowSize(115000)
         .setMaxTokens(8000)
         .pullGlobalContext()

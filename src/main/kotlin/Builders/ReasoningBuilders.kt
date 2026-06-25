@@ -1,15 +1,27 @@
 package Builders
 
-import Defaults.BedrockConfiguration
-import Defaults.reasoning.ReasoningBuilder.reasonWithBedrock
 import Defaults.reasoning.ReasoningDepth
 import Defaults.reasoning.ReasoningDuration
 import Defaults.reasoning.ReasoningInjector
 import Defaults.reasoning.ReasoningMethod
 import Defaults.reasoning.ReasoningSettings
+import Globals.ModelConfig
 import com.TTT.Pipe.Pipe
 import com.TTT.Structs.PipeSettings
 import kotlinx.coroutines.runBlocking
+
+/**
+ * Reasoning pipe builders for the MiniMax-M3 Generic OpenAI edition.
+ *
+ * Each builder returns a reasoning pipe constructed via `reasonWithMiniMax`,
+ * which forces reasoning OFF at the wire level (MiniMax-M3 is the no-reasoning
+ * variant of the MiniMax family) while still applying the per-pipe
+ * `ReasoningSettings` for non-reasoning-specific configuration (system prompt
+ * injection, context window, pipe name, etc).
+ *
+ * Migration to MiniMax-M2.7+ (which DOES support reasoning) is a one-line
+ * change in `MiniMaxReasoning.kt` — delete the `pipe.disableReasoning()` call.
+ */
 
 /**
  * Create an author role play reasoning pipe that will take in a given character.
@@ -21,8 +33,6 @@ fun authorBuilder(
     injectionMethod: ReasoningInjector = ReasoningInjector.AfterUserPrompt,
     rounds: Int = 1,
     focusPoints: MutableMap<Int, String> = mutableMapOf(),
-    region: String = "us-west-2",
-    model: String = "writer.palmyra-x5-v1:0",
     maxTokens: Int = 8000,
     temperature: Double = 1.0,
     topP: Double = .7
@@ -38,21 +48,16 @@ fun authorBuilder(
         focusPoints = focusPoints
     )
 
-    val bedrockSettings = BedrockConfiguration(
-        region = region,
-        model = model
-    )
-
     val pipeSettings = PipeSettings(
-        model = model,
+        model = ModelConfig.primaryModelName,
         temperature = temperature,
         topP = topP,
         maxTokens = maxTokens,
         pipeName = "author"
     )
 
-    val pipe = reasonWithBedrock(
-        bedrockSettings,
+    val pipe = reasonWithMiniMax(
+        ModelConfig.primaryModelName,
         reasoningSettings,
         pipeSettings
     )
@@ -73,21 +78,16 @@ fun obsessivePlannerBuilder(): Pipe
         numberOfRounds = 1
     )
 
-    val config = BedrockConfiguration(
-        region = "us-west-2",
-        model = "qwen.qwen3-coder-480b-a35b-v1:0"
-    )
-
     val pipeSettings = PipeSettings(
-        model = "qwen.qwen3-coder-480b-a35b-v1:0",
+        model = ModelConfig.primaryModelName,
         temperature = 1.0,
         topP = .7,
         maxTokens = 32000,
         pipeName = "obsessive planner"
     )
 
-    val pipe = reasonWithBedrock(
-        config,
+    val pipe = reasonWithMiniMax(
+        ModelConfig.primaryModelName,
         reasoningSettings,
         pipeSettings
     )
@@ -107,22 +107,17 @@ fun bestIdeaBuilder(): Pipe
         reasoningInjector = ReasoningInjector.AfterUserPrompt
     )
 
-    val config = BedrockConfiguration(
-        region = "us-west-2",
-        model = "qwen.qwen3-coder-480b-a35b-v1:0"
-    )
-
     val pipeSettings = PipeSettings(
-        model = "qwen.qwen3-coder-480b-a35b-v1:0",
+        model = ModelConfig.primaryModelName,
         temperature = .7,
         topP = .7,
         maxTokens = 8000,
-        contextWindowSize = 115000,
+        contextWindowSize = 512000,
         pipeName = "best idea"
     )
 
-    val pipe = reasonWithBedrock(
-        config,
+    val pipe = reasonWithMiniMax(
+        ModelConfig.primaryModelName,
         reasoningSettings,
         pipeSettings
     )
@@ -142,21 +137,17 @@ fun structuredCotBuilder() : Pipe
         numberOfRounds = 1
     )
 
-    val bedrockSettings = BedrockConfiguration(
-        region = "us-west-2",
-        model = "qwen.qwen3-coder-480b-a35b-v1:0"
-    )
-
     val pipeSettings = PipeSettings(
+        model = ModelConfig.primaryModelName,
         temperature = .7,
         topP = .7,
         maxTokens = 8000,
-        contextWindowSize = 115000,
+        contextWindowSize = 512000,
         pipeName = "structured cot"
     )
 
-    val pipe = reasonWithBedrock(
-        bedrockSettings,
+    val pipe = reasonWithMiniMax(
+        ModelConfig.primaryModelName,
         reasoningSettings,
         pipeSettings
     )
@@ -176,21 +167,17 @@ fun processFocusedBuilder() : Pipe
         numberOfRounds = 1
     )
 
-    val bedrockSettings = BedrockConfiguration(
-        region = "us-west-2",
-        model = "qwen.qwen3-coder-480b-a35b-v1:0"
-    )
-
     val pipeSettings = PipeSettings(
+        model = ModelConfig.primaryModelName,
         temperature = .7,
         topP = .7,
         maxTokens = 8000,
-        contextWindowSize = 115000,
+        contextWindowSize = 512000,
         pipeName = "process focused"
     )
 
-    val pipe = reasonWithBedrock(
-        bedrockSettings,
+    val pipe = reasonWithMiniMax(
+        ModelConfig.primaryModelName,
         reasoningSettings,
         pipeSettings
     )
@@ -211,21 +198,17 @@ fun explicitCotBuilder(focusPoints: MutableMap<Int, String> = mutableMapOf()) : 
         focusPoints = focusPoints
     )
 
-    val bedrockSettings = BedrockConfiguration(
-        region = "us-west-2",
-        model = "qwen.qwen3-coder-480b-a35b-v1:0"
-    )
-
     val pipeSettings = PipeSettings(
+        model = ModelConfig.primaryModelName,
         temperature = .7,
         topP = .7,
         maxTokens = 8000,
-        contextWindowSize = 115000,
+        contextWindowSize = 512000,
         pipeName = "explicit cot"
     )
 
-    val pipe = reasonWithBedrock(
-        bedrockSettings,
+    val pipe = reasonWithMiniMax(
+        ModelConfig.primaryModelName,
         reasoningSettings,
         pipeSettings
     )

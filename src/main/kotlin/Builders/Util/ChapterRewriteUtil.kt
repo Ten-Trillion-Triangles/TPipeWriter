@@ -4,7 +4,6 @@ package Builders.Util
 import Builders.RewriteStyleActions
 import Globals.isValidGptOssResponse
 import Structs.RewriteAnalysis
-import bedrockPipe.BedrockMultimodalPipe
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
 import com.TTT.Context.MiniBank
@@ -13,6 +12,9 @@ import com.TTT.Pipe.MultimodalContent
 import com.TTT.Util.constructPipeFromTemplate
 import com.TTT.Util.deserialize
 import com.TTT.Util.repairAndDeserialize
+import env.genericOpenAIEnv
+import genericOpenAIPipe.ApiMode
+import genericOpenAIPipe.GenericOpenAIPipe
 import kotlinx.coroutines.runBlocking
 
 suspend fun storeRewritePlan(content: MultimodalContent): MultimodalContent
@@ -145,7 +147,11 @@ suspend fun checkWritingStyle(content: MultimodalContent): MultimodalContent
 fun styleSuggestPreValidate(context: MiniBank, content: MultimodalContent? = null) : MiniBank
 {
     //Required for us to get the correct token settings for gpt-oss
-    val bedrockExamplePipe = BedrockMultimodalPipe()
+    val bedrockExamplePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
     bedrockExamplePipe.setModel("gpt-oss")
         .truncateModuleContext()
 
@@ -185,14 +191,13 @@ suspend fun transformRewriteStyle(content: MultimodalContent): MultimodalContent
  * allow us to fix this unacceptable behavior for now until we can find a way to get more uncensored models into
  * available inferencing.
  */
-fun replacePipeWithDeepseek(pipe: BedrockMultimodalPipe) : BedrockMultimodalPipe?
+fun replacePipeWithDeepseek(pipe: GenericOpenAIPipe) : GenericOpenAIPipe?
 {
-    val deepseekModelId = "deepseek.r1-v1:0"
-    val newPipe = constructPipeFromTemplate<BedrockMultimodalPipe>(pipe)
+    val deepseekModelId = ModelConfig.primaryModelName
+    val newPipe = constructPipeFromTemplate<GenericOpenAIPipe>(pipe)
 
     if(newPipe != null)
     {
-        newPipe.setRegion("us-east-2")
             .setModel(deepseekModelId)
 
         runBlocking {

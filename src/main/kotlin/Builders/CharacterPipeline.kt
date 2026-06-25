@@ -1,23 +1,21 @@
 package Builders
 
-import Defaults.BedrockConfiguration
-import Defaults.reasoning.ReasoningBuilder.reasonWithBedrock
 import Shell.loadSettings
 import Util.enablePipelineStreaming
-import bedrockPipe.BedrockMultimodalPipe
 import com.TTT.Context.ConverseHistory
 import com.TTT.Context.ConverseRole
 import com.TTT.Debug.withTracing
 import com.TTT.Pipe.TokenBudgetSettings
 import com.TTT.Pipeline.Pipeline
-import env.bedrockEnv
+import env.genericOpenAIEnv
+import genericOpenAIPipe.ApiMode
+import genericOpenAIPipe.GenericOpenAIPipe
 import kotlinx.coroutines.runBlocking
 
 
 fun buildCharacterPipeline(character: String) : Pipeline
 {
     val deepseekModelName = "deepseek.r1-v1:0" //us-east-2
-    val claudeModelName = "anthropic.claude-sonnet-4-20250514-v1:0" //us-east-1
     val novaModelName = "amazon.nova-lite-v1:0"
     val novaProModelName = "amazon.nova-pro-v1:0"
     val gptOssModelName = "openai.gpt-oss-20b-1:0" //us-west-2
@@ -74,35 +72,27 @@ fun buildCharacterPipeline(character: String) : Pipeline
      * Required boilerplate to map us to the arn, or inference ID. This is because most models cannot be
      * invoked directly, and must be bound to a profile.
      */
-    bedrockEnv.loadInferenceConfig()
-    bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-pro-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-pro-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0")
-    bedrockEnv.bindInferenceProfile(claudeModelName, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
-    bedrockEnv.bindInferenceProfile(llamaMaverick, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama4-maverick-17b-instruct-v1:0")
-    bedrockEnv.bindInferenceProfile(llama70B, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama3-3-70b-instruct-v1:0")
-    bedrockEnv.bindInferenceProfile(llama405B, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama3-1-405b-instruct-v1:0")
-    bedrockEnv.bindInferenceProfile(PalmyraX5, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.writer.palmyra-x5-v1:0")
-
     val reasoningPipe = authorBuilder(character)
 
     val writerBudgetSettings = TokenBudgetSettings(
         maxTokens = 8000,
-        contextWindowSize = 980000,
+        contextWindowSize = 512000,
         allowUserPromptTruncation = true,
         )
 
     val standardBudgetSettings = TokenBudgetSettings(
         maxTokens = 8000,
-        contextWindowSize = 120000,
+        contextWindowSize = 512000,
         allowUserPromptTruncation = true,
         )
 
-    val chatPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val chatPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .enableTracing()
-        .setModel(PalmyraX5)
+        .setModel(ModelConfig.primaryModelName)
         .setTemperature(1.0)
         .setTopP(.8)
         .truncateModuleContext()
@@ -138,7 +128,6 @@ fun buildCharacterPipeline(character: String) : Pipeline
 fun buildCharacterPipelineWithStory(character: String) : Pipeline
 {
     val deepseekModelName = "deepseek.r1-v1:0" //us-east-2
-    val claudeModelName = "anthropic.claude-sonnet-4-20250514-v1:0" //us-east-1
     val novaModelName = "amazon.nova-lite-v1:0"
     val novaProModelName = "amazon.nova-pro-v1:0"
     val gptOssModelName = "openai.gpt-oss-20b-1:0" //us-west-2
@@ -197,26 +186,15 @@ fun buildCharacterPipelineWithStory(character: String) : Pipeline
      * Required boilerplate to map us to the arn, or inference ID. This is because most models cannot be
      * invoked directly, and must be bound to a profile.
      */
-    bedrockEnv.loadInferenceConfig()
-    bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-pro-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-pro-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0")
-    bedrockEnv.bindInferenceProfile(claudeModelName, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
-    bedrockEnv.bindInferenceProfile(llamaMaverick, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama4-maverick-17b-instruct-v1:0")
-    bedrockEnv.bindInferenceProfile(llama70B, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama3-3-70b-instruct-v1:0")
-    bedrockEnv.bindInferenceProfile(llama405B, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama3-1-405b-instruct-v1:0")
-    bedrockEnv.bindInferenceProfile(PalmyraX5, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.writer.palmyra-x5-v1:0")
-    bedrockEnv.bindInferenceProfile("amazon.nova-2-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-2-lite-v1:0")
-
     val writerBudgetSettings = TokenBudgetSettings(
         maxTokens = 8000,
-        contextWindowSize = 990000,
+        contextWindowSize = 512000,
         allowUserPromptTruncation = true,
     )
 
     val standardBudgetSettings = TokenBudgetSettings(
         maxTokens = 8000,
-        contextWindowSize = 120000,
+        contextWindowSize = 512000,
         allowUserPromptTruncation = true,
     )
 
@@ -224,11 +202,13 @@ fun buildCharacterPipelineWithStory(character: String) : Pipeline
         .setTokenBudget(writerBudgetSettings)
         .setPipeName("Thinking pipe")
 
-    val chatPipe = BedrockMultimodalPipe()
-        .setRegion("us-west-2")
-        .useConverseApi()
+    val chatPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
         .enableTracing()
-        .setModel(PalmyraX5)
+        .setModel(ModelConfig.primaryModelName)
         .setTemperature(1.0)
         .setTopP(.8)
         .pullGlobalContext()

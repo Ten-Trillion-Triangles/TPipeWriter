@@ -4,7 +4,6 @@ import Builders.buildNccWriter
 import Builders.buildPitchSlideWriterPipeline
 import Builders.buildPlusWriterPipeline
 import Builders.reasonWithMiniMax
-import Defaults.GenericOpenAIConfiguration
 import Defaults.reasoning.ReasoningBuilder
 import Defaults.reasoning.ReasoningDepth
 import Defaults.reasoning.ReasoningDuration
@@ -575,10 +574,7 @@ and the sensual and erotic aspects.
 
         // Create reasoning pipe
         val configuredPipe = reasonWithMiniMax(
-            GenericOpenAIConfiguration(
-                model = ModelConfig.primaryModelName,
-                apiKey = genericOpenAIEnv.resolveApiKey()
-            ),
+            ModelConfig.primaryModelName,
             reasoningSettings,
             pipeSettings)
             .setPipeName("Thinking Pipe")
