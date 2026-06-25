@@ -1,84 +1,55 @@
 package Globals
 
-import env.bedrockEnv
-
+/**
+ * Model registry for the MiniMax-M3 Generic OpenAI edition.
+ *
+ * Single-model edition: every pipeline uses `MiniMax-M3` (hosted at
+ * https://api.minimax.io/v1 via the OpenAI Responses API). The variable names
+ * are preserved from the Bedrock/OpenRouter branches so downstream code in
+ * Env.kt and the Builders/* pipelines does not need its call sites renamed —
+ * they keep calling ModelConfig.deepseekModelName, ModelConfig.claudeModelName,
+ * etc., but the values now all resolve to MiniMax-M3.
+ *
+ * This collapses the Bedrock-era registry of 17 distinct models (Claude, Nova,
+ * DeepSeek, Llama, Qwen, Jamba, Palmyra, etc.) down to one. Per-pipe model
+ * overrides can be reintroduced later if needed; for now YAGNI — the user
+ * asked for one model with a 512K context window.
+ *
+ * `init()` is a no-op because MiniMax-M3 requires no ARN binding, no region,
+ * and no inference profile. Authentication is the MINIMAX_API_KEY environment
+ * variable, resolved by GenericOpenAIEnv.
+ */
 object ModelConfig
 {
-    val deepseekModelName = "deepseek.r1-v1:0" //us-east-2
-    val claudeModelName = "anthropic.claude-sonnet-4-20250514-v1:0" //us-east-1
-    val novaModelName = "amazon.nova-lite-v1:0"
-    val novaProModelName = "amazon.nova-pro-v1:0"
-    val gptOssModelName = "openai.gpt-oss-20b-1:0" //us-west-2
-    val gptOss120bModelName = "openai.gpt-oss-120b-1:0"
+    const val deepseekModelName = "MiniMax-M3"
+    const val claudeModelName = "MiniMax-M3"
+    const val novaModelName = "MiniMax-M3"
+    const val novaProModelName = "MiniMax-M3"
+    const val gptOssModelName = "MiniMax-M3"
+    const val gptOss120bModelName = "MiniMax-M3"
+    const val llamaMaverick = "MiniMax-M3"
+    const val llama70B = "MiniMax-M3"
+    const val llama405B = "MiniMax-M3"
+    const val jambaModelName = "MiniMax-M3"
+    const val deepseekV31 = "MiniMax-M3"
+    const val qwen235B = "MiniMax-M3"
+    const val qwen32B = "MiniMax-M3"
+    const val qwenCoder480B = "MiniMax-M3"
+    const val qwenCoder30B = "MiniMax-M3"
+    const val qwenNext80B = "MiniMax-M3"
+    const val qwenVL = "MiniMax-M3"
+    const val PalmyraX5 = "MiniMax-M3"
 
-    //us-east-2
-    val llamaMaverick = "us.meta.llama4-maverick-17b-instruct-v1:0"
-    val llama70B = "us.meta.llama3-3-70b-instruct-v1:0"
-    val llama405B = "us.meta.llama3-1-405b-instruct-v1:0"
-
-    //us-east-1
-    val jambaModelName = "ai21.jamba-1-5-large-v1:0"
-
-    //us-west-2
     /**
-     * General purpose version of R1 supposedly far better at creative writing. Supports reasoning being turned
-     * on or off.
+     * Canonical model id for the MiniMax-M3 Generic OpenAI edition.
+     * Use this when wiring a new pipe that does not have a legacy model-name
+     * variable already in this registry.
      */
-    val deepseekV31 = "deepseek.v3-v1:0"
-
-
-    //us-west-2
-    /**
-     * 235B parameter mixture of experts model. Supports reasoning. Instruct style assitant.
-     */
-    val qwen235B = "qwen.qwen3-235b-a22b-2507-v1:0"
-
-    /**
-     * Condensed version. Supposedly good at writing. Supports reasoning.
-     */
-    val qwen32B = "qwen.qwen3-32b-v1:0"
-
-    /**
-     * Supposedly optimized for coding. Supports reasoning.
-     */
-    val qwenCoder480B = "qwen.qwen3-coder-480b-a35b-v1:0"
-
-    /**
-     * Mixture of experts version of coder.
-     */
-    val qwenCoder30B = "qwen.qwen3-coder-30b-a3b-v1:0"
-
-    val qwenNext80B = "qwen.qwen3-next-80b-a3b"
-
-    val qwenVL = "qwen.qwen3-vl-235b-a22b"
-
-    /**
-     * Palmyra by Writer */
-    val PalmyraX5 = "writer.palmyra-x5-v1:0"
+    const val primaryModelName = "MiniMax-M3"
 
     fun init()
     {
-        /**
-         * Required boilerplate to map us to the arn, or inference ID. This is because most models cannot be
-         * invoked directly, and must be bound to a profile.
-         */
-        bedrockEnv.loadInferenceConfig()
-        bedrockEnv.bindInferenceProfile("deepseek.r1-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.deepseek.r1-v1:0")
-        bedrockEnv.bindInferenceProfile("amazon.nova-pro-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-pro-v1:0")
-        bedrockEnv.bindInferenceProfile("amazon.nova-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-lite-v1:0")
-        bedrockEnv.bindInferenceProfile(claudeModelName, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.anthropic.claude-sonnet-4-20250514-v1:0")
-        bedrockEnv.bindInferenceProfile(llamaMaverick, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama4-maverick-17b-instruct-v1:0")
-        bedrockEnv.bindInferenceProfile(llama70B, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama3-3-70b-instruct-v1:0")
-        bedrockEnv.bindInferenceProfile(llama405B, "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.meta.llama3-1-405b-instruct-v1:0")
-        bedrockEnv.bindInferenceProfile(PalmyraX5, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.writer.palmyra-x5-v1:0")
-        bedrockEnv.bindInferenceProfile("amazon.nova-2-lite-v1:0", "arn:aws:bedrock:us-east-2:521369004927:inference-profile/us.amazon.nova-2-lite-v1:0")
-        bedrockEnv.bindInferenceProfile(deepseekV31, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.deepseek.v3-v1:0")
-        bedrockEnv.bindInferenceProfile(qwen235B, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.qwen.qwen3-235b-a22b-2507-v1:0")
-        bedrockEnv.bindInferenceProfile(qwen32B, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.qwen.qwen3-32b-v1:0")
-        bedrockEnv.bindInferenceProfile(qwenCoder480B, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.qwen.qwen3-coder-480b-a35b-v1:0")
-        bedrockEnv.bindInferenceProfile(qwenCoder30B, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.qwen.qwen3-coder-30b-a3b-v1:0")
-        bedrockEnv.bindInferenceProfile(gptOssModelName, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.openai.gpt-oss-20b-1:0")
-        bedrockEnv.bindInferenceProfile(gptOss120bModelName, "arn:aws:bedrock:us-west-2:521369004927:inference-profile/us.openai.gpt-oss-120b-1:0")
-        bedrockEnv.bindInferenceProfile(jambaModelName, "arn:aws:bedrock:us-east-1:521369004927:inference-profile/us.ai21.jamba-1-5-large-v1:0")
+        // No-op: MiniMax is a hosted model. No ARN binding, no region, no
+        // inference profile. Authentication is via MINIMAX_API_KEY.
     }
 }
