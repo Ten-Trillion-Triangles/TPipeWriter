@@ -423,13 +423,33 @@ fun executeWriterPipeline(
 
         if (result.text.isNotEmpty())
         {
-            // Streaming callback wrote chunks to stdout in real time.
-            // The transformation function inside the pipeline already
-            // banked the chapter into ContextBank via applySurgicalReplacementsAndBank,
-            // so we don't need to print the full text again (that would
-            // duplicate the streamed output). Show a marker so the user
-            // knows the run completed.
-            println("\n\n[writer] Chapter segment banked into context.")
+            // Streaming callback wrote raw prose deltas to stdout in real
+            // time. The pipeline's transformation chain (recordWritingPipePage
+            // + applySurgicalReplacementsAndBank) writes the FINAL chapter text
+            // (with surgical fixes applied) to the "new page" ContextBank.
+            //
+            // Print the banked result so the user has the canonical
+            // post-pipeline text on screen — this matches the behavior of
+            // the OpenRouter and main branches. Without this, the user only
+            // sees the streamed raw deltas and has to manually run /chapters
+            // show <N> to see what was actually written.
+            //
+            // The streamed output and the banked output will be very similar
+            // (the surgical transformation modifies, doesn't rewrite), but
+            // the banked version is the canonical "what got persisted to
+            // context" text.
+            try {
+                val textBarrier = "==================================New Segment========================================="
+                val bankedContext = ContextBank.getContextFromBank("new page")
+                val bankedResult = bankedContext.contextElements.lastOrNull()
+                if (!bankedResult.isNullOrBlank()) {
+                    println("\n\n\n$textBarrier\n\n$bankedResult")
+                } else {
+                    println("\n\n[writer] Chapter segment banked into context.")
+                }
+            } catch (e: Exception) {
+                println("\n\n[writer] Chapter segment banked into context.")
+            }
         } else {
             println("The model failed to return a result")
         }
