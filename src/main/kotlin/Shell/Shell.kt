@@ -358,8 +358,8 @@ fun callWriterPipeline(prompt: String)
 
     // Get context and configure token management for DeepSeek model
     val currentGlobalContext = ContextBank.getContextFromBank("main")
-    val exampleBedrockPipe = GenericOpenAIPipe().truncateModuleContext()
-    val tokenCountSettings = exampleBedrockPipe.getTruncationSettings()
+    val exampleGenericOpenAIPipe = GenericOpenAIPipe().truncateModuleContext()
+    val tokenCountSettings = exampleGenericOpenAIPipe.getTruncationSettings()
 
     // Break into advanced context shell if "//" is the prompt or if advancedMode is true
     if (prompt == "//" || Env.advancedMode)
@@ -441,8 +441,8 @@ fun callIdeaPipeline(prompt: String)
     val availableTokens = 107000 - ideaSettings.lorebookTokenBudget
     
     // Configure DeepSeek model for idea generation
-    val exampleBedrockPipe = GenericOpenAIPipe().setModel(ModelConfig.primaryModelName).truncateModuleContext()
-    val tokenCountSettings = exampleBedrockPipe.getTruncationSettings()
+    val exampleGenericOpenAIPipe = GenericOpenAIPipe().setModel(ModelConfig.primaryModelName).truncateModuleContext()
+    val tokenCountSettings = exampleGenericOpenAIPipe.getTruncationSettings()
     
     // Apply context truncation with lorebook token budget
     contextWindow.selectAndTruncateContext(
@@ -692,8 +692,8 @@ fun callChatPipeline(prompt: String)
 
     // Configure DeepSeek for conversational responses
     val currentGlobalContext = ContextBank.getContextFromBank("main")
-    val exampleBedrockPipe = GenericOpenAIPipe().setModel(ModelConfig.primaryModelName).truncateModuleContext()
-    val tokenCountSettings = exampleBedrockPipe.getTruncationSettings()
+    val exampleGenericOpenAIPipe = GenericOpenAIPipe().setModel(ModelConfig.primaryModelName).truncateModuleContext()
+    val tokenCountSettings = exampleGenericOpenAIPipe.getTruncationSettings()
     
     // Create separate context for chat to prevent bleeding into main context
     val chatContextWindow = com.TTT.Context.ContextWindow()
@@ -748,8 +748,8 @@ fun callLorebookPipeline(prompt: String)
 
     // Setup DeepSeek for lorebook processing
     val currentGlobalContext = ContextBank.getContextFromBank("main")
-    val exampleBedrockPipe = GenericOpenAIPipe().setModel(ModelConfig.primaryModelName).truncateModuleContext()
-    val tokenCountSettings = exampleBedrockPipe.getTruncationSettings()
+    val exampleGenericOpenAIPipe = GenericOpenAIPipe().setModel(ModelConfig.primaryModelName).truncateModuleContext()
+    val tokenCountSettings = exampleGenericOpenAIPipe.getTruncationSettings()
     val tokenCount = Dictionary.countTokens(currentGlobalContext.contextElements.toString())
 
     currentGlobalContext.selectAndTruncateContext(
@@ -907,8 +907,8 @@ fun executeSummary(text: String)
 {
     // Configure Nova model for summarization (280K token limit)
     val currentGlobalContext = ContextBank.getContextFromBank("main")
-    val exampleBedrockPipe = GenericOpenAIPipe().setModel(ModelConfig.primaryModelName).truncateModuleContext()
-    val tokenCountSettings = exampleBedrockPipe.getTruncationSettings()
+    val exampleGenericOpenAIPipe = GenericOpenAIPipe().setModel(ModelConfig.primaryModelName).truncateModuleContext()
+    val tokenCountSettings = exampleGenericOpenAIPipe.getTruncationSettings()
     val tokenCount = Dictionary.countTokens(text)
 
     // Truncate if text exceeds Nova's context window
