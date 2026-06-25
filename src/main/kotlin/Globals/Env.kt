@@ -96,7 +96,16 @@ object Env {
     var expansionPipeline = Pipeline()
     var plusWriterPipe = Pipeline()
     var writingPipelineSettings = mutableMapOf<String, List<ModelSettings>>()
-    var pitchSlideWriterPipeline = buildPitchSlideWriterPipeline()
+
+    /**
+     * Pitch-slide writer pipeline — constructed lazily so the `authorBuilder()`
+     * call inside `buildPitchSlideWriterPipeline()` does not fire during the
+     * `Env` static initializer. Lazy initialization defers the pipe construction
+     * (and its `pipe.init()` call) until first access, by which point the
+     * `Main.kt` startup sequence has wired the `MINIMAX_API_KEY` into
+     * `genericOpenAIEnv.setApiKey(...)`.
+     */
+    val pitchSlideWriterPipeline: Pipeline by lazy { buildPitchSlideWriterPipeline() }
 
     var authorPrompt = """
        You are Xilaron Rigogan. You are a universe incarnation. You first coalesced into existence 
@@ -282,6 +291,15 @@ and the sensual and erotic aspects.
         discussionPipeline = Pipeline()
         lorebookPipeline = Pipeline()
         summarizerPipeline = Pipeline()
+        // MiniMax-M3 is hosted at api.minimax.io/v1. No ARN, no region, no
+        // inference profile. Authentication is the MINIMAX_API_KEY environment
+        // variable; wire it into genericOpenAIEnv BEFORE any pipeline construction
+        // runs so that `buildNccWriter(...)`, `buildChapterRewritePipeline()`,
+        // etc. (which call `pipe.init()` synchronously) find a non-blank API key.
+        System.getenv("MINIMAX_API_KEY")?.takeIf { it.isNotBlank() }?.let {
+            genericOpenAIEnv.setApiKey(it)
+        }
+
         stylePipeline = buildNccWriter(writingStyle)
         nccPipeline = buildNccWriter(writingStyle)
         rewritePipeline = Builders.buildChapterRewritePipeline()
@@ -294,14 +312,6 @@ and the sensual and erotic aspects.
          * data.
          */
         writerPipeline.useGlobalContext("main") //Ensure it's using the global context so we can read from it correctly.
-
-        // MiniMax-M3 is hosted at api.minimax.io/v1. No ARN, no region, no
-        // inference profile. Authentication is the MINIMAX_API_KEY environment
-        // variable; wire it into genericOpenAIEnv so all pipes pick it up via
-        // genericOpenAIEnv.resolveApiKey().
-        System.getenv("MINIMAX_API_KEY")?.takeIf { it.isNotBlank() }?.let {
-            genericOpenAIEnv.setApiKey(it)
-        }
 
 //=============================================Construct Pipes =========================================================
 

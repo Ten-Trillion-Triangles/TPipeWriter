@@ -1,16 +1,16 @@
 #!/bin/bash
 
-# Find AWS credentials and set environment variables
-AWS_DIR="$HOME/.aws"
-CREDENTIALS_FILE="$AWS_DIR/credentials"
-
-if [ -f "$CREDENTIALS_FILE" ]; then
-    export AWS_ACCESS_KEY_ID=$(grep -A2 "\[default\]" "$CREDENTIALS_FILE" | grep "aws_access_key_id" | cut -d'=' -f2 | tr -d ' ')
-    export AWS_SECRET_ACCESS_KEY=$(grep -A2 "\[default\]" "$CREDENTIALS_FILE" | grep "aws_secret_access_key" | cut -d'=' -f2 | tr -d ' ')
-    echo "AWS credentials loaded"
-else
-    echo "AWS credentials file not found at $CREDENTIALS_FILE"
-    exit 1
+# Find MiniMax API key from environment, or fall back to a check
+if [ -z "$MINIMAX_API_KEY" ]; then
+    if [ -z "$AUXILIARY_VISION_API_KEY" ]; then
+        echo "MINIMAX_API_KEY not set and AUXILIARY_VISION_API_KEY fallback absent"
+        echo "Get a key at https://platform.minimax.io and:"
+        echo "  export MINIMAX_API_KEY=\"sk-...\""
+        exit 1
+    else
+        echo "MINIMAX_API_KEY not set; using AUXILIARY_VISION_API_KEY as fallback"
+        export MINIMAX_API_KEY="$AUXILIARY_VISION_API_KEY"
+    fi
 fi
 
 # Find and execute TPipeWriter jar (prefer shadow jar)
@@ -20,9 +20,9 @@ if [ -z "$JAR_FILE" ]; then
 fi
 
 if [ -z "$JAR_FILE" ]; then
-    echo "TPipeWriter jar not found"
+    echo "TPipeWriter jar not found — run ./gradlew shadowJar first"
     exit 1
 fi
 
-echo "Starting TPipeWriter..."
+echo "Starting TPipeWriter (MiniMax-M3 Generic OpenAI edition)..."
 java -jar "$JAR_FILE"
