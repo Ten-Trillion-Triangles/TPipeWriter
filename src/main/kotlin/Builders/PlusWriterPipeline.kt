@@ -13,14 +13,15 @@ import Builders.Util.storeUserPrompt
 import Globals.Env
 import Globals.isValidGptOssResponse
 import Globals.recordLoreBook
+import Globals.ModelConfig
 import Shell.loadSettings
 import Util.enablePipelineStreaming
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
 import com.TTT.Enums.PromptMode
 import com.TTT.Pipeline.Pipeline
-import env.genericOpenAIEnv
-import genericOpenAIPipe.ApiMode
+import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
+import genericOpenAIPipe.api.ApiMode
 import genericOpenAIPipe.GenericOpenAIPipe
 import kotlinx.coroutines.runBlocking
 
@@ -63,8 +64,6 @@ data class SurgicalChangeList(
 
 fun buildPlusWriterPipeline() : Pipeline
 {
-    val deepseekModelName = "deepseek.r1-v1:0" //us-east-2
-    val novaModelName = "amazon.nova-lite-v1:0"
     val novaProModelName = "amazon.nova-pro-v1:0"
     val gptOssModelName = "openai.gpt-oss-20b-1:0" //us-west-2
     val gptOss120bModelName = "openai.gpt-oss-120b-1:0"
@@ -137,12 +136,11 @@ fun buildPlusWriterPipeline() : Pipeline
 
    //This pipe analyzes the user prompt to create a list of themes that align with author values
 
-    val preGuidePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val preGuidePipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .requireJsonPromptInjection()
         .setJsonOutput(VibeInstruct())
         .truncateModuleContext()
@@ -168,12 +166,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .applySystemPrompt()
         .autoInjectContext("Use the user prompt, and the story guide to complete your task.")
 
-    val simplifierPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val simplifierPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.3)
         .pullGlobalContext()
@@ -207,11 +204,10 @@ fun buildPlusWriterPipeline() : Pipeline
      * This pipe is responsible for loading the chapter guide, and testing the current
      * story's progress against the chapter guide
      */
-    val guidePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val guidePipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
-        .setModel(ModelConfig.primaryModelName)
         .setModel(ModelConfig.primaryModelName)
         .requireJsonPromptInjection()
         .setJsonInput(VibeInstruct())
@@ -260,12 +256,11 @@ fun buildPlusWriterPipeline() : Pipeline
 
     //Now we will introduce the murderPipe, whose job it is to murder undesirable JSON array elems.
 
-    val murderPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val murderPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.3)
         .pullGlobalContext()
@@ -297,12 +292,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPipeName("murder pipe")
         .applySystemPrompt()
 
-    val newMurderPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val newMurderPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.3)
         .pullGlobalContext()
@@ -351,12 +345,11 @@ fun buildPlusWriterPipeline() : Pipeline
      * Second step. After the plan has been created the writing pipe will write the given page using the plan,
      * existing story content, and the "editors note" to execute on the plan for the next page of the story.
      */
-    val writingPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val writingPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(1.0)
         .pullGlobalContext()
@@ -387,12 +380,11 @@ fun buildPlusWriterPipeline() : Pipeline
         |any time soon.""")
         .setPipeName("writing pipe")
 
-    val chasingShadowsWritingPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val chasingShadowsWritingPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .requireJsonPromptInjection()
         .setJsonInput(TodoList())
         .setTemperature(0.8)
@@ -460,12 +452,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPipeName("chasing shadows writing pipe")
 
     //The next step removes unwanted twists.
-    val untwistPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val untwistPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(deepseekModelName)
         .truncateModuleContext()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
@@ -517,12 +508,11 @@ fun buildPlusWriterPipeline() : Pipeline
         }
         .setPipeName("untwist pipe")
 
-    val removeBadWritingStepOnePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val removeBadWritingStepOnePipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .truncateModuleContext()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
@@ -577,12 +567,11 @@ fun buildPlusWriterPipeline() : Pipeline
         }
         .setPipeName("remove bad writing step one pipe")
 
-    val removeBadWritingStepTwoPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val removeBadWritingStepTwoPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .truncateModuleContext()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
@@ -640,12 +629,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPipeName("remove bad writing step two pipe")
 
     //Now we have the author review the written material for thematic consistency and desired traits.
-    val postWriterPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val postWriterPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.7)
         .setContextWindowSize(115000)
@@ -688,12 +676,11 @@ fun buildPlusWriterPipeline() : Pipeline
         }
         .setPipeName("post writer pipe")
 
-    val loreCheckPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val loreCheckPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(deepseekModelName)
         .setContextWindowSize(120000)
         .setMaxTokens(20000)
         .setTopP(.8)
@@ -737,12 +724,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPipeName("lore check pipe")
 
 
-    val loreRepairPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val loreRepairPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .requireJsonPromptInjection()
         .setJsonInput(SurgicalChangeList())
         .setContextWindowSize(115000)
@@ -788,12 +774,11 @@ fun buildPlusWriterPipeline() : Pipeline
     /**
      * Logical progression pipe.
      */
-    val logicalProgressionPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val logicalProgressionPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(deepseekModelName)
         .requireJsonPromptInjection()
         .truncateModuleContext()
         .setContextWindowSize(115000)
@@ -861,12 +846,11 @@ fun buildPlusWriterPipeline() : Pipeline
      * Called after the logical progression pipe. If the boolean to ask for changes is true this will be run. If it's false
      * this pipe will be skipped over.
      */
-    val logicalCorrectionPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val logicalCorrectionPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .requireJsonPromptInjection()
@@ -914,7 +898,7 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPipeName("logical correction pipe")
 
 
-    val dummyPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val dummyPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
@@ -922,12 +906,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .setPreInvokeFunction(::preInvokeShunt)
         .setPipeName("dummy pipe")
 
-    val benignSkiesMyDialoguePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val benignSkiesMyDialoguePipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .pullGlobalContext()
@@ -975,12 +958,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .autoInjectContext("New Page is the page of text you must work on.")
 
 
-    val polishMyDialoguePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val polishMyDialoguePipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .pullGlobalContext()
@@ -1039,12 +1021,11 @@ fun buildPlusWriterPipeline() : Pipeline
         .autoInjectContext("New Page is the page of text you must work on.")
 
 
-    val certifyMyDialoguePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val certifyMyDialoguePipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(deepseekModelName)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .pullGlobalContext()
@@ -1105,12 +1086,11 @@ fun buildPlusWriterPipeline() : Pipeline
 
 
     //This pipe removes the attempt to forcefully wrap up the chapter when the user does not tell the llm to do so.
-    val unmessupendingPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val unmessupendingPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(deepseekModelName)
         .truncateModuleContext()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
@@ -1171,12 +1151,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setPipeName("un-mess-up ending pipe")
 
 //the following pipes will attempt to clean up common AI writing practices, as well as fix any lingering style problems.
-    val cleanupStepOnePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val cleanupStepOnePipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.7)
         .setContextWindowSize(115000)
@@ -1214,12 +1193,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         }
         .setPipeName("cleanup step one pipe")
 
-    val cleanupStepTwoPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val cleanupStepTwoPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setTemperature(0.8)
         .setTopP(0.9)
         .setContextWindowSize(115000)
@@ -1262,12 +1240,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         }
         .setPipeName("cleanup step two pipe")
 
-    val cleanupStepThreePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val cleanupStepThreePipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setTemperature(0.8)
         .setTopP(0.8)
         .setContextWindowSize(115000)
@@ -1316,12 +1293,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setPipeName("cleanup step three pipe")
 
 
-    val tweaksAroundTheEdgesPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val tweaksAroundTheEdgesPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.7)
         .setContextWindowSize(115000)
@@ -1366,12 +1342,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .setPipeName("tweaks around the edges pipe")
 
 
-    val applyFetishPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val applyFetishPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setTemperature(0.7)
         .setTopP(0.8)
         .setContextWindowSize(115000)
@@ -1401,12 +1376,11 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
     /**
      * Final step. Author sweeps over the result and makes any final tweaks and desired changes.
      */
-    val secondPassPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val secondPassPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setTemperature(0.8)
         .setTopP(0.8)
         .setContextWindowSize(115000)
@@ -1486,7 +1460,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
 
     val blankLoreBookExample = ContextWindow()
 
-    val loreBookPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val loreBookPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)

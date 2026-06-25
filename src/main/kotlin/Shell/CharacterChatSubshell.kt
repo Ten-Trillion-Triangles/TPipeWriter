@@ -4,7 +4,6 @@ import Builders.buildCharacterPipeline
 import Builders.buildCharacterPipelineWithStory
 import Globals.Env
 import Globals.Prompts
-import bedrockPipe.BedrockMultimodalPipe
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ConverseHistory
 import com.TTT.Context.ConverseRole
@@ -17,6 +16,9 @@ import com.TTT.Util.deserialize
 import com.TTT.Util.getHomeFolder
 import com.TTT.Util.serialize
 import com.TTT.Util.writeStringToFile
+import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
+import genericOpenAIPipe.api.ApiMode
+import genericOpenAIPipe.GenericOpenAIPipe
 import kotlinx.coroutines.runBlocking
 import readEnhancedInput
 
@@ -39,7 +41,7 @@ private fun characterPageKey(): String {
 }
 
 private fun buildTruncationSettings(): TruncationSettings {
-    val template = BedrockMultimodalPipe().truncateModuleContext()
+    val template = GenericOpenAIPipe().truncateModuleContext()
     val settings = template.getTruncationSettings()
     settings.multiplyWindowSizeBy = 0
     return settings

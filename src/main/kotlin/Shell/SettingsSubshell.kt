@@ -1,6 +1,7 @@
 package Shell
 
 import Globals.Env
+import Globals.ModelConfig
 import Structs.*
 import com.TTT.Enums.ProviderName
 import com.TTT.Pipeline.Pipeline
@@ -284,30 +285,17 @@ fun showPipelineConfigMenu(pipelineName: String, settings: ModelSettings)
     println("\nCurrent Settings for ${settings.pipeName}:")
     println("  Provider: ${settings.provider}")
     println("  Model: ${settings.modelName}")
-    println("  Region: ${settings.getRegionV2()} (auto-set)")
+    println("  Region: ${if (settings.region.isNotEmpty()) settings.region else "(regionless — MiniMax-M3)"}")
     println("  Temperature: ${settings.temperature}")
     println("  Top P: ${settings.topP}")
     println("  Max Tokens: ${settings.maxTokens}")
-    
-    // Display all available models including the newly added GPT-OSS-20B
-    println("\nAvailable Models:")
-    println("  1. ${deepSeekModelName()} (DeepSeek R1)")
-    println("  2. ${claudeModelName()} (Claude Sonnet 4)")
-    println("  3. ${novaModelName()} (Nova Pro)")
-    println("  4. ${novaLiteModelName()} (Nova Lite)")
-    println("  5. ${gptModelName()} (GPT OSS 20B)")  // Added missing model
-    println("  6. ${gpt120bModelName()} (GPT OSS 120B)")
-    println("  7. ${qwenCoder480BModelName()} (Qwen Coder 480B)")
-    println("  8. ${qwen235BModelName()} (Qwen 235B)")
-    println("  9. ${qwen32BModelName()} (Qwen 32B)")
-    println("  10. ${qwenCoder30BModelName()} (Qwen Coder 30B)")
-    println("  11. ${palmyraX5ModelName()} (Palmyra X5)")
-    println("  12. ${deepSeekV3ModelName()} (DeepSeek V3)")
-    println("  13. ${llamaMaverickModelName()} (Llama 4 Maverick)")
-    println("  14. ${llama70BModelName()} (Llama 3.3 70B)")
-    println("  15. ${llama405BModelName()} (Llama 3.1 405B)")
-    println("  16. ${jambaModelName()} (Jamba 1.5 Large)")
-    
+
+    // MiniMax-M3 Generic OpenAI edition: single-model. The previous multi-model
+    // selector menu (DeepSeek / Claude / Nova / Qwen / Llama / Jamba / Palmyra)
+    // is gone. All pipes use ModelConfig.primaryModelName = "MiniMax-M3".
+    println("\nAvailable Model:")
+    println("  1. ${Globals.ModelConfig.primaryModelName} (MiniMax-M3 — 512K context, no reasoning)")
+
     println("\nCommands:")
     println("  model <number>     - Select model (shortcut: m)")
     println("  temp <value>       - Set temperature >= 0.0 (shortcut: t)")
@@ -328,35 +316,18 @@ fun showPipelineConfigMenu(pipelineName: String, settings: ModelSettings)
  */
 fun selectModel(settings: ModelSettings, modelNumber: Int): ModelSettings
 {
-    // Map user selection to model name, including newly added GPT-OSS-20B
-    val newModelName = when (modelNumber)
-    {
-        1 -> deepSeekModelName()
-        2 -> claudeModelName()
-        3 -> novaModelName()
-        4 -> novaLiteModelName()
-        5 -> gptModelName()
-        6 -> gpt120bModelName()
-        7 -> qwenCoder480BModelName()
-        8 -> qwen235BModelName()
-        9 -> qwen32BModelName()
-        10 -> qwenCoder30BModelName()
-        11 -> palmyraX5ModelName()
-        12 -> deepSeekV3ModelName()
-        13 -> llamaMaverickModelName()
-        14 -> llama70BModelName()
-        15 -> llama405BModelName()
-        16 -> jambaModelName()
-        else -> {
-            println("Invalid model number. Choose 1-16")
-            return settings
-        }
+    // MiniMax-M3 Generic OpenAI edition: single-model. Any selection maps to
+    // ModelConfig.primaryModelName. The previous 16-model menu is gone.
+    if (modelNumber != 1) {
+        println("Invalid model number. Only MiniMax-M3 is available; choose 1.")
+        return settings
     }
-    
-    // Create new settings with updated model and auto-set region
+    val newModelName = Globals.ModelConfig.primaryModelName
+
+    // Create new settings with updated model. Region is preserved as-is
+    // (MiniMax is regionless, but the field is kept for serialization compat).
     val newSettings = settings.copy(modelName = newModelName)
-    newSettings.setRegion()  // Auto-set region based on model requirements
-    println("Model set to $newModelName (region: ${newSettings.getRegionV2()})")
+    println("Model set to $newModelName (MiniMax-M3, 512K context, no reasoning)")
     return newSettings
 }
 
@@ -601,12 +572,10 @@ fun resetAllSettings()
     
     val defaultSettings = ModelSettings(
         provider = ProviderName.Aws,
-        modelName = deepSeekModelName(),
+        modelName = ModelConfig.primaryModelName,
         temperature = 0.7,
         topP = 0.7
     )
-    defaultSettings.setRegion()
-    
     var resetCount = 0
     val pipelines = getAllPipelines()
     
@@ -643,7 +612,7 @@ fun showDetailedStatus()
                     println("  Pipe ${index + 1} (${settings.pipeName}):")
                     println("    Provider: ${settings.provider}")
                     println("    Model: ${settings.modelName}")
-                    println("    Region: ${settings.getRegionV2()}")
+                    println("    Region: ${if (settings.region.isNotEmpty()) settings.region else "(regionless — MiniMax-M3)"}")
                     println("    Temperature: ${settings.temperature}")
                     println("    Top P: ${settings.topP}")
                     println("    Max Tokens: ${settings.maxTokens}")
@@ -689,7 +658,7 @@ fun applySettingsToAll()
     
     val settings = ModelSettings(
         provider = ProviderName.Aws,
-        modelName = deepSeekModelName(),
+        modelName = ModelConfig.primaryModelName,
         temperature = 0.7,
         topP = 0.7
     )
@@ -698,23 +667,23 @@ fun applySettingsToAll()
     
     // Model selection
     println("\nSelect model:")
-    println("1. ${deepSeekModelName()} (DeepSeek R1)")
-    println("2. ${claudeModelName()} (Claude Sonnet 4)")
-    println("3. ${novaModelName()} (Nova Pro)")
-    println("4. ${novaLiteModelName()} (Nova Lite)")
-    println("5. ${gptModelName()} (GPT OSS 20B)")
-    println("6. ${gpt120bModelName()} (GPT OSS 120B)")
+    println("1. ${ModelConfig.primaryModelName} (DeepSeek R1)")
+    println("2. ${ModelConfig.primaryModelName} (Claude Sonnet 4)")
+    println("3. ${ModelConfig.primaryModelName} (Nova Pro)")
+    println("4. ${ModelConfig.primaryModelName} (Nova Lite)")
+    println("5. ${ModelConfig.primaryModelName} (GPT OSS 20B)")
+    println("6. ${ModelConfig.primaryModelName} (GPT OSS 120B)")
     
     print("Model choice (1-6): ")
     val modelChoice = readEnhancedInput().trim().toIntOrNull() ?: 1
     settings.modelName = when (modelChoice)
     {
-        2 -> claudeModelName()
-        3 -> novaModelName()
-        4 -> novaLiteModelName()
-        5 -> gptModelName()
-        6 -> gpt120bModelName()
-        else -> deepSeekModelName()
+        2 -> ModelConfig.primaryModelName
+        3 -> ModelConfig.primaryModelName
+        4 -> ModelConfig.primaryModelName
+        5 -> ModelConfig.primaryModelName
+        6 -> ModelConfig.primaryModelName
+        else -> ModelConfig.primaryModelName
     }
     
     // Temperature
@@ -731,8 +700,6 @@ fun applySettingsToAll()
     print("Max Tokens (current: ${settings.maxTokens}): ")
     val maxTokens = readEnhancedInput().trim().toIntOrNull()
     if (maxTokens != null && maxTokens > 0) settings.maxTokens = maxTokens
-    
-    settings.setRegion()
     
     print("Apply these settings to all pipelines? (y/N): ")
     val confirm = readEnhancedInput().trim().lowercase()

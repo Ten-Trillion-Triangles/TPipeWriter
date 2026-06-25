@@ -8,10 +8,11 @@ import Builders.Util.secondPassTransform
 import Builders.Util.storeUserPrompt
 import Globals.Env
 import Globals.isValidGptOssResponse
+import Globals.ModelConfig
 import Util.enablePipelineStreaming
 import com.TTT.Pipeline.Pipeline
-import env.genericOpenAIEnv
-import genericOpenAIPipe.ApiMode
+import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
+import genericOpenAIPipe.api.ApiMode
 import genericOpenAIPipe.GenericOpenAIPipe
 import kotlinx.coroutines.runBlocking
 
@@ -31,7 +32,6 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
      * Supposedly optimized for coding. Supports reasoning.
      */
     val qwenCoder480B = "qwen.qwen3-coder-480b-a35b-v1:0"
-    val deepseekModelName = "deepseek.r1-v1:0" //us-east-2
     val pitchSlideWriterPipeline = Pipeline()
 
     var smugAssholePrompt = """You are Bigwang McDouchebag. 
@@ -62,12 +62,11 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
              6. Write out all numbers."""
 
 
-    val blueprintPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val blueprintPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(deepseekModelName)
         .setTemperature(0.8)
         .setTopP(0.8)
         .pullGlobalContext()
@@ -95,12 +94,11 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
             |include ONLY ONE idea per array element. I repeat: Only ONE idea per array element.""")
         .setPipeName("blueprintPipe")
 
-    val constructorPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val constructorPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.3)
         .pullGlobalContext()
@@ -128,12 +126,11 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
         .setPipeName("constructor pipe")
 
 
-    val validityCheckerPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val validityCheckerPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(deepseekModelName)
         .setContextWindowSize(120000)
         .setMaxTokens(20000)
         .setTopP(.8)
@@ -164,7 +161,7 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
                 " to be made in your output.")
         .setPipeName("validity checker pipe")
 
-    val validityCorrectorPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val validityCorrectorPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
@@ -193,12 +190,11 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
         .setTransformationFunction(::recordWritingPipePage)
         .setPipeName("validity corrector pipe")
 
-    val planCheckPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val planCheckPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(deepseekModelName)
         .setContextWindowSize(120000)
         .setMaxTokens(20000)
         .setTopP(.8)
@@ -225,12 +221,11 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
                 is the current instructions from the user.""")
         .setPipeName("plan check pipe")
 
-    val planCorrectorPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val planCorrectorPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .requireJsonPromptInjection()
@@ -255,12 +250,11 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
         .setTransformationFunction(::recordWritingPipePage)
         .setPipeName("plan corrector pipe")
 
-    val adherenceInstructorPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val adherenceInstructorPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(deepseekModelName)
         .setContextWindowSize(120000)
         .setMaxTokens(20000)
         .setTopP(.8)
@@ -283,12 +277,11 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
         .autoInjectContext("""###CONTEXT: "user prompt" is the instructions from the user.""")
         .setPipeName("adherence instructor pipe")
 
-    val adherenceEnforcerPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val adherenceEnforcerPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .requireJsonPromptInjection()
@@ -312,12 +305,11 @@ fun buildPitchSlideWriterPipeline(): Pipeline {
         .setTransformationFunction(::recordWritingPipePage)
         .setPipeName("adherence enforcer pipe")
 
-    val concisionPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val concisionPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(qwenCoder480B)
         .setTemperature(1.0)
         .setTopP(0.7)
         .setContextWindowSize(115000)

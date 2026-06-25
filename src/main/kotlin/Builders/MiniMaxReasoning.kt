@@ -4,8 +4,8 @@ import Defaults.reasoning.ReasoningBuilder
 import Defaults.reasoning.ReasoningSettings
 import com.TTT.Pipe.Pipe
 import com.TTT.Structs.PipeSettings
-import env.genericOpenAIEnv
-import genericOpenAIPipe.ApiMode
+import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
+import genericOpenAIPipe.api.ApiMode
 import genericOpenAIPipe.GenericOpenAIPipe
 
 /**

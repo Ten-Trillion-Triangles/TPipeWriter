@@ -13,8 +13,9 @@ import Globals.isValidGptOssResponse
 import com.TTT.Enums.ContextWindowSettings
 import com.TTT.Pipeline.Pipeline
 import com.TTT.Util.exampleFor
-import env.genericOpenAIEnv
-import genericOpenAIPipe.ApiMode
+import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
+import Globals.ModelConfig
+import genericOpenAIPipe.api.ApiMode
 import genericOpenAIPipe.GenericOpenAIPipe
 import kotlinx.coroutines.runBlocking
 
@@ -48,8 +49,6 @@ fun buildChapterRewritePipeline(
     style: String = ""
 ): Pipeline
 {
-    val deepseekModelName = "deepseek.r1-v1:0"
-    val novaModelName = "amazon.nova-lite-v1:0"
     val gptOssModelName = "openai.gpt-oss-20b-1:0"
     val gpt120bModelName = "openai.gpt-oss-120b-1:0"
 
@@ -72,12 +71,11 @@ fun buildChapterRewritePipeline(
     /**
      * Step 1. This pipe evaluates the user request and comes up with an initial plan for chapter changes.
      */
-    val analysisPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val analysisPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(deepseekModelName)
         .setTopP(topP)
         .setTemperature(temperature)
         .setMaxTokens(maxTokens)
@@ -115,12 +113,11 @@ fun buildChapterRewritePipeline(
      *
      * todo: We need to ensure support for the global story plan.md file and chapter.md file.
      */
-    val loreValidationPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val loreValidationPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(gptOssModelName)
         .setTopP(0.9)
         .setTemperature(0.8)
         .setMaxTokens(20000)
@@ -176,12 +173,11 @@ fun buildChapterRewritePipeline(
      * standard TPipe json input and output settings won't work here. Instead, the schema is actually explained
      * directly in the system prompt.
      */
-    val rewritePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val rewritePipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(gpt120bModelName)
         .setTopP(.9)
         .setTemperature(1.0)
         .setMaxTokens(maxTokens)
@@ -234,12 +230,11 @@ fun buildChapterRewritePipeline(
      * It returns true, or false depending on what it sees. The rest of the pipes can be skipped if this
      * returns true ending the pipeline early.
      */
-    val styleCheckPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val styleCheckPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(gptOssModelName)
         .setTopP(0.7)
         .setTemperature(.6)
         .setMaxTokens(20000)
@@ -287,7 +282,7 @@ fun buildChapterRewritePipeline(
      * Step 4: This pipe suggests fixes to the chapter's style. It only identifies what needs changing, and exactly
      * what should be changed about very specific parts of the text.
      */
-    val styleSuggestPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val styleSuggestPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
@@ -341,12 +336,11 @@ fun buildChapterRewritePipeline(
                 " the style of the writing that has been written as example cases of how to deploy your style " +
                 "guide.")
 
-    val styleFixPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val styleFixPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(gptOssModelName)
         .setPipeName("Style repair pipe")
         .setContextWindowSize(contextWindowMax)
         .setMaxTokens(20000)

@@ -10,8 +10,9 @@ import com.TTT.Context.ContextWindow
 import com.TTT.Enums.ContextWindowSettings
 import com.TTT.Enums.PromptMode
 import com.TTT.Pipeline.Pipeline
-import env.genericOpenAIEnv
-import genericOpenAIPipe.ApiMode
+import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
+import Globals.ModelConfig
+import genericOpenAIPipe.api.ApiMode
 import genericOpenAIPipe.GenericOpenAIPipe
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
@@ -41,8 +42,6 @@ fun buildNccWriter(style : String = "",
     /**
      * Declare model names for my sanity, so I don't have to keep typing them all into the pipes.
      */
-    val deepseekModelName = "deepseek.r1-v1:0"
-    val novaModelName = "amazon.nova-lite-v1:0"
     val gptOssModelName = "openai.gpt-oss-20b-1:0"
     val gptOss120bModelName = "openai.gpt-oss-120b-1:0"
 
@@ -57,12 +56,11 @@ fun buildNccWriter(style : String = "",
     /**
      * Initial entry pipe. Handles user's request and will begin to write based on the story content provided.
      */
-    val writerEntryPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val writerEntryPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(deepseekModelName)
         .setTopP(topP)
         .setTemperature(temperature)
         .pullPipelineContext() //Pull from pipeline after context selection strategy has been applied.
@@ -116,12 +114,11 @@ fun buildNccWriter(style : String = "",
      * This has to be forward declared because kotlin is not able to inference an object not yet declared in the file
      * order. So this happens if the branch fails but is declared prior to the lore checker pipe.
      */
-    val loreRepairPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val loreRepairPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(deepseekModelName)
         .setTopP(topP)
         .setTemperature(temperature)
         .setMaxTokens(maxTokens)
@@ -159,12 +156,11 @@ fun buildNccWriter(style : String = "",
      * output of the story conforms to existing lore, or if it outright contradicts existing lore. This pipe will return
      * the status and branch fail into a corrective rewrite pipe.
      */
-    val loreCheckerPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val loreCheckerPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(gptOssModelName)
         .setTopP(topP)
         .setTemperature(temperature)
         .pullGlobalContext() //Writer pipeline will store it's output as "prevChapter" and write into global.
@@ -203,12 +199,11 @@ fun buildNccWriter(style : String = "",
 
 //------------------------------------------------Style pipe------------------------------------------------------------
 
-    val styleCheckerPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val styleCheckerPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .setModel(gptOssModelName)
         .setTopP(topP)
         .setTemperature(temperature)
         .setMaxTokens(maxTokens)
@@ -272,7 +267,7 @@ fun buildNccWriter(style : String = "",
 
     val blankLoreBookExample = ContextWindow()
 
-    val loreBookPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val loreBookPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)

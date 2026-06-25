@@ -1,10 +1,7 @@
 package com.example.tpipewriter
 import com.TTT.Pipeline.Pipeline
 import com.TTT.Pipe.Pipe
-import bedrockPipe.BedrockPipe
-import bedrockPipe.BedrockMultimodalPipe
 import com.TTT.Context.ContextBank
-import env.bedrockEnv
 import Globals.Env
 import Shell.startShell
 

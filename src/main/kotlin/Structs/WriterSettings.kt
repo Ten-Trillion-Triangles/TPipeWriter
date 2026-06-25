@@ -1,14 +1,27 @@
 package Structs
 
-import bedrockPipe.BedrockPipe
 import com.TTT.Enums.ProviderName
 import com.TTT.Pipe.Pipe
 import com.TTT.Pipeline.Pipeline
+import Globals.ModelConfig
 import kotlinx.coroutines.runBlocking
 import kotlinx.serialization.Serializable
 import kotlinx.serialization.builtins.serializer
 import kotlinx.serialization.serializer
 
+private val PRIMARY_MODEL: String = Globals.ModelConfig.primaryModelName
+
+/**
+ * Persistent settings for a single pipe.
+ *
+ * MiniMax-M3 Generic OpenAI edition:
+ * - The `region` field is preserved for backward compatibility with persisted
+ *   settings JSON, but it is no longer used. MiniMax is a hosted model at
+ *   api.minimax.io/v1 — there is no AWS region.
+ * - The `provider` enum is preserved; `ProviderName.OpenAI` (or whichever value
+ *   the upstream TPipe pipe reports) identifies the GenericOpenAIPipe-backed
+ *   pipe. The Bedrock-specific provider path has been removed.
+ */
 @Serializable
 data class ModelSettings(
     var provider: ProviderName,
@@ -19,39 +32,22 @@ data class ModelSettings(
     var maxTokens: Int = 10000
 )
 {
+    /**
+     * Preserved for serialization compatibility. No longer used — MiniMax is
+     * regionless. Callers that previously called `setRegion()` should drop the
+     * call; MiniMax-M3 has no regional binding.
+     */
     var region = ""
 
-    //Stupid name because of frustrating java garbage.
-    fun getRegionV2() : String
-    {
-      return when (modelName)
-        {
-            deepSeekModelName() -> "us-east-2"
-            deepSeekV3ModelName() -> "us-west-2"
-            novaModelName() -> "us-east-2"
-            novaLiteModelName() -> "us-east-2"
-            gptModelName() -> "us-west-2"
-            gpt120bModelName() -> "us-west-2"
-            claudeModelName() -> "us-east-1"
-            qwen235BModelName() -> "us-west-2"
-            qwen32BModelName() -> "us-west-2"
-            qwenCoder480BModelName() -> "us-west-2"
-            qwenCoder30BModelName() -> "us-west-2"
-            palmyraX5ModelName() -> "us-west-2"
-            llamaMaverickModelName() -> "us-east-2"
-            llama70BModelName() -> "us-east-2"
-            llama405BModelName() -> "us-east-2"
-            jambaModelName() -> "us-east-1"
-          else -> {""}
-      }
-    }
-
     /**
-     * Auto set the region based on model name.
+     * No-op stub preserved for serialization compatibility. MiniMax is regionless;
+     * `region` stays at "" by default.
      */
     fun setRegion()
     {
-        region = getRegionV2()
+        // No-op. MiniMax-M3 is hosted at api.minimax.io/v1; there is no AWS region
+        // to set. The `region` field is preserved in the data class for JSON
+        // backward compatibility with previously persisted settings files.
     }
 }
 
@@ -62,13 +58,8 @@ fun toModelSettings(pipe: Pipe) : ModelSettings
 {
     val pipeSettings = pipe.toPipeSettings()
     val rawModel = pipeSettings.model ?: ""
-    val afterArn = if (rawModel.contains('/')) rawModel.substringAfterLast('/') else rawModel
-    val simpleModel = when {
-        afterArn.startsWith("us.") -> afterArn.removePrefix("us.")
-        afterArn.startsWith("eu.") -> afterArn.removePrefix("eu.")
-        afterArn.startsWith("ap.") -> afterArn.removePrefix("ap.")
-        else -> afterArn
-    }
+    val simpleModel = if (rawModel.contains('/')) rawModel.substringAfterLast('/') else rawModel
+
     val newModelSettings = ModelSettings(
         provider = pipeSettings.provider!!,
         modelName = simpleModel,
@@ -97,23 +88,23 @@ fun constructModelSettingsList(pipeline: Pipeline) : List<ModelSettings>
     return settingsList
 }
 
+
 /**
- * Convert a pipeline from any non-deepseek models to deepseek. This is useful when censorship based refusals
- * have occurred on a given pipeline.
+ * Convert a pipeline's pipes to MiniMax-M3. Useful when a different model variant
+ * has produced a refusal and we want to re-route the call through MiniMax-M3.
+ * (The previous version of this function forced everything to deepseek; we keep
+ * the same name for source compatibility but route through the canonical
+ * ModelConfig.primaryModelName.)
  */
 fun convertPipelineToDeepseek(pipeline: Pipeline) : Pipeline
 {
     val pipes = pipeline.getPipes()
     for(pipe in pipes)
     {
-        if(pipe is BedrockPipe)
-        {
-            pipe.setRegion("us-east-2")
-                .setModel("deepseek.r1-v1:0")
+        pipe.setModel(PRIMARY_MODEL)
 
-            runBlocking {
-                pipe.init()
-            }
+        runBlocking {
+            pipe.init()
         }
     }
 
@@ -131,54 +122,18 @@ fun updatePipeWithModelSettings(pipeline: Pipeline,  modelSettings: List<ModelSe
         val pipe = pipeline.getPipeByName(model.pipeName).second
         if(pipe == null) continue
 
-        /**
-         * Split based on provider and then use the data class to populate its core settings. Then, invoke
-         * the init function for its pipe.
-         */
-        when (pipe.getProviderEnum())
-        {
-            ProviderName.Aws -> {
-                model.setRegion()
-                val bedrockPipe = pipe as BedrockPipe
-                if (model.region.isNotEmpty())
-                {
-                    bedrockPipe.setRegion(model.region)
-                }
-                bedrockPipe.setModel(model.modelName)
-                    .setTopP(model.topP)
-                    .setTemperature(model.temperature)
-                    .setMaxTokens(model.maxTokens)
+        // MiniMax is regionless; the model.region field is preserved for
+        // backward-compat but no longer affects pipe configuration.
+        pipe.setModel(model.modelName)
+            .setTopP(model.topP)
+            .setTemperature(model.temperature)
+            .setMaxTokens(model.maxTokens)
 
-                runBlocking {
-                    bedrockPipe.init()
-                }
-
-            }
-            ProviderName.Nai -> continue
-            ProviderName.Gemini -> continue
-            ProviderName.Gpt -> continue
-            ProviderName.Ollama -> continue
-            ProviderName.OpenRouter -> continue
+        runBlocking {
+            pipe.init()
         }
     }
 }
-
-fun deepSeekModelName() : String = "deepseek.r1-v1:0"
-fun deepSeekV3ModelName() : String = "deepseek.v3-v1:0"
-fun novaModelName() : String = "amazon.nova-pro-v1:0"
-fun novaLiteModelName() : String = "amazon.nova-lite-v1:0"
-fun gptModelName() : String = "openai.gpt-oss-20b-1:0"
-fun gpt120bModelName() : String = "openai.gpt-oss-120b-1:0"
-fun claudeModelName() : String = "anthropic.claude-sonnet-4-20250514-v1:0"
-fun qwen235BModelName() : String = "qwen.qwen3-235b-a22b-2507-v1:0"
-fun qwen32BModelName() : String = "qwen.qwen3-32b-v1:0"
-fun qwenCoder480BModelName() : String = "qwen.qwen3-coder-480b-a35b-v1:0"
-fun qwenCoder30BModelName() : String = "qwen.qwen3-coder-30b-a3b-v1:0"
-fun palmyraX5ModelName() : String = "writer.palmyra-x5-v1:0"
-fun llamaMaverickModelName() : String = "us.meta.llama4-maverick-17b-instruct-v1:0"
-fun llama70BModelName() : String = "us.meta.llama3-3-70b-instruct-v1:0"
-fun llama405BModelName() : String = "us.meta.llama3-1-405b-instruct-v1:0"
-fun jambaModelName() : String = "ai21.jamba-1-5-large-v1:0"
 
 /**
  * Export ModelSettings map to JSON string.

@@ -3,6 +3,7 @@ package Builders.Util
 
 import Builders.RewriteStyleActions
 import Globals.isValidGptOssResponse
+import Globals.ModelConfig
 import Structs.RewriteAnalysis
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
@@ -12,8 +13,8 @@ import com.TTT.Pipe.MultimodalContent
 import com.TTT.Util.constructPipeFromTemplate
 import com.TTT.Util.deserialize
 import com.TTT.Util.repairAndDeserialize
-import env.genericOpenAIEnv
-import genericOpenAIPipe.ApiMode
+import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
+import genericOpenAIPipe.api.ApiMode
 import genericOpenAIPipe.GenericOpenAIPipe
 import kotlinx.coroutines.runBlocking
 
@@ -147,7 +148,7 @@ suspend fun checkWritingStyle(content: MultimodalContent): MultimodalContent
 fun styleSuggestPreValidate(context: MiniBank, content: MultimodalContent? = null) : MiniBank
 {
     //Required for us to get the correct token settings for gpt-oss
-    val bedrockExamplePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val bedrockExamplePipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
@@ -198,7 +199,7 @@ fun replacePipeWithDeepseek(pipe: GenericOpenAIPipe) : GenericOpenAIPipe?
 
     if(newPipe != null)
     {
-            .setModel(deepseekModelId)
+        newPipe.setModel(deepseekModelId)
 
         runBlocking {
             newPipe.init()

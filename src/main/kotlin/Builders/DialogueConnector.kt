@@ -3,6 +3,7 @@ package Builders
 import Builders.Util.copyLorebookFromMain
 import Builders.Util.recordWritingPipePage
 import Globals.Env
+import Globals.ModelConfig
 import Shell.loadSettings
 import Util.enablePipelineStreaming
 import com.TTT.Debug.TraceStreamMerger
@@ -10,8 +11,8 @@ import com.TTT.Pipe.MultimodalContent
 import com.TTT.Pipeline.Connector
 import com.TTT.Pipeline.Pipeline
 import com.TTT.Util.extractJson
-import env.genericOpenAIEnv
-import genericOpenAIPipe.ApiMode
+import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
+import genericOpenAIPipe.api.ApiMode
 import genericOpenAIPipe.GenericOpenAIPipe
 enum class DialogueType
 {
@@ -31,8 +32,6 @@ data class dialogueClass (
  */
 fun buildDialogueConnector() : Pair<Pipeline, Connector>
 {
-    val deepseekModelName = "deepseek.r1-v1:0"
-    val novaModelName = "amazon.nova-lite-v1:0"
     val novaProModelName = "amazon.nova-pro-v1:0"
     val gptOssModelName = "openai.gpt-oss-20b-1:0"
     val gptOss120bModelName = "openai.gpt-oss-120b-1:0"
@@ -76,7 +75,7 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
      * Required boilerplate to map us to the arn, or inference ID. This is because most models cannot be
      * invoked directly, and must be bound to a profile.
      */
-    val identifyMyDialogue: GenericOpenAIPipe = GenericOpenAIPipe()
+    val identifyMyDialogue = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
@@ -122,11 +121,10 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .setPipeName("identify my dialogue pipe")
 
 
-    val benignSkiesMyDialoguePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val benignSkiesMyDialoguePipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
-        .setModel(ModelConfig.primaryModelName)
         .setModel(ModelConfig.primaryModelName)
         .setContextWindowSize(115000)
         .setMaxTokens(8000)
@@ -177,11 +175,10 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .autoInjectContext("New Page is the page of text you must work on.")
 
 
-    val polishMyDialoguePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val polishMyDialoguePipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
-        .setModel(ModelConfig.primaryModelName)
         .setModel(ModelConfig.primaryModelName)
         .setContextWindowSize(115000)
         .setMaxTokens(8000)
@@ -244,11 +241,10 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .autoInjectContext("New Page is the page of text you must work on.")
 
 
-    val certifyMyDialoguePipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val certifyMyDialoguePipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
-        .setModel(ModelConfig.primaryModelName)
         .setModel(ModelConfig.primaryModelName)
         .setContextWindowSize(115000)
         .setMaxTokens(8000)

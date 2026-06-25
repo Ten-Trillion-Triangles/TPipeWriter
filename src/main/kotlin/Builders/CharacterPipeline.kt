@@ -7,16 +7,15 @@ import com.TTT.Context.ConverseRole
 import com.TTT.Debug.withTracing
 import com.TTT.Pipe.TokenBudgetSettings
 import com.TTT.Pipeline.Pipeline
-import env.genericOpenAIEnv
-import genericOpenAIPipe.ApiMode
+import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
+import Globals.ModelConfig
+import genericOpenAIPipe.api.ApiMode
 import genericOpenAIPipe.GenericOpenAIPipe
 import kotlinx.coroutines.runBlocking
 
 
 fun buildCharacterPipeline(character: String) : Pipeline
 {
-    val deepseekModelName = "deepseek.r1-v1:0" //us-east-2
-    val novaModelName = "amazon.nova-lite-v1:0"
     val novaProModelName = "amazon.nova-pro-v1:0"
     val gptOssModelName = "openai.gpt-oss-20b-1:0" //us-west-2
     val gptOss120bModelName = "openai.gpt-oss-120b-1:0"
@@ -86,7 +85,7 @@ fun buildCharacterPipeline(character: String) : Pipeline
         allowUserPromptTruncation = true,
         )
 
-    val chatPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val chatPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
@@ -127,8 +126,6 @@ fun buildCharacterPipeline(character: String) : Pipeline
 
 fun buildCharacterPipelineWithStory(character: String) : Pipeline
 {
-    val deepseekModelName = "deepseek.r1-v1:0" //us-east-2
-    val novaModelName = "amazon.nova-lite-v1:0"
     val novaProModelName = "amazon.nova-pro-v1:0"
     val gptOssModelName = "openai.gpt-oss-20b-1:0" //us-west-2
     val gptOss120bModelName = "openai.gpt-oss-120b-1:0"
@@ -202,7 +199,7 @@ fun buildCharacterPipelineWithStory(character: String) : Pipeline
         .setTokenBudget(writerBudgetSettings)
         .setPipeName("Thinking pipe")
 
-    val chatPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val chatPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)

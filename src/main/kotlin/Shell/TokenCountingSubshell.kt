@@ -4,7 +4,10 @@ import com.TTT.Context.ContextWindow
 import com.TTT.Context.Dictionary
 import com.TTT.Context.ContextBank
 import com.TTT.Pipe.TruncationSettings
-import bedrockPipe.BedrockMultimodalPipe
+import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
+import Globals.ModelConfig
+import genericOpenAIPipe.api.ApiMode
+import genericOpenAIPipe.GenericOpenAIPipe
 import Chapter.ChapterManager
 import Structs.*
 import readEnhancedInput
@@ -35,7 +38,7 @@ fun tokenCountingSubshell() {
     println("  8. help - Show this help")
     println("  9. exit - Return to main shell")
     
-    var currentModel = deepSeekModelName() // Default to DeepSeek
+    var currentModel = Globals.ModelConfig.primaryModelName // Default to DeepSeek
     var truncationSettings = createTruncationSettings(currentModel)
     
     while (true) {
@@ -78,62 +81,62 @@ fun tokenCountingSubshell() {
 private fun createTruncationSettings(modelName: String): TruncationSettings {
     return try {
         when (modelName) {
-            deepSeekModelName() -> {
-                val pipe = BedrockMultimodalPipe().setModel(deepSeekModelName())
+            Globals.ModelConfig.primaryModelName -> {
+                val pipe = GenericOpenAIPipe().setModel(Globals.ModelConfig.primaryModelName)
                 pipe.truncateModuleContext().getTruncationSettings()
             }
-            novaModelName() -> {
-                val pipe = BedrockMultimodalPipe().setModel(novaModelName())
+            Globals.ModelConfig.primaryModelName -> {
+                val pipe = GenericOpenAIPipe().setModel(Globals.ModelConfig.primaryModelName)
                 pipe.truncateModuleContext().getTruncationSettings()
             }
-            novaLiteModelName() -> {
-                val pipe = BedrockMultimodalPipe().setModel(novaLiteModelName())
+            Globals.ModelConfig.primaryModelName -> {
+                val pipe = GenericOpenAIPipe().setModel(Globals.ModelConfig.primaryModelName)
                 pipe.truncateModuleContext().getTruncationSettings()
             }
-            claudeModelName() -> {
-                val pipe = BedrockMultimodalPipe().setModel(claudeModelName())
+            Globals.ModelConfig.primaryModelName -> {
+                val pipe = GenericOpenAIPipe().setModel(Globals.ModelConfig.primaryModelName)
                 pipe.truncateModuleContext().getTruncationSettings()
             }
-            gptModelName() -> {
-                val pipe = BedrockMultimodalPipe().setModel(gptModelName())
+            Globals.ModelConfig.primaryModelName -> {
+                val pipe = GenericOpenAIPipe().setModel(Globals.ModelConfig.primaryModelName)
                 pipe.truncateModuleContext().getTruncationSettings()
             }
-            gpt120bModelName() -> {
-                val pipe = BedrockMultimodalPipe().setModel(gpt120bModelName())
+            Globals.ModelConfig.primaryModelName -> {
+                val pipe = GenericOpenAIPipe().setModel(Globals.ModelConfig.primaryModelName)
                 pipe.truncateModuleContext().getTruncationSettings()
             }
             // Qwen models
             "qwen.qwen3-235b-a22b-2507-v1:0" -> {
-                val pipe = BedrockMultimodalPipe().setModel("qwen.qwen3-235b-a22b-2507-v1:0")
+                val pipe = GenericOpenAIPipe().setModel("qwen.qwen3-235b-a22b-2507-v1:0")
                 pipe.truncateModuleContext().getTruncationSettings()
             }
             "qwen.qwen3-32b-v1:0" -> {
-                val pipe = BedrockMultimodalPipe().setModel("qwen.qwen3-32b-v1:0")
+                val pipe = GenericOpenAIPipe().setModel("qwen.qwen3-32b-v1:0")
                 pipe.truncateModuleContext().getTruncationSettings()
             }
             "qwen.qwen3-coder-480b-a35b-v1:0" -> {
-                val pipe = BedrockMultimodalPipe().setModel("qwen.qwen3-coder-480b-a35b-v1:0")
+                val pipe = GenericOpenAIPipe().setModel("qwen.qwen3-coder-480b-a35b-v1:0")
                 pipe.truncateModuleContext().getTruncationSettings()
             }
             "qwen.qwen3-coder-30b-a3b-v1:0" -> {
-                val pipe = BedrockMultimodalPipe().setModel("qwen.qwen3-coder-30b-a3b-v1:0")
+                val pipe = GenericOpenAIPipe().setModel("qwen.qwen3-coder-30b-a3b-v1:0")
                 pipe.truncateModuleContext().getTruncationSettings()
             }
             // PalmyraX5 model
             "writer.palmyra-x5-v1:0" -> {
-                val pipe = BedrockMultimodalPipe().setModel("writer.palmyra-x5-v1:0")
+                val pipe = GenericOpenAIPipe().setModel("writer.palmyra-x5-v1:0")
                 pipe.truncateModuleContext().getTruncationSettings()
             }
             else -> {
                 // Try to use the provided model name directly
-                val pipe = BedrockMultimodalPipe().setModel(modelName)
+                val pipe = GenericOpenAIPipe().setModel(modelName)
                 pipe.truncateModuleContext().getTruncationSettings()
             }
         }
     } catch (e: Exception) {
         println("Warning: Failed to configure model '$modelName', using DeepSeek defaults: ${e.message}")
         // Default to DeepSeek settings if model fails
-        val pipe = BedrockMultimodalPipe().setModel(deepSeekModelName())
+        val pipe = GenericOpenAIPipe().setModel(Globals.ModelConfig.primaryModelName)
         pipe.truncateModuleContext().getTruncationSettings()
     }
 }
@@ -145,19 +148,19 @@ private fun createTruncationSettings(modelName: String): TruncationSettings {
  */
 private fun showAvailableModels() {
     println("\nSupported models:")
-    println("  DeepSeek: ${deepSeekModelName()}")
-    println("  Nova Pro: ${novaModelName()}")
-    println("  Nova Lite: ${novaLiteModelName()}")
-    println("  Claude: ${claudeModelName()}")
-    println("  GPT: ${gptModelName()}")
-    println("  GPT 120B: ${gpt120bModelName()}")
+    println("  DeepSeek: ${Globals.ModelConfig.primaryModelName}")
+    println("  Nova Pro: ${Globals.ModelConfig.primaryModelName}")
+    println("  Nova Lite: ${Globals.ModelConfig.primaryModelName}")
+    println("  Claude: ${Globals.ModelConfig.primaryModelName}")
+    println("  GPT: ${Globals.ModelConfig.primaryModelName}")
+    println("  GPT 120B: ${Globals.ModelConfig.primaryModelName}")
     println("  Qwen 235B: qwen.qwen3-235b-a22b-2507-v1:0")
     println("  Qwen 32B: qwen.qwen3-32b-v1:0")
     println("  Qwen Coder 480B: qwen.qwen3-coder-480b-a35b-v1:0")
     println("  Qwen Coder 30B: qwen.qwen3-coder-30b-a3b-v1:0")
     println("  PalmyraX5: writer.palmyra-x5-v1:0")
     println("\nUse 'model <model-name>' to switch models")
-    println("You can use either the full model ID or the short name (e.g., 'deepseek' or '${deepSeekModelName()}')")
+    println("You can use either the full model ID or the short name (e.g., 'deepseek' or '${Globals.ModelConfig.primaryModelName}')")
 }
 
 /**
@@ -551,17 +554,17 @@ private fun handleModelSelection(modelName: String): String {
     if (modelName.isBlank()) {
         println("Error: Please specify a model name")
         showAvailableModels()
-        return deepSeekModelName()
+        return Globals.ModelConfig.primaryModelName
     }
     
     // Support short names for convenience
     val actualModelName = when (modelName.lowercase()) {
-        "deepseek" -> deepSeekModelName()
-        "nova", "nova-pro" -> novaModelName()
-        "nova-lite" -> novaLiteModelName()
-        "claude" -> claudeModelName()
-        "gpt" -> gptModelName()
-        "gpt-120b", "gpt120b" -> gpt120bModelName()
+        "deepseek" -> Globals.ModelConfig.primaryModelName
+        "nova", "nova-pro" -> Globals.ModelConfig.primaryModelName
+        "nova-lite" -> Globals.ModelConfig.primaryModelName
+        "claude" -> Globals.ModelConfig.primaryModelName
+        "gpt" -> Globals.ModelConfig.primaryModelName
+        "gpt-120b", "gpt120b" -> Globals.ModelConfig.primaryModelName
         "qwen235b", "qwen-235b" -> "qwen.qwen3-235b-a22b-2507-v1:0"
         "qwen32b", "qwen-32b" -> "qwen.qwen3-32b-v1:0"
         "qwencoder480b", "qwen-coder-480b" -> "qwen.qwen3-coder-480b-a35b-v1:0"
@@ -578,7 +581,7 @@ private fun handleModelSelection(modelName: String): String {
     } catch (e: Exception) {
         println("Error: Failed to configure model '$actualModelName': ${e.message}")
         println("Keeping current model")
-        return deepSeekModelName()
+        return Globals.ModelConfig.primaryModelName
     }
 }
 

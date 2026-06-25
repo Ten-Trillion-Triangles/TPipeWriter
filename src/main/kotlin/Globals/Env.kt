@@ -31,8 +31,9 @@ import com.TTT.Util.getHomeFolder
 import com.TTT.Util.repairAndDeserialize
 import com.TTT.Util.serialize
 import com.TTT.Util.writeStringToFile
-import env.genericOpenAIEnv
-import genericOpenAIPipe.ApiMode
+import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
+import Globals.ModelConfig
+import genericOpenAIPipe.api.ApiMode
 import genericOpenAIPipe.GenericOpenAIPipe
 import kotlinx.coroutines.runBlocking
 import java.io.File
@@ -323,7 +324,7 @@ and the sensual and erotic aspects.
          * Declare the writer pipe. This pipe continues writing the story based on context from prior portions of
          * the story.
          */
-        val writerEntryPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        val writerEntryPipe = GenericOpenAIPipe()
             .setBaseUrl("https://api.minimax.io/v1")
             .setApiKey(genericOpenAIEnv.resolveApiKey())
             .setApiMode(ApiMode.OpenAIResponses)
@@ -364,7 +365,7 @@ and the sensual and erotic aspects.
          * The cleanup pipe handles removal of json, html, any code, markdown contents, and any other computer generated
          * code, file metadata, or other content that's not part of the actual story.
          */
-        val cleanUpPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        val cleanUpPipe = GenericOpenAIPipe()
             .setBaseUrl("https://api.minimax.io/v1")
             .setApiKey(genericOpenAIEnv.resolveApiKey())
             .setApiMode(ApiMode.OpenAIResponses)
@@ -412,7 +413,7 @@ and the sensual and erotic aspects.
 
         val blankLoreBookExample = ContextWindow()
 
-        val loreBookPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        val loreBookPipe = GenericOpenAIPipe()
             .setBaseUrl("https://api.minimax.io/v1")
             .setApiKey(genericOpenAIEnv.resolveApiKey())
             .setApiMode(ApiMode.OpenAIResponses)
@@ -479,7 +480,7 @@ and the sensual and erotic aspects.
          * Pipe responsible for handling any user requested manual lorebook updates. Supports being given keys,
          * or explicit instructions by the user.
          */
-        val manualLoreBookPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        val manualLoreBookPipe = GenericOpenAIPipe()
             .setBaseUrl("https://api.minimax.io/v1")
             .setApiKey(genericOpenAIEnv.resolveApiKey())
             .setApiMode(ApiMode.OpenAIResponses)
@@ -518,7 +519,7 @@ and the sensual and erotic aspects.
             |for the story that fits the request.
         """.trimMargin()
 
-        val ideaPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        val ideaPipe = GenericOpenAIPipe()
             .setBaseUrl("https://api.minimax.io/v1")
             .setApiKey(genericOpenAIEnv.resolveApiKey())
             .setApiMode(ApiMode.OpenAIResponses)
@@ -587,7 +588,7 @@ and the sensual and erotic aspects.
 
 
 
-        val discussionPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        val discussionPipe = GenericOpenAIPipe()
             .setBaseUrl("https://api.minimax.io/v1")
             .setApiKey(genericOpenAIEnv.resolveApiKey())
             .setApiMode(ApiMode.OpenAIResponses)
@@ -635,7 +636,7 @@ and the sensual and erotic aspects.
             |to your output.
         """.trimMargin()
 
-        val summaryPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+        val summaryPipe = GenericOpenAIPipe()
             .setBaseUrl("https://api.minimax.io/v1")
             .setApiKey(genericOpenAIEnv.resolveApiKey())
             .setApiMode(ApiMode.OpenAIResponses)
@@ -823,7 +824,7 @@ suspend fun recordUserDiscussionContext(content: ContextWindow, multiModal: Mult
     bankedContext.contextElements.add(json)
     ContextBank.emplaceWithMutex("chat", bankedContext)
 
-    val blankDeepSeekPipe: GenericOpenAIPipe = GenericOpenAIPipe()
+    val blankDeepSeekPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
