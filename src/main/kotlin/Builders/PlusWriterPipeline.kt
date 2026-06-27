@@ -19,6 +19,8 @@ import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
 import com.TTT.Enums.PromptMode
 import com.TTT.Pipeline.Pipeline
+import com.TTT.Pipe.TokenBudgetSettings
+import com.TTT.Pipe.MultiPageBudgetStrategy
 import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
 import genericOpenAIPipe.api.ApiMode
 import genericOpenAIPipe.GenericOpenAIPipe
@@ -58,6 +60,37 @@ data class SurgicalChanges(
 @kotlinx.serialization.Serializable
 data class SurgicalChangeList(
     var changeList: MutableList<SurgicalChanges> = mutableListOf()
+)
+
+
+/**
+ * Per-pipe token budget applied to every pipe in PlusWriterPipeline.
+ *
+ * Phase 2 decisions (TPipeWriter PlusWriterPipeline token-budgeting plan):
+ *   - contextWindowSize = 512_000 (full MiniMax-M3 capacity per ModelConfig.MiniMaxContextWindowSize)
+ *   - maxTokens = 12_000 (LLM output cap)
+ *   - reasoningBudget = null (carved from maxTokens — user said no limit)
+ *   - userPromptSize = null (TPipe default — user said no limit)
+ *   - allowUserPromptTruncation = false (user prompt is preserved untouched)
+ *   - compressUserPrompt = false (user opted out of auto-compression)
+ *   - truncateContextWindowAsString = false (no string-mode truncation)
+ *   - preserveTextMatches = true (TPipe default — prefer lorebook/matched context)
+ *   - multiPageBudgetStrategy = DYNAMIC_SIZE_FILL (TPipe default)
+ *
+ * Applied to every pipe via the existing post-init getPipes().forEach block
+ * below. Mirrors the CharacterPipeline.kt precedent at lines 75-85, 98,
+ * 198, 214 (the only other PlusWriter-side consumer of setTokenBudget).
+ */
+val plusWriterPipelineBudget: TokenBudgetSettings = TokenBudgetSettings(
+    contextWindowSize = 512_000,
+    maxTokens = 12_000,
+    reasoningBudget = null,
+    userPromptSize = null,
+    allowUserPromptTruncation = false,
+    compressUserPrompt = false,
+    truncateContextWindowAsString = false,
+    preserveTextMatches = true,
+    multiPageBudgetStrategy = MultiPageBudgetStrategy.DYNAMIC_SIZE_FILL
 )
 
 
@@ -1520,6 +1553,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
 
     return plusWriterPipeline.apply {
         getPipes().forEach {
+            it.setTokenBudget(plusWriterPipelineBudget)
             it.enableComprehensiveTokenTracking()
         }
 
