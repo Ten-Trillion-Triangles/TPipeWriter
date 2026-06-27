@@ -263,6 +263,20 @@ and the sensual and erotic aspects.
      */
     var activeAuthorGuide = ""
 
+    /**
+     * Current editor guide that has been loaded into memory with the /editor-guide command.
+     * Mirrors TPipeSettings.editorGuide on the persistence side so the editor prompt
+     * survives a process restart without going through the file-on-disk load path.
+     */
+    var activeEditorGuide = ""
+
+    /**
+     * Current Richard Treadwell (competing author) text loaded into memory. Mirrors
+     * TPipeSettings.competingAuthorGuide; Env.richardTreadwell is the consumer-side
+     * reference pipelines read.
+     */
+    var activeRichardTreadwell = ""
+
 
     //I am very hungry: dinner is ten minutes late. and I'm stressed because I spent $60 on dinner
     var authorReasoning: Pipe? = null

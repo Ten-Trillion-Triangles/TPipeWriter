@@ -281,6 +281,7 @@ fun parseInput()
             }
             "guide" -> selectGuideMode()
             "author" -> selectAuthorMode()
+            "editor" -> selectEditorMode()
             "pitch" -> callPitchSubShell()
             else -> println("Unknown command: $extractedSlashCommand. Type /help for available commands.")
         }
@@ -974,6 +975,32 @@ fun loadStory()
                 contextElements = storyData.contextElements.toMutableList()
                 Chapter.GlobalChapterManager.loadMetadata(storyData.chapterMetadata)
                 println("Chapter metadata loaded (${storyData.chapterMetadata.size} chapters)")
+
+                // Restore the active writer personalities from the first
+                // chapter's snapshot that has a non-empty snapshot. If no
+                // chapter has a snapshot (legacy save) the current Env
+                // values are preserved.
+                val firstWithSnapshot = storyData.chapterMetadata.values
+                    .firstOrNull {
+                        it.authorPromptSnapshot.isNotEmpty() ||
+                                it.editorPromptSnapshot.isNotEmpty() ||
+                                it.richardTreadwellSnapshot.isNotEmpty()
+                    }
+                if (firstWithSnapshot != null) {
+                    val (newAuthor, newEditor, newTreadwell) = Chapter.applyPersonalitySnapshot(
+                        metadata = firstWithSnapshot,
+                        currentAuthorPrompt = Env.authorPrompt,
+                        currentEditorPrompt = Env.editorPrompt,
+                        currentRichardTreadwell = Env.richardTreadwell
+                    )
+                    Env.authorPrompt = newAuthor
+                    Env.activeAuthorGuide = newAuthor
+                    Env.editorPrompt = newEditor
+                    Env.activeEditorGuide = newEditor
+                    Env.richardTreadwell = newTreadwell
+                    Env.activeRichardTreadwell = newTreadwell
+                    println("Restored writer personalities from chapter snapshot")
+                }
             } else {
                 println("Failed to parse story data file")
                 return
@@ -1087,7 +1114,8 @@ data class TPipeSettings(
     var authorGuide: String = "",
     var competingAuthorGuide: String = "",
     var chapterGuide: String = "",
-    var storyGuide: String = ""
+    var storyGuide: String = "",
+    var editorGuide: String = ""
 )
 
 /**
@@ -1232,6 +1260,8 @@ fun printHelp()
         |/rewrite           - Rewrite existing chapters with lore and style fixes
         |/style             - Show current writing style
         |/guide             - Open the guide settings menu.
+        |/author            - Open the author-personality menu (save/load writer guide + Richard Treadwell)
+        |/editor            - Open the editor-personality menu (save/load editor guide)
         |/help              - Show this help message
         |/exit              - Exit the application
         |
@@ -1277,8 +1307,23 @@ fun exportStory()
         val storyFile = java.io.File(tpipeDir, "$filename.txt")
         storyFile.writeText(storyContent)
         
-        // Export story data with chapter metadata
+        // Export story data with chapter metadata. Stamp each chapter's
+        // metadata with the active personality snapshots so loading the
+        // story restores the writer personas that were in play at save time.
+        val activeMetadata = Chapter.GlobalChapterManager.getChapterMetadata()
+        val stampedMetadata = activeMetadata.mapValues { (_, meta) ->
+            Chapter.capturePersonalitySnapshot(
+                existing = meta,
+                authorPrompt = Env.authorPrompt,
+                editorPrompt = Env.editorPrompt,
+                richardTreadwell = Env.richardTreadwell
+            )
+        }
+        Chapter.GlobalChapterManager.loadMetadata(stampedMetadata)
         val storyData = Chapter.GlobalChapterManager.exportStoryData(context.contextElements)
+        // Restore the original (unstamped) metadata so subsequent edits
+        // don't see the snapshots polluting the live map.
+        Chapter.GlobalChapterManager.loadMetadata(activeMetadata)
         val storyDataJson = com.TTT.Util.serialize(storyData)
         val storyDataFile = java.io.File(tpipeDir, "$filename-story.json")
         storyDataFile.writeText(storyDataJson)

@@ -18,7 +18,73 @@ data class ChapterMetadata(
     val tags: List<String> = listOf(),
     val wordCount: Int = 0,
     val createdAt: String = "",
-    val lastModified: String = ""
+    val lastModified: String = "",
+    /**
+     * Snapshot of Env.authorPrompt captured at the time this chapter was
+     * saved. Empty string means "no snapshot was taken". On chapter load,
+     * if this is non-empty, Env.authorPrompt is restored to this value.
+     */
+    val authorPromptSnapshot: String = "",
+    /**
+     * Snapshot of Env.editorPrompt (Falkenda Unseppal) captured at chapter
+     * save time. Same semantics as [authorPromptSnapshot].
+     */
+    val editorPromptSnapshot: String = "",
+    /**
+     * Snapshot of Env.richardTreadwell (N'zelquin G'zeeloth, the competing
+     * author) captured at chapter save time. Same semantics.
+     */
+    val richardTreadwellSnapshot: String = ""
+)
+
+/**
+ * Build a [ChapterMetadata] that captures the active writer personalities
+ * alongside any existing metadata fields. Pure function — no side effects,
+ * no singleton reads. The caller passes the three personality strings
+ * explicitly so this is testable in isolation.
+ *
+ * Empty strings are valid (a personality that has never been overridden
+ * keeps the default hardcoded value, but at chapter save time we always
+ * capture whatever is currently active so the snapshot reflects the
+ * save-time state).
+ *
+ * @param existing The chapter metadata to preserve (title, tags, etc.).
+ * @param authorPrompt Current value of Env.authorPrompt.
+ * @param editorPrompt Current value of Env.editorPrompt.
+ * @param richardTreadwell Current value of Env.richardTreadwell.
+ * @return A new ChapterMetadata with the three snapshot fields populated.
+ */
+fun capturePersonalitySnapshot(
+    existing: ChapterMetadata,
+    authorPrompt: String,
+    editorPrompt: String,
+    richardTreadwell: String
+): ChapterMetadata = existing.copy(
+    authorPromptSnapshot = authorPrompt,
+    editorPromptSnapshot = editorPrompt,
+    richardTreadwellSnapshot = richardTreadwell
+)
+
+/**
+ * Apply a [ChapterMetadata]'s personality snapshots to the caller-supplied
+ * state. Empty snapshot strings are ignored — they mean "no snapshot was
+ * taken", and we leave the existing value alone rather than blanking it
+ * out. This preserves backward compatibility for chapters saved before
+ * this feature shipped.
+ *
+ * Pure function — returns a triple of the new values to assign.
+ *
+ * @return Triple of (newAuthorPrompt, newEditorPrompt, newRichardTreadwell).
+ */
+fun applyPersonalitySnapshot(
+    metadata: ChapterMetadata,
+    currentAuthorPrompt: String,
+    currentEditorPrompt: String,
+    currentRichardTreadwell: String
+): Triple<String, String, String> = Triple(
+    if (metadata.authorPromptSnapshot.isNotEmpty()) metadata.authorPromptSnapshot else currentAuthorPrompt,
+    if (metadata.editorPromptSnapshot.isNotEmpty()) metadata.editorPromptSnapshot else currentEditorPrompt,
+    if (metadata.richardTreadwellSnapshot.isNotEmpty()) metadata.richardTreadwellSnapshot else currentRichardTreadwell
 )
 
 /**

@@ -295,6 +295,86 @@ fun loadAuthorGuide()
 }
 
 
+/**
+ * Allow the user to pull in a new editor guide (Falkenda Unseppal persona)
+ * and save it under a chosen file name. Mirrors saveAuthorGuide so the
+ * /editor subshell has full parity with the /author subshell.
+ */
+fun saveEditorGuide()
+{
+    println("""
+
+        Enter the contents of your editor guide here:
+
+
+    """.trimIndent())
+
+    //Read the user's input. Accepts paste macros or direct input.
+    val editorGuide = readEnhancedInput()
+
+    //Store to env as the first step of the saving process.
+    Env.editorPrompt = editorGuide
+
+    Env.activeEditorGuide = editorGuide
+
+    println("\n\nEnter the name of your editor guide file here.")
+
+    val filePath = readln()
+
+    try {
+        writeStringToFile("${getHomeFolder()}/TPipeWriter/${filePath}-editor-guide.txt", editorGuide)
+    }
+    catch (e: Exception)
+    {
+        println(e)
+    }
+
+    //Persist the editor guide through the global settings file.
+    val settings = loadSettings().copy(editorGuide = editorGuide)
+    saveSettings(settings)
+
+    println("\n\nEditor guide has been set.")
+}
+
+/**
+ * Load the editor guide by its file name. The file lives under
+ * $HOME/TPipeWriter/<name>-editor-guide.txt. If the file is missing or
+ * empty, this is a no-op (prints a message, returns).
+ */
+fun loadEditorGuide()
+{
+    println("""
+
+        Enter the name of the editor guide you wish to load.
+    """.trimIndent())
+
+    val guideName = readEnhancedInput()
+
+    return try {
+        val guide = readStringFromFile("${getHomeFolder()}/TPipeWriter/${guideName}-editor-guide.txt")
+
+        if (guide.isEmpty())
+        {
+            return
+        }
+
+        //Propagate to in-memory prompt and persist to disk settings.
+        Env.editorPrompt = guide
+
+        Env.activeEditorGuide = guide
+
+        val currentSettings = loadSettings().copy(editorGuide = guide)
+        saveSettings(currentSettings)
+
+        println("\n\nEditor Guide:\n\n${guide}")
+    }
+    catch (e: Exception)
+    {
+        println("Error loading editor guide: ${e.message}")
+    }
+}
+
+
 fun saveRichardTreadwell()
 {
     println("""
@@ -353,6 +433,8 @@ fun saveRichardTreadwell()
 
         Env.richardTreadwell = richardTreadwell
 
+        Env.activeRichardTreadwell = richardTreadwell
+
         /**
          * Could this really save everyone? Was trusting Ben after everything he's done a good idea?
          * I didn't know. I didn't know, but I was out of options.
@@ -396,6 +478,8 @@ fun loadRichardTreadwell()
         settings.competingAuthorGuide = richardTreadwell
 
         Env.richardTreadwell = richardTreadwell
+
+        Env.activeRichardTreadwell = richardTreadwell
 
         /**
          * Could this really save everyone? Was trusting Ben after everything he's done a good idea?
