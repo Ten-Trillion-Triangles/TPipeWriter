@@ -1,0 +1,24 @@
+[main] GenericOpenAIEnv.resolveApiKey(): OK (sk-...moke, 26 chars)
+TPipeWriter Interactive Shell
+Type /help for available commands
+Current mode: Writer
+[Writer]> /budget-info
+PlusWriterPipeline token budget (applied to every pipe):
+  contextWindowSize:  512000 tokens
+  maxTokens (output): 12000 tokens
+  reasoningBudget:    (carved from maxTokens — user said no limit)
+  userPromptSize:     (TPipe default — user said no limit)
+  allowUserPromptTruncation: false
+  compressUserPrompt:         false
+  multiPageBudgetStrategy:    DYNAMIC_SIZE_FILL
+Lorebook scan surface (applied to every pipe):
+  useEntireContextForLoreSelection: true
+    Scans userPrompt + contextElements + converseHistory.text
+    (helper: ContextWindow.buildLorebookScanText(userPrompt, true))
+[Writer]> /write
+[Writer]> A short scene where the wolf visits the village.
+Thinking...
+
+
+[writer] Chapter segment banked into context.
+[Writer]>

@@ -1295,6 +1295,10 @@ fun printBudgetInfo()
             |  allowUserPromptTruncation: ${b.allowUserPromptTruncation}
             |  compressUserPrompt:         ${b.compressUserPrompt}
             |  multiPageBudgetStrategy:    ${b.multiPageBudgetStrategy}
+            |Lorebook scan surface (applied to every pipe):
+            |  useEntireContextForLoreSelection: true
+            |    Scans userPrompt + contextElements + converseHistory.text
+            |    (helper: ContextWindow.buildLorebookScanText(userPrompt, true))
         """.trimMargin()
     )
 }
