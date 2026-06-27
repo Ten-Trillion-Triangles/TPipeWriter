@@ -2,6 +2,7 @@ package Shell
 
 import Builders.buildChapterRewritePipeline
 import Builders.buildExpansionPipeline
+import Builders.plusWriterPipelineBudget
 import Chapter.ChapterManager
 import Globals.Env
 import Globals.ModelConfig
@@ -282,6 +283,7 @@ fun parseInput()
             "guide" -> selectGuideMode()
             "author" -> selectAuthorMode()
             "editor" -> selectEditorMode()
+            "budget-info" -> printBudgetInfo()
             "pitch" -> callPitchSubShell()
             else -> println("Unknown command: $extractedSlashCommand. Type /help for available commands.")
         }
@@ -1262,12 +1264,39 @@ fun printHelp()
         |/guide             - Open the guide settings menu.
         |/author            - Open the author-personality menu (save/load writer guide + Richard Treadwell)
         |/editor            - Open the editor-personality menu (save/load editor guide)
+        |/budget-info       - Print the token budget applied to every writer pipe
         |/help              - Show this help message
         |/exit              - Exit the application
         |
         |You can also enter commands without the slash prefix when in a specific mode.
         |Current mode: ${Env.LoadedState}
     """.trimMargin())
+}
+
+/**
+ * Print the per-pipe token budget applied to every PlusWriterPipeline pipe.
+ *
+ * Reads [Builders.plusWriterPipelineBudget] (the single TokenBudgetSettings
+ * instance applied uniformly to every pipe via the post-init .apply {
+ * getPipes().forEach { it.setTokenBudget(...) } } block at
+ * PlusWriterPipeline.kt). Surfaces the values the user picked in Phase 2
+ * of the TPipeWriter token-budgeting plan so they can verify the wiring.
+ */
+fun printBudgetInfo()
+{
+    val b = plusWriterPipelineBudget
+    println(
+        """
+            |PlusWriterPipeline token budget (applied to every pipe):
+            |  contextWindowSize:  ${b.contextWindowSize} tokens
+            |  maxTokens (output): ${b.maxTokens} tokens
+            |  reasoningBudget:    ${b.reasoningBudget ?: "(carved from maxTokens — user said no limit)"}
+            |  userPromptSize:     ${b.userPromptSize ?: "(TPipe default — user said no limit)"}
+            |  allowUserPromptTruncation: ${b.allowUserPromptTruncation}
+            |  compressUserPrompt:         ${b.compressUserPrompt}
+            |  multiPageBudgetStrategy:    ${b.multiPageBudgetStrategy}
+        """.trimMargin()
+    )
 }
 
 /**
