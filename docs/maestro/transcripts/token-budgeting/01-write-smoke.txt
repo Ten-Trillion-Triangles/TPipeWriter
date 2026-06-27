@@ -1,0 +1,24 @@
+Picked up JAVA_TOOL_OPTIONS: -Djava.awt.headless=true
+TPipeWriter - Initializing...
+[main] API key in env: OK (sk-...test, 33 chars)
+Environment initialized successfully!
+[main] GenericOpenAIEnv.resolveApiKey(): OK (sk-...test, 33 chars)
+TPipeWriter Interactive Shell
+Type /help for available commands
+Current mode: Writer
+[Writer]> /write
+[Writer]> A short scene where the wolf visits the village.
+Thinking...
+
+
+[writer] Chapter segment banked into context.
+[Writer]>
+
+
+
+
+
+
+
+
+
