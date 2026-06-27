@@ -1,0 +1,23 @@
+Picked up JAVA_TOOL_OPTIONS: -Djava.awt.headless=true
+TPipeWriter - Initializing...
+[main] API key in env: OK (sk-...test, 33 chars)
+Environment initialized successfully!
+[main] GenericOpenAIEnv.resolveApiKey(): OK (sk-...test, 33 chars)
+TPipeWriter Interactive Shell
+Type /help for available commands
+Current mode: Writer
+[Writer]> /help
+Available commands:
+        |/tokens            - Enter token counting sub-shell for analysis
+        |/rewrite           - Rewrite existing chapters with lore and style fixes
+        |/style             - Show current writing style
+        |/guide             - Open the guide settings menu.
+        |/author            - Open the author-personality menu (save/load writer guide + Richard Treadwell)
+        |/editor            - Open the editor-personality menu (save/load editor guide)
+        |/budget-info       - Print the token budget applied to every writer pipe
+        |/help              - Show this help message
+        |/exit              - Exit the application
+
+You can also enter commands without the slash prefix when in a specific mode.
+Current mode: Writer
+[Writer]>

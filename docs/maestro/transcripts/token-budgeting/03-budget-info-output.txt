@@ -1,0 +1,10 @@
+[Writer]> /budget-info
+PlusWriterPipeline token budget (applied to every pipe):
+  contextWindowSize:  512000 tokens
+  maxTokens (output): 12000 tokens
+  reasoningBudget:    (carved from maxTokens — user said no limit)
+  userPromptSize:     (TPipe default — user said no limit)
+  allowUserPromptTruncation: false
+  compressUserPrompt:         false
+  multiPageBudgetStrategy:    DYNAMIC_SIZE_FILL
+[Writer]>
