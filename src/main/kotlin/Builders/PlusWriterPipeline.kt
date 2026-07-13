@@ -15,12 +15,15 @@ import Globals.isValidGptOssResponse
 import Globals.recordLoreBook
 import Globals.ModelConfig
 import Shell.loadSettings
+import Structs.LorebookExtraction
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
 import com.TTT.Enums.PromptMode
 import com.TTT.Pipeline.Pipeline
 import com.TTT.Pipe.TokenBudgetSettings
 import com.TTT.Pipe.MultiPageBudgetStrategy
+import com.TTT.Util.extractJson
+import com.TTT.Util.serialize
 import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
 import genericOpenAIPipe.api.ApiMode
 import genericOpenAIPipe.GenericOpenAIPipe
@@ -1461,58 +1464,84 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         }
         .setPipeName("second pass pipe")
 
-    val loreBookPipeSystemPrompt = """You are a lore book assistant. Your job is to look at a user's story
-            |and update their provided lorebook, appending new information to existing entries, and adding new entries
-            |when found. When deciding if a new lore book key must be added at least one of the following conditions
-            |must be true:
+    val loreBookPipeSystemPrompt = """You are a lore book extraction agent. Your job is to look at the user's story
+            |and update their provided lorebook by extracting significant entities into typed JSON.
             |
-            |- The potential key is a new named character that does not exist yet in the lorebook. 
-            |If the character does not have a name they should not be given a lorebook entry.
+            |## ENTITY TYPES
+            |- **characters**: Named persons or significant entities (name, description, aliases, status, lastSeen)
+            |- **events**: Significant occurrences (name, description, participants, location, aliases)
+            |- **locations**: Places, territories, stations, facilities (name, description, controller, aliases)
+            |- **concepts**: Magic systems, world rules, themes, technologies, abilities — anything load-bearing for the story that isn't a character, event, or place (name, description, aliases)
             |
-            |- The potential key is a new place or setting in the story that's relevant to the main plot, or
-            |the characters in the story.
+            |## WHEN TO ADD AN ENTITY
+            |Add a new entry if AT LEAST ONE of these is true:
+            |- It's a new named character that doesn't exist yet in the lorebook. Unnamed characters should not get entries.
+            |- It's a new place or setting relevant to the main plot or characters.
+            |- It's a major event that needs to be remembered.
+            |- It's a concept (magic system, world rule, technology, theme) that has been introduced and defined.
+            |- It's a major revelation, invention, or action that affects the world.
+            |- It's a major discovery that affects the world the characters live in.
             |
-            |- The potential key is a very major event in the plot of the story that needs to be remembered.
+            |## WHEN TO UPDATE AN EXISTING ENTITY
+            |Update an existing entry when:
+            |- The existing entry's name matches a new entity's name (case-insensitive). Add new description text, new aliases, new participants/location/status — don't remove old data.
+            |- A piece of new information entirely contradicts old data: keep both, add a note in the new description that the prior context is contradicted.
             |
-            |- The potential key is a power, ability, deity, or other intangible but highly important trait or
-            |force that a character possesses.
+            |## ALIASES
+            |Generate 3-5 aliases per entity for downstream semantic matching. Include name variations, titles, roles, related keywords.
             |
-            |- The potential key is a major revelation, invention, or action a character takes that affects the
-            |world they live in.
-            |
-            |- The potential key is a major discovery that affects the world the characters live in.
-            |
-            |- The potential key is a thing, concept, creature, object, or other concept that has been introduced by
-            |either the narrator of the story, or one of the characters and has been defined explaining what it is.
-            |
-            |When updating existing lorebook keys. Create new text that should be appended to the original, rather than
-            |entirely rewriting the original key. If a new piece of context entirely contradicts and old one, make
-            |a note of it in the new context you generate to append to it.
+            |## OUTPUT
+            |Output ONLY the typed JSON. No prose before or after. The existing lorebook will be provided in your prompt under the 'existingLorebook' key — use it to decide add vs update vs skip.
         """.trimMargin()
 
-    val blankLoreBookExample = ContextWindow()
+    val blankLoreBookExample = LorebookExtraction()
+
+    val branchLoreBookPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
+        .setTemperature(0.4)
+        .setTopP(0.7)
+        .setMaxTokens(20000)
+        .requireJsonPromptInjection()
+        .setJsonOutput(LorebookExtraction())
+        .setPipeName("lorebook extraction branch pipe")
+        .setSystemPrompt("Output ONLY valid JSON. No commentary. No prose. Schema: LorebookExtraction with characters, events, locations, concepts.")
+        .setFooterPrompt("JSON ONLY.")
+        .setOnFailure { _, processed ->
+            processed.text = serialize(LorebookExtraction())
+            processed
+        }
 
     val loreBookPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .requireJsonPromptInjection()
-        .setModel(gptOss120bModelName)
-        .setPromptMode(PromptMode.singlePrompt)
-        .setTemperature(0.5)
-        .setTopP(.5)
+        .setTemperature(0.8)
+        .setTopP(0.7)
         .setMaxTokens(20000)
         .truncateModuleContext()
-        .updatePipelineContextOnExit()
-        .enableAppendLoreBookScheme()
+        .requireJsonPromptInjection()
         .setJsonOutput(blankLoreBookExample)
         .setSystemPrompt(loreBookPipeSystemPrompt)
-        .autoInjectContext("The following json schema will be used to supply context for the story. " +
-                "The context will be provided in the user's prompt. Use it to assist in deciding how to generate " +
-                "lorebook keys and values. MULTIPLY THE WEIGHTS OF ALL LOREBOOK ENTRIES BY 10. THERE SHOULD BE NO NUMBERS LESS THAN 1.")
+        .autoInjectContext("You will be provided with the existing lorebook as a JSON object under the 'existingLorebook' key in the user prompt. Use it to decide whether each new entity is genuinely new, an update to an existing entry, or a duplicate to skip.")
         .setContextWindowSize(512000)
+        .setPreInvokeFunction { content ->
+            val existing = ContextBank.getContextFromBank("main").loreBookKeys
+            content.text = "existingLorebook: ${serialize(existing)}\n\n${content.text}"
+            true
+        }
+        .setValidatorFunction { content ->
+            extractJson<LorebookExtraction>(content.text) != null
+        }
+        .setBranchPipe(branchLoreBookPipe)
         .setTransformationFunction(::recordLoreBook)
+        .setOnFailure { _, processed ->
+            processed.text = serialize(LorebookExtraction())
+            processed
+        }
         .setPipeName("Lorebook pipe")
 
 
@@ -1536,14 +1565,14 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
         .add(removeBadWritingStepOnePipe)
         .add(removeBadWritingStepTwoPipe)
         .add(dummyPipe)
-        //.add(benignSkiesMyDialoguePipe)
-        //.add(certifyMyDialoguePipe)
-        //.add(polishMyDialoguePipe)
-        //.add(unmessupendingPipe)
+        .add(benignSkiesMyDialoguePipe)
+        .add(certifyMyDialoguePipe)
+        .add(polishMyDialoguePipe)
+        .add(unmessupendingPipe)
         .add(tweaksAroundTheEdgesPipe)
         //.add(applyFetishPipe)
         .add(secondPassPipe)
-        //.add(loreBookPipe)
+        .add(loreBookPipe)
 
     runBlocking {
         plusWriterPipeline.init(true)

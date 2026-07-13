@@ -11,7 +11,9 @@ import Defaults.reasoning.ReasoningInjector
 import Defaults.reasoning.ReasoningMethod
 import Defaults.reasoning.ReasoningSettings
 import Shell.CommandState
+import Structs.LorebookExtraction
 import Structs.ModelSettings
+import Structs.applyExtractionToBank
 import Util.cleanJsonString
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
@@ -759,44 +761,27 @@ suspend fun transformWriter(content: MultimodalContent) : MultimodalContent
 
 /**
  * Transformation function to record and update lorebook context.
+ *
+ * Parses the LLM output as a typed LorebookExtraction, merges each entity
+ * against the existing "main" banked lorebook via the typed merge helpers
+ * in Structs.LorebookExtraction, and writes the result back to the bank.
+ *
+ * Bad-JSON handling is upstream: the pipe's setValidatorFunction gates
+ * execution, the branch pipe retries, and setOnFailure synthesizes an empty
+ * LorebookExtraction() on total failure. This function therefore assumes
+ * the content.text is already valid LorebookExtraction JSON; the extractJson
+ * call is a defensive parse that falls back to an empty extraction if the
+ * contract is somehow violated.
  */
 suspend fun recordLoreBook(content: MultimodalContent) : MultimodalContent
 {
+    val extraction = extractJson<LorebookExtraction>(content.text) ?: LorebookExtraction()
 
-    /**
-     * bug: There's quite a few issues here:
-     *
-     * 1. The llm keeps adding _ instead of spacing
-     * 2. We aren't using the add lorebook function so it's not addressing with casing issues. This means
-     * we'll almost never have a hit.
-     */
+    val bankedContext = ContextBank.getContextFromBank("main")
+    applyExtractionToBank(extraction, bankedContext)
 
-    //Create new context window to prepare to merge it with our global context.
-    var newLoreBookEntries = extractJson<ContextWindow>(content.text)
-    newLoreBookEntries?.contextElements?.clear() //Stop deepseek from writing to this for some reason.
-
-    if(newLoreBookEntries == null)
-    {
-        newLoreBookEntries = repairAndDeserialize<ContextWindow>(content.text)
-        if(newLoreBookEntries == null)
-        {
-            throw Exception("Cannot deserialize deepseek jank ass json: ${content.text}")
-        }
-    }
-    
-    //Fix nonsense like _ being here and missing casing issues.
-    newLoreBookEntries.cleanLorebook("_", " ")
-
-    //Merge in new keys that do not exist yet.
-    var bankedContext = ContextBank.getContextFromBank("main")
-    bankedContext.merge(newLoreBookEntries,
-        content.currentPipe?.getLorebookScheme()!!.second,
-        content.currentPipe?.getLorebookScheme()!!.first)
-
-    //Update the banked context.
     content.context = bankedContext
     ContextBank.emplaceWithMutex("main", content.context)
-
 
     return content
 }
