@@ -99,10 +99,6 @@ val plusWriterPipelineBudget: TokenBudgetSettings = TokenBudgetSettings(
 
 fun buildPlusWriterPipeline() : Pipeline
 {
-    val novaProModelName = "amazon.nova-pro-v1:0"
-    val gptOssModelName = "openai.gpt-oss-20b-1:0" //us-west-2
-    val gptOss120bModelName = "openai.gpt-oss-120b-1:0"
-
     //us-east-2
     val llamaMaverick = "us.meta.llama4-maverick-17b-instruct-v1:0"
     val llama70B = "us.meta.llama3-3-70b-instruct-v1:0"
