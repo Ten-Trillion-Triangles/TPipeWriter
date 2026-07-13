@@ -1,6 +1,10 @@
 package Structs
 
+import com.TTT.Context.ContextWindow
+import com.TTT.Util.deserialize
+import com.TTT.Util.serialize
 import org.junit.jupiter.api.Assertions.assertEquals
+import org.junit.jupiter.api.Assertions.assertNotNull
 import org.junit.jupiter.api.Assertions.assertTrue
 import org.junit.jupiter.api.Test
 
@@ -116,5 +120,49 @@ class LorebookExtractionMergeTest
         val merged = mergeCharacterEntry(null, newEntry)
 
         assertEquals(newEntry, merged)
+    }
+
+    @Test
+    fun `applyExtractionToBank appends new entries and merges existing by name`() {
+        val bank = ContextWindow()
+        bank.addLoreBookEntry(
+            key = "Shepard",
+            value = serialize(CharacterEntry(name = "Shepard", description = "Alliance commander.")),
+            aliasKeys = listOf("Commander")
+        )
+
+        val extraction = LorebookExtraction(
+            characters = listOf(
+                CharacterEntry(name = "Shepard", description = "Defeats the Reapers.", aliases = listOf("Shep")),
+                CharacterEntry(name = "Garrus", description = "Turian sniper.", aliases = listOf("Archangel"))
+            ),
+            events = listOf(
+                EventEntry(name = "Battle of Omega", description = "Cerberus retreats.", participants = listOf("Shepard", "Miranda"))
+            )
+        )
+
+        val merged = applyExtractionToBank(extraction, bank)
+
+        val shepard = merged.findLoreBookEntry("Shepard")
+        assertNotNull(shepard)
+        val shepardRaw = deserialize<CharacterEntry>(shepard!!.value)
+        assertNotNull(shepardRaw)
+        val shepardEntry = shepardRaw!!
+        assertTrue(shepardEntry.description.contains("Alliance commander"))
+        assertTrue(shepardEntry.description.contains("Defeats the Reapers"))
+
+        val garrus = merged.findLoreBookEntry("Garrus")
+        assertNotNull(garrus)
+        val garrusRaw = deserialize<CharacterEntry>(garrus!!.value)
+        assertNotNull(garrusRaw)
+        val garrusEntry = garrusRaw!!
+        assertEquals("Turian sniper.", garrusEntry.description)
+
+        val battle = merged.findLoreBookEntry("Battle of Omega")
+        assertNotNull(battle)
+        val battleRaw = deserialize<EventEntry>(battle!!.value)
+        assertNotNull(battleRaw)
+        val battleEntry = battleRaw!!
+        assertTrue(battleEntry.description.contains("Cerberus retreats"))
     }
 }

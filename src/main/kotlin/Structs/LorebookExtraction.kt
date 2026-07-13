@@ -1,5 +1,8 @@
 package Structs
 
+import com.TTT.Context.ContextWindow
+import com.TTT.Util.deserialize
+import com.TTT.Util.serialize
 import kotlinx.serialization.Serializable
 
 /**
@@ -153,4 +156,63 @@ fun mergeConceptEntry(existing: ConceptEntry?, new: ConceptEntry): ConceptEntry
         description = if (new.description.isNotBlank()) "${existing.description}\n${new.description}" else existing.description,
         aliases = (existing.aliases + new.aliases).distinct()
     )
+}
+
+/**
+ * Apply a typed extraction to an existing banked ContextWindow.
+ *
+ * For each entity in the extraction, look up the existing lorebook entry by
+ * name, deserialize the banked value as the typed struct, run the typed merge
+ * function, and re-add via [ContextWindow.addLoreBookEntry]. Entries that
+ * don't exist yet are added fresh. Aliases are populated from the merged
+ * entity so downstream [ContextWindow.findLoreBookEntry] matches against
+ * LLM-emitted aliases.
+ *
+ * @param extraction Typed extraction produced by the loreBookPipe LLM call.
+ * @param bank Existing banked ContextWindow (e.g. ContextBank.getContextFromBank("main")).
+ * @return The same ContextWindow reference, mutated in place. Caller is responsible for emplaceWithMutex.
+ */
+fun applyExtractionToBank(extraction: LorebookExtraction, bank: ContextWindow): ContextWindow
+{
+    extraction.characters.forEach { entry ->
+        val existing = bank.findLoreBookEntry(entry.name)
+        val merged = mergeCharacterEntry(existing?.value?.let { deserialize<CharacterEntry>(it) }, entry)
+        bank.addLoreBookEntry(
+            key = merged.name,
+            value = serialize(merged),
+            aliasKeys = merged.aliases
+        )
+    }
+
+    extraction.events.forEach { entry ->
+        val existing = bank.findLoreBookEntry(entry.name)
+        val merged = mergeEventEntry(existing?.value?.let { deserialize<EventEntry>(it) }, entry)
+        bank.addLoreBookEntry(
+            key = merged.name,
+            value = serialize(merged),
+            aliasKeys = merged.aliases
+        )
+    }
+
+    extraction.locations.forEach { entry ->
+        val existing = bank.findLoreBookEntry(entry.name)
+        val merged = mergeLocationEntry(existing?.value?.let { deserialize<LocationEntry>(it) }, entry)
+        bank.addLoreBookEntry(
+            key = merged.name,
+            value = serialize(merged),
+            aliasKeys = merged.aliases
+        )
+    }
+
+    extraction.concepts.forEach { entry ->
+        val existing = bank.findLoreBookEntry(entry.name)
+        val merged = mergeConceptEntry(existing?.value?.let { deserialize<ConceptEntry>(it) }, entry)
+        bank.addLoreBookEntry(
+            key = merged.name,
+            value = serialize(merged),
+            aliasKeys = merged.aliases
+        )
+    }
+
+    return bank
 }
