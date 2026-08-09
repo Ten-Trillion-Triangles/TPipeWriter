@@ -661,52 +661,56 @@ val expansionPipeline = Pipeline()
         .applySystemPrompt()
         .setPreValidationMiniBankFunction(::copyLorebookFromMain)
         //.setReasoningPipe(authorBuilder(Env.editorPrompt))
-        .setSystemPrompt("""Looking at new page, find all instances of dialogue. 
+        .setSystemPrompt("""Looking at new page, find all instances of dialogue.
             |You must extend the character's dialogue by adding in additional exposition
-            |and interesting character moments that are in line with the character's proscribed personality. 
+            |and interesting character moments that are in line with the character's proscribed personality.
             |Make sure
-            |you pay attention to the user prompt as well, 
+            |you pay attention to the user prompt as well,
             |and check the lorebook to make sure your stuff complies with the established canon.
-            |Lengthen dialogue by incorporating new ideas through the use of the following 
+            |Lengthen dialogue by incorporating new ideas through the use of the following
             |dialogue structures (use as many as you feel are
             |necessary: you should mix and match):
-            |1. Long, winding sentences with nested clauses and polysyndeton (chains of “and”) 
+            |1. Long, winding sentences with nested clauses and polysyndeton (chains of "and")
             |that build pressure.
             |2. Repetition/anaphora for emphasis.
-            |3. Characters explain the plot out loud (who died, who’s guilty, stakes, rules)
+            |3. Characters explain the plot out loud (who died, who's guilty, stakes, rules)
             |4. Coercive binaries and scripted compliance tests.
             |5. Mixture of legal/official register
             |with melodramatic stakes.
             |6. Group scenes become ritual quizzes: repeated ice-breakers, factual one-upmanship, nicknaming.
             |7. Paragraph-length turns; occasional mono-block spiels that read like monologues.
             |
-            |Use any of the following methods to enforce the desired vibe of the scene 
+            |Use any of the following methods to enforce the desired vibe of the scene
             |(mix and match for best effect):
-            |1. Authority vs. panic: officials speak in clipped bureaucratic tones while saying 
+            |1. Authority vs. panic: officials speak in clipped bureaucratic tones while saying
             |apocalyptic things; civilians oscillate between blank denial and sudden confession.
-            |2. Formal vocatives: frequent use of names/titles (“Mr Slater,” “Officer O’Brien”).
+            |2. Formal vocatives: frequent use of names/titles ("Mr Slater," "Officer O'Brien").
             |3. Deadpan menace: calm assurances paired with threats.
             |
-            |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story. 
-            |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material (there should be MORE).
-            |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
-            |NO TEXT CAN BE DELETED: ONLY ADDED.
-            |###WARNING: ABSOLUTELY DO NOT INCLUDE THE LIST OF YOUR CHANGES IN THE OUTPUT. 
-            |THE FINAL OUTPUT MUST BE ONLY THE FULLY MODIFIED PAGE.
+            |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story.
+            |
+            |For each dialogue improvement, emit a JSON SurgicalChangeList entry:
+            |  - subStringToChange: the verbatim existing dialogue passage (with enough context to uniquely identify it)
+            |  - replacementSubString: the extended dialogue
+            |  - mode: "replace" (substitute the passage) or "insertAfter" (add new dialogue after the existing passage)
+            |
+            |###RULES: NO TEXT CAN BE DELETED. Use mode "replace" or "insertAfter" only. The page text is the
+            |existing dialogue; your surgical patches refine it; you do not rewrite the page from scratch.
+            |###OUTPUT: Output ONLY the JSON. Do not output the modified page.
         """.trimMargin())
-        .setFooterPrompt("""Using the page you are going to fix as context, rewrite the page making only the ADDITIONS you
-            |have deemed valuable. Ensure that you follow
-            |all of the above rules. Do not truncate the text: there must be at least as many paragraphs and at least
-            |as many sentences in your output as there were in the provided material (there should be MORE).
-            |###IMPORTANT: DO NOT INCLUDE THE LIST OF YOUR CHANGES IN YOUR OUTPUT. THE OUTPUT MUST BE ONLY THE 
-            |FULLY MODIFIED PAGE.
-            |###WARNING: Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD CONTENT TO THE END OF THE PAGE.
-        """.trimMargin())
-        .setTransformationFunction(::recordWritingPipePage)
+        .setFooterPrompt("""Output only the JSON list of surgical patches. Do not output the modified page.
+            |###IMPORTANT: DO NOT DELETE dialogue. Use mode 'replace' or 'insertAfter' only.""")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .applySystemPrompt()
         .setPipeName("certify my dialogue pipe")
-        .autoInjectContext("New Page is the page of text you must work on.")
+        .autoInjectContext("New Page is the page of text you must work on. Emit a JSON SurgicalChangeList with one entry per dialogue improvement. Each entry's subStringToChange is the verbatim existing passage (with surrounding context to uniquely identify it); replacementSubString is the improved dialogue that should replace it; mode is 'replace' (substitute the passage) or 'insertAfter' (add new dialogue after the existing passage without modifying it). DO NOT DELETE dialogue. DO NOT add stage directions or body-text paragraphs. Each entry must have a verbatim subStringToChange.")
+
 
     val removeBadWritingStepOnePipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
