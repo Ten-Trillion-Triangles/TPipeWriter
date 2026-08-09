@@ -11,6 +11,8 @@ import Builders.Util.validateRewriteStyleActionsCheck
 import Globals.genericBranchFunction
 import Globals.isValidGptOssResponse
 import com.TTT.Enums.ContextWindowSettings
+import com.TTT.Pipe.MultiPageBudgetStrategy
+import com.TTT.Pipe.TokenBudgetSettings
 import com.TTT.Pipeline.Pipeline
 import com.TTT.Util.exampleFor
 import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
@@ -36,6 +38,27 @@ data class RewriteStyleActions(
 @kotlinx.serialization.Serializable
 data class RewriteActions(var changesToMake: Map<String, String>,
     var userRequest: String = "")
+
+
+
+/**
+ * Per-pipe token budget applied to every pipe in ChapterRewritePipeline.
+ *
+ * Mirrors plusWriterPipelineBudget (PlusWriterPipeline.kt:87-97). Same
+ * MiniMax-M3 512k context window, 12k output cap, no reasoning carve-out,
+ * user prompt preserved untouched, DYNAMIC_SIZE_FILL multi-page strategy.
+ */
+val chapterRewritePipelineBudget: TokenBudgetSettings = TokenBudgetSettings(
+    contextWindowSize = 512_000,
+    maxTokens = 12_000,
+    reasoningBudget = null,
+    userPromptSize = null,
+    allowUserPromptTruncation = false,
+    compressUserPrompt = false,
+    truncateContextWindowAsString = false,
+    preserveTextMatches = true,
+    multiPageBudgetStrategy = MultiPageBudgetStrategy.DYNAMIC_SIZE_FILL
+)
 
 
 
@@ -382,5 +405,11 @@ fun buildChapterRewritePipeline(
 
     runBlocking { rewritePipeline.init(true) }
 
-    return rewritePipeline
+    return rewritePipeline.apply {
+        getPipes().forEach {
+            it.useEntireContextForLoreSelection()
+            it.setTokenBudget(chapterRewritePipelineBudget)
+            it.enableComprehensiveTokenTracking()
+        }
+    }
 }
