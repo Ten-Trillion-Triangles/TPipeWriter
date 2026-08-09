@@ -3,6 +3,7 @@ package Builders
 import Builders.Util.chapterPreValidate
 import Builders.Util.applySurgicalReplacementsAndBank
 import Builders.Util.copyLorebookFromMain
+import Builders.Util.logicalProgressionPreValidationMiniBank
 import Builders.Util.preInvokeLoreRepairPipe
 import Builders.Util.preInvokeShunt
 import Builders.Util.recordAuthorPlan
@@ -1048,6 +1049,119 @@ val expansionPipeline = Pipeline()
         .setPipeName("lore repair pipe")
 
 
+    // Surgically checks for logical progression issues in the rewritten chapter:
+    //   1. Unexplained time-skips
+    //   2. Unexplained jumps in location
+    //   3. Pages that open as though they're the first page of a new chapter
+    // PlusWriter port: PlusWriterPipeline.kt:808-873.
+    val logicalProgressionPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
+        .requireJsonPromptInjection()
+        .truncateModuleContext()
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(.8)
+        .setTopP(.8)
+        .applySystemPrompt()
+        .autoInjectContext("###CONTEXT: \"story guide\" is the outline for the story" +
+                "as a whole. \"chapter guide\" is the outline for the current chapter. \"user prompt\"" +
+                "is the current instructions from the user. \"last page\" is the previous page of the chapter/story.")
+        .pullGlobalContext()
+        .setPageKey("new page, story guide, chapter guide, user prompt")
+        .setSystemPrompt("""You are now reviewing the rewritten chapter under the "new page" key to determine whether
+            |or not it advances the story and has progressed logically since the previous page. Carefully check
+            |against the "story guide" and "chapter guide" to ensure that the rewritten chapter progresses the story
+            |towards its next stage and conclusion, and to ensure that the content itself actually makes sense
+            |from a human-readable point of view, including making sure written dialogue is written in the way
+            |humans normally write dialogue (unless not talking like a human is a feature of a specific character).
+            |Carefully check against "last page" to make sure that the content logically follows from and is easy
+            |to read immediately after the previous page.
+            |
+            |NOTABLE TYPES OF ILLOGICAL PROGRESSION:
+            |1. Unexplained time-skips (if we are all of a sudden at a different time of day, that needs to be
+            |   either eliminated or explained)
+            |2. Unexplained jumps in location (if the character is inexplicably in an entirely different location,
+            |   we need to be told how they got there: for example, on a bus when they were in their apartment on
+            |   the last page, their transit from their living quarters to the bus needs to be demonstrated)
+            |3. Pages that open as though they're the first page of a new chapter rather than a page that follows
+            |   from the previous existing page.
+            |
+            |NOTABLE TYPES OF ILLOGICAL WRITING:
+            |1. If something has serious ambiguity problems, it should be corrected to eliminate them.
+            |
+            |Emit a JSON SurgicalChangeList. For each issue you find, emit one entry. subStringToChange must
+            |be a VERBATIM, CHARACTER-EXACT copy of the bad text in the "new page" (include enough
+            |surrounding context -- a sentence or two -- to uniquely identify the passage). replacementSubString
+            |is the corrected text. mode is "replace" (correct the text), "delete" (remove the passage), or
+            |"insertAfter" (add a clarifying sentence after an existing anchor -- use this for additions
+            |rather than replacements, so you don't accidentally lose text).
+            |
+            |If the chapter progresses logically, emit {"changeList": []}.
+            |
+            |Output ONLY the JSON. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+        """.trimMargin())
+        .setJsonOutput(SurgicalChangeList())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setPreValidationMiniBankFunction(::logicalProgressionPreValidationMiniBank)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .setPipeName("logical progression pipe")
+
+    // Applies the surgical changes emitted by logicalProgressionPipe.
+    // PlusWriter port: PlusWriterPipeline.kt:880-942.
+    val logicalCorrectionPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .requireJsonPromptInjection()
+        .setJsonInput(SurgicalChangeList())
+        .setPreInvokeFunction(::preInvokeLoreRepairPipe)
+        .setPreValidationMiniBankFunction(::chapterPreValidate)
+        .pullGlobalContext()
+        .setPageKey("new page")
+        .setTemperature(0.8)
+        .setTopP(.8)
+        .applySystemPrompt()
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setSystemPrompt("""You received a JSON SurgicalChangeList as input (the logical-progression issues
+            |identified by the previous pipe). Your job is to confirm and refine those surgical changes.
+            |Apply the changeList entries to the rewritten chapter text under the "new page" key.
+            |
+            |Output ONLY the JSON list. Do not output the rewritten chapter. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .setPipeName("logical correction pipe")
+
+
     val styleReapplyPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
@@ -1103,6 +1217,8 @@ val expansionPipeline = Pipeline()
         .add(noParallelNegationPipe)
         .add(loreCheckPipe)
         .add(loreRepairPipe)
+        .add(logicalProgressionPipe)
+        .add(logicalCorrectionPipe)
         .add(styleReapplyPipe)
 
     runBlocking {
