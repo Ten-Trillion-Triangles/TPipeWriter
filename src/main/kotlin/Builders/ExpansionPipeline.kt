@@ -3,6 +3,7 @@ package Builders
 import Builders.Util.chapterPreValidate
 import Builders.Util.applySurgicalReplacementsAndBank
 import Builders.Util.copyLorebookFromMain
+import Builders.Util.preInvokeLoreRepairPipe
 import Builders.Util.preInvokeShunt
 import Builders.Util.recordAuthorPlan
 import Builders.Util.recordWritingPipePage
@@ -946,6 +947,107 @@ val expansionPipeline = Pipeline()
         .setPipeName("no parallel negation pipe")
 
 
+    // Surgically checks the rewritten chapter for lorebook conformance.
+    // PlusWriter port: PlusWriterPipeline.kt:706-757.
+    val loreCheckPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
+        .setContextWindowSize(120000)
+        .setMaxTokens(20000)
+        .setTopP(.8)
+        .setTemperature(.8)
+        .truncateModuleContext()
+        .pullGlobalContext()
+        .setPageKey("new page, main, user prompt")
+        .setPreValidationMiniBankFunction(::copyLorebookFromMain)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setSystemPrompt("""You are now reviewing the rewritten chapter under the "new page" key to make sure
+            |that what has been written conforms to the existing world building. You are attempting, and desire
+            |at all costs, to avoid plot holes.
+            |
+            |HOWEVER: if something appears in the text that isn't in the lorebook, so long as it doesn't
+            |contradict anything in the lorebook, it is NOT an error and should not be removed! Likewise,
+            |if something is NOT mentioned in the text that has an associated lorebook key, its absence is
+            |NOT a lore error and should not be added in!
+            |
+            |The "main" key contains the lorebook with all world building, characters, events, and other
+            |important notes so far. The "user prompt" key contains the editor's request for changes to
+            |the page.
+            |
+            |Emit a JSON SurgicalChangeList. For each lore issue you find, emit one entry. subStringToChange
+            |must be a VERBATIM, CHARACTER-EXACT copy of the bad text in the "new page" (include enough
+            |surrounding context -- a sentence or two -- to uniquely identify the passage). replacementSubString
+            |is the corrected text. mode is "replace" (correct the text) or "delete" (remove the passage).
+            |
+            |If the chapter conforms to the lore, emit {"changeList": []}.
+            |
+            |Output ONLY the JSON. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+        """.trimMargin())
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .setPipeName("lore check pipe")
+
+    // Verifies and refines the loreCheckPipe's surgical changes.
+    // PlusWriter port: PlusWriterPipeline.kt:758-802.
+    val loreRepairPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setJsonInput(SurgicalChangeList())
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .truncateModuleContext()
+        .pullGlobalContext()
+        .setPageKey("new page, main, user prompt")
+        .setTemperature(.9)
+        .setTopP(.8)
+        .setPreInvokeFunction(::preInvokeLoreRepairPipe)
+        .setJsonOutput(SurgicalChangeList())
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setSystemPrompt("""You received a JSON SurgicalChangeList as input (the lore issues identified by the
+            |previous pipe). Your job is to confirm and refine those surgical changes. Look at each entry in
+            |the changeList:
+            |- Verify that subStringToChange is still a verbatim match in the "new page" (if the LLM that
+            |  generated the judge's output was sloppy, the find may not match).
+            |- Refine the replacementSubString to make the corrected text fit naturally with the surrounding prose.
+            |- If the entry is no longer relevant (the issue was already fixed, or the context changed), drop it.
+            |
+            |Then, if you find ADDITIONAL lore issues that the judge missed, add them as new entries.
+            |
+            |Output a JSON SurgicalChangeList with the verified and refined changes (and any additions).
+            |Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .setPipeName("lore repair pipe")
+
+
     val styleReapplyPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
@@ -999,6 +1101,8 @@ val expansionPipeline = Pipeline()
         .add(removeBadWritingStepTwoPipe)
         .add(untwistPipe)
         .add(noParallelNegationPipe)
+        .add(loreCheckPipe)
+        .add(loreRepairPipe)
         .add(styleReapplyPipe)
 
     runBlocking {
