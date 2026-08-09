@@ -1,5 +1,6 @@
 package Builders
 
+import Builders.Util.applySurgicalReplacementsAndBank
 import Builders.Util.copyLorebookFromMain
 import Builders.Util.recordAuthorPlan
 import Builders.Util.recordWritingPipePage
@@ -8,6 +9,7 @@ import Globals.ModelConfig
 import Shell.loadSettings
 import com.TTT.Debug.TraceStreamMerger
 import com.TTT.Pipe.MultiPageBudgetStrategy
+import com.TTT.Context.ContextBank
 import com.TTT.Pipe.MultimodalContent
 import com.TTT.Pipe.TokenBudgetSettings
 import com.TTT.Pipeline.Connector
@@ -160,18 +162,17 @@ val dialogueConnectorBudget: TokenBudgetSettings = TokenBudgetSettings(
             |###WARNING: ABSOLUTELY DO NOT INCLUDE THE LIST OF YOUR CHANGES IN THE OUTPUT. 
             |THE FINAL OUTPUT MUST BE ONLY THE FULLY MODIFIED PAGE.
         """.trimMargin())
-        .setFooterPrompt("""Using the page you are going to fix as context, rewrite the page making only the ADDITIONS you
-            |have deemed valuable. Ensure that you follow
-            |all of the above rules. Do not truncate the text: there must be at least as many paragraphs and at least
-            |as many sentences in your output as there were in the provided material (there should be MORE).
-            |###IMPORTANT: DO NOT INCLUDE THE LIST OF YOUR CHANGES IN YOUR OUTPUT. THE OUTPUT MUST BE ONLY THE 
-            |FULLY MODIFIED PAGE.
-            |###WARNING: Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD BODY TEXT TO THE PAGE.
-        """.trimMargin())
-        .setTransformationFunction(::recordWritingPipePage)
+        .setFooterPrompt("""Output only the JSON list of surgical patches. Do not output the modified page. Do not add commentary.""")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .applySystemPrompt()
         .setPipeName("benign skies my dialogue pipe")
-        .autoInjectContext("New Page is the page of text you must work on.")
+        .autoInjectContext("New Page is the page of text you must work on. Emit a JSON SurgicalChangeList with one entry per dialogue improvement. Each entry's subStringToChange is the verbatim existing passage (with surrounding context to uniquely identify it); replacementSubString is the improved dialogue that should replace it; mode is 'replace' (substitute the passage) or 'insertAfter' (add new dialogue after the existing passage without modifying it). DO NOT DELETE dialogue. DO NOT add stage directions or body-text paragraphs. Each entry must have a verbatim subStringToChange.")
 
 
     val polishMyDialoguePipe = GenericOpenAIPipe()
