@@ -364,31 +364,36 @@ val expansionPipeline = Pipeline()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
-        .setTransformationFunction(::secondPassTransform)
         .setPageKey("user prompt, new page")
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setJsonOutput(SurgicalChangeList())
         //.setReasoningPipe(authorBuilder(Env.editorPrompt).apply { setReasoningPipe(authorBuilder(Env.authorPrompt)).apply {setReasoningPipe(authorBuilder(Env.editorPrompt))} })
         .setSystemPrompt("""${Env.richardTreadwell} and ${Env.editorPrompt}. Using these character personalities,
             |review the written page. Find broad, sweeping changes that can be made to improve it.
-            |Then, as ${Env.authorPrompt}, you must make an apeshit number changes to deliver the optimal version of this page. 
-            |Make sure you maintain consistency with the user prompt, however: 
+            |Then, as ${Env.authorPrompt}, you must make an apeshit number of changes to deliver the optimal version of this page.
+            |Make sure you maintain consistency with the user prompt, however:
             |it is very important you satisfy the user's request at the end of your work.
-            |MAKE AS MANY CHANGES POSSIBLE. Also, DO NOT TOUCH THE DIALOGUE (unless you deem the dialogue to be not human
-            |readable, in which case, fix it to be as such). 
-            |DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. Finally, DO NOT TRUNCATE THE TEXT. There must be MORE paragraphs and 
-            |MORE sentences in your output as there were in the input material.
+            |MAKE AS MANY SURGICAL CHANGES AS POSSIBLE. Also, DO NOT TOUCH THE DIALOGUE (unless you deem the dialogue to be not human
+            |readable, in which case, fix it to be as such).
+            |
+            |Emit a JSON SurgicalChangeList with one entry per improvement:
+            |  - subStringToChange: the verbatim passage to improve (with enough surrounding context to uniquely identify it)
+            |  - replacementSubString: the improved version
+            |  - mode: "replace" (default) or "delete"
+            |
+            |Output ONLY the JSON. Do not output the rewritten page.
         """.trimMargin())
-        .setFooterPrompt("""Using the page you are going to fix as context, and the instructions for the changes
-            |you need to make, rewrite the page making only the changes you have been instructed to make and following
-            |all of the above rules. 
-            ###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE.
-            ###WARNING: DO NOT TRUNCATE THE TEXT. There must be MORE paragraphs and MORE
-            |sentences in your output than there were in the provided material.
-            """)
+        .setFooterPrompt("""Output only the JSON list of surgical patches. Do not output the rewritten page.
+            ###IMPORTANT: DO NOT include prose outside the JSON list.
+            ###WARNING: Each entry's replacementSubString must contain the actual refined text."""")
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("final edit pipe")
 
-    //the following pipes will attempt to clean up common AI writing practices, as well as fix any lingering style problems.
+
     val cleanupStepOnePipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
