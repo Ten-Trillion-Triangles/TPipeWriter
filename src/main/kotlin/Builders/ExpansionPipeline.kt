@@ -262,32 +262,39 @@ val expansionPipeline = Pipeline()
             .setContextWindowSize(120000)
             .truncateModuleContext()
             .setMaxTokens(32000)
-            .requireJsonPromptInjection()
-            .setJsonInput(RequestList())
-            .setTransformationFunction(::recordWritingPipePage)
+            .requireJsonPromptInjection(stripExternalText = true)
+            .setJsonInput(SurgicalChangeList())
+            .setJsonOutput(SurgicalChangeList())
+            .setTransformationFunction(::applySurgicalReplacementsAndBank)
             .setReasoningPipe(explicitCotBuilder().apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) })
             .autoInjectContext("The following is the context for the story you've written so far. First is " +
                     "\"new page\", which was the page you wrote prior that you now need to edit. The second is " +
                     "\"main\", which is the current story you've written prior to your latest page. Third is " +
                     "\"user prompt\", which is the request your editor has made to you regarding changes they want you" +
                     "to make. ")
-            .setSystemPrompt("""${settings.writingStyle} As you have completed the list of changes that need to be made
+            .setSystemPrompt("""${settings.writingStyle} As you have completed the list of surgical changes that need to be made
             |to "new page" in order to improve it to make it as coherent, logical and problem free as it can be,
-            |you must now execute on that list. By making extremely aggressive, broad sweeping changes, and going absolutely
-            |apeshit on the amount of text you add, no-self-control levels of additions, implement all changes
-            |that were requested of you. BE CREATIVE WITH YOUR FIXES: you CAN do MORE than you were asked to do!
-            |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material.
-            |###WARNING: DO NOT MODIFY THE CONTENT BEYOND THE LISTED CORRECTIONS.""")
-            .setFooterPrompt("""Using the page you are going to fix as context, and the instructions for the changes
-            |you need to make, rewrite the page making only the changes you have been instructed to make and following
-            |all of the above rules. 
-            ###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE.
-            ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material.
-            """)
+            |you must now verify and refine those surgical changes before applying them. By making extremely aggressive,
+            |broad sweeping changes, and going absolutely apeshit on the amount of text you add, no-self-control levels
+            |of additions, refine all changes that were requested of you. BE CREATIVE WITH YOUR FIXES: you CAN do MORE
+            |than you were asked to do!
+            |For each entry in the input changeList:
+            |  - Verify subStringToChange is a verbatim match in the new page text. If it's not, drop or fix the entry.
+            |  - Refine replacementSubString to make the corrected text fit naturally with the surrounding prose.
+            |  - Add additional changes the previous pipe missed (lore / tone / logic issues).
+            |Output a JSON SurgicalChangeList back (echoing the verified-and-refined entries, with any that could
+            |not be applied dropped). Each entry has subStringToChange, replacementSubString, mode.
+            |###IMPORTANT: DO NOT TRUNCATE THE TEXT. Each replacementSubString must contain the actual prose.
+            |###WARNING: DO NOT MODIFY THE CONTENT BEYOND THE LISTED CORRECTIONS."""")
+            .setFooterPrompt("""Output only the JSON list of surgical patches. Do not output the rewritten page.
+            |###IMPORTANT: ONLY RETURN JSON.
+            |###WARNING: For each entry, replacementSubString must contain the actual refined body text."""")
+            .setOnFailure { _, processed ->
+                processed.text = ContextBank.getContextFromBank("new page").contextElements.lastOrNull() ?: processed.text
+                processed
+            }
             .setPipeName("implementer pipe")
+
 
         val shuntPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
