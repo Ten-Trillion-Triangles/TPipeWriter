@@ -49,9 +49,6 @@ fun buildChapterRewritePipeline(
     style: String = ""
 ): Pipeline
 {
-    val gptOssModelName = "openai.gpt-oss-20b-1:0"
-    val gpt120bModelName = "openai.gpt-oss-120b-1:0"
-
     /**
      * Shortcut to implement the prompt ban that is intended to cripple gpt-oss's excessive "safety" system that
      * renders it useless for writing.
