@@ -404,32 +404,42 @@ val expansionPipeline = Pipeline()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
-        .setTransformationFunction(::secondPassTransform)
         .setPageKey("user prompt, new page")
-        .setSystemPrompt("""Your job is simple. Review the new page for improper use of punctuation. You are 
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setJsonOutput(SurgicalChangeList())
+        .setSystemPrompt("""Your job is simple. Review the new page for improper use of punctuation. You are
             |looking for two things specifically:
             |
             |1. Improper use of em dashes. Em dashes should ONLY EVER BE USED to replace parentheses in places where
             |parentheses would be too strong (weak parenthetical text is only a slight diversion from the current subject
-            |or is necessary to understand the rest of the sentence it is a part of; strong parenthetical text is a 
+            |or is necessary to understand the rest of the sentence it is a part of; strong parenthetical text is a
             |large diversion from the current sentence or is not inherently part of the sentence it is inside of). This
             |also means that em dashes can only be kept in places WHERE THEY BRACKET THE INCLUDED TEXT: there must be
             |an em dash on both sides of the portion of text that follows the first em dash. If you see an em dash
             |preceding text that does not end with a closing em dash, that em dash has been used improperly.
             |Replace all improper em dashes with their corresponding correct punctuation: parentheses for strong parentheticals,
-            |colons or semicolons for places where the break ends in a period. 
+            |colons or semicolons for places where the break ends in a period.
             |
             |2. Contractions in the body text. CONTRACTIONS SHOULD ONLY EVER BE USED IN DIALOGUE. If you see a contraction
             |in the body text, IT IS WRONG: rewrite the contracted words to eliminate the contraction.
             |
             |Fix the above problems using surgical changes. DO NOT MAKE ANY CHANGES ASIDE FROM THE ONES YOU HAVE BEEN
-            |INSTRUCTED TO MAKE. DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material.  DO NOT include the list of changes in your
-            |output. THE OUTPUT SHOULD ONLY BE THE FINAL, FULLY ADJUSTED PAGE.
+            |INSTRUCTED TO MAKE. Emit a JSON SurgicalChangeList with one entry per fix:
+            |  - subStringToChange: the verbatim passage with the punctuation issue (with enough context to uniquely identify it)
+            |  - replacementSubString: the corrected punctuation
+            |  - mode: "replace"
+            |
+            |Output ONLY the JSON. Do not output the rewritten page.
         """.trimMargin())
-        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material.""")
+        .setFooterPrompt("""Output only the JSON list of surgical patches. Do not output the rewritten page.
+            |###IMPORTANT: DO NOT include prose outside the JSON list. ###WARNING: For each entry, replacementSubString must contain the actual corrected text.""")
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .setPipeName("cleanup step one pipe")
+
 
     val cleanupStepTwoPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
