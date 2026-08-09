@@ -560,26 +560,30 @@ val expansionPipeline = Pipeline()
             |6. Massive listicles.
             |7. Ideological rant as character voice: characters delivering monologues like they're sapient op-ed pieces.
             |
-            |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story. 
-            |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material (there should be MORE).
-            |###PROCEDURE: If changes need to be made to the text, order the changes ONLY AS ADDITIONS TO THE ORIGINAL TEXT:
-            |NO TEXT CAN BE DELETED: ONLY ADDED.
-            |###WARNING: ABSOLUTELY DO NOT INCLUDE THE LIST OF YOUR CHANGES IN THE OUTPUT. 
-            |THE FINAL OUTPUT MUST BE ONLY THE FULLY MODIFIED PAGE.
+            |Your one great mission is to go absolutely apeshit with the amount of dialogue you add to the story.
+            |
+            |For each dialogue improvement, emit a JSON SurgicalChangeList entry:
+            |  - subStringToChange: the verbatim existing dialogue passage (with enough context to uniquely identify it)
+            |  - replacementSubString: the extended dialogue
+            |  - mode: "replace" (substitute the passage) or "insertAfter" (add new dialogue after the existing passage)
+            |
+            |###RULES: NO TEXT CAN BE DELETED. Use mode "replace" or "insertAfter" only. The page text is the
+            |existing dialogue; your surgical patches refine it; you do not rewrite the page from scratch.
+            |###OUTPUT: Output ONLY the JSON. Do not output the modified page.
         """.trimMargin())
-        .setFooterPrompt("""Using the page you are going to fix as context, rewrite the page making only the ADDITIONS you
-            |have deemed valuable. Ensure that you follow
-            |all of the above rules. Do not truncate the text: there must be at least as many paragraphs and at least
-            |as many sentences in your output as there were in the provided material (there should be MORE).
-            |###IMPORTANT: DO NOT INCLUDE THE LIST OF YOUR CHANGES IN YOUR OUTPUT. THE OUTPUT MUST BE ONLY THE 
-            |FULLY MODIFIED PAGE.
-            |###WARNING: Your additions must be to EXISTING LINES OF DIALOGUE: DO NOT ADD CONTENT TO THE END OF THE PAGE.
-        """.trimMargin())
-        .setTransformationFunction(::recordWritingPipePage)
+        .setFooterPrompt("""Output only the JSON list of surgical patches. Do not output the modified page.
+            |###IMPORTANT: DO NOT DELETE dialogue. Use mode 'replace' or 'insertAfter' only.""")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .applySystemPrompt()
         .setPipeName("benign skies my dialogue pipe")
-        .autoInjectContext("New Page is the page of text you must work on.")
+        .autoInjectContext("New Page is the page of text you must work on. Emit a JSON SurgicalChangeList with one entry per dialogue improvement. Each entry's subStringToChange is the verbatim existing passage (with surrounding context to uniquely identify it); replacementSubString is the improved dialogue that should replace it; mode is 'replace' (substitute the passage) or 'insertAfter' (add new dialogue after the existing passage without modifying it). DO NOT DELETE dialogue. DO NOT add stage directions or body-text paragraphs. Each entry must have a verbatim subStringToChange.")
+
 
     val polishMyDialoguePipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
