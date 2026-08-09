@@ -567,11 +567,142 @@ fun buildChapterRewritePipeline(
         }
         .setPipeName("no parallel negation pipe")
 
+    // Surgically removes four classes of "LLM trash" writing:
+    //   1. Variety for variety's sake (synonym churn)
+    //   2. Over-specific numerics (fake precise figures)
+    //   3. Emotion beats template (cycled physical tics)
+    //   4. Scene wrap-up cadence (summary/moralizing paragraphs)
+    // PlusWriter port: PlusWriterPipeline.kt:542-599.
+    val removeBadWritingStepOnePipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
+        .truncateModuleContext()
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(1.0)
+        .setTopP(0.8)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .pullGlobalContext()
+        .setPageKey("user prompt, rewrittenChapter")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setReasoningPipe(explicitCotBuilder())
+        .setSystemPrompt("""Your job is simple, but requires effort. Read the rewritten chapter under the "rewrittenChapter" key and
+            |emit a JSON SurgicalChangeList describing the surgical replacements that remove the following four classes
+            |of "LLM trash" writing. Be conservative -- only flag genuine offenders, not borderline cases.
+            |
+            |1. Variety for variety's sake: synonym churn that avoids repetition by producing near-synonyms that
+            |slightly shift meaning. Use mode "delete" to drop the redundant phrase, or mode "replace" to collapse
+            |multiple synonyms down to a single direct word.
+            |2. Over-specific numerics: precise figures ("~60%", "exactly 10 steps", "347 degrees") introduced without
+            |narrative provocation. Use mode "delete" to drop the spurious number, or mode "replace" to soften it.
+            |3. Emotion beats template: cycled physical tics -- nods, sighs, smiles, glances, small laughs, sharp
+            |exhales -- at reliable intervals. Includes stage directions following dialogue or intercut with a single
+            |character's own dialogue. Use mode "delete" to remove the beat, or mode "replace" to keep one per scene
+            |and cut the rest.
+            |4. Scene "wrap-up cadence": paragraphs that end with summary or moralizing ("And that's when she
+            |realized...", "In that moment, everything changed..."), even mid-page. Use mode "delete" to cut the
+            |wrap-up line, or mode "replace" to fold the substance into the prior sentence.
+            |
+            |###NOTE: DO NOT TOUCH DIALOGUE. Any text inside quotation marks that is spoken by a character is exempt
+            |from this rule -- leave it alone.
+            |
+            |For each occurrence, emit one entry in the changeList. subStringToChange must include enough surrounding
+            |context to uniquely identify the passage. mode is "delete" or "replace" as noted above.
+            |
+            |If none of the four classes are present, emit {"changeList": []}.
+            |
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("rewrittenChapter").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .setPipeName("remove bad writing step one pipe")
+
+    // Surgically removes three more classes of "LLM trash" writing:
+    //   1. Emphasis on symbolism and importance ("...a symbol of...")
+    //   2. Superficial analyses ("This is significant because...", "Little did they know...")
+    //   3. Rule of three ("adjective, adjective, adjective" / "short phrase, short phrase, and short phrase")
+    // PlusWriter port: PlusWriterPipeline.kt:601-660.
+    val removeBadWritingStepTwoPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
+        .truncateModuleContext()
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(0.8)
+        .setTopP(0.8)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .pullGlobalContext()
+        .setPageKey("user prompt, rewrittenChapter")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setReasoningPipe(explicitCotBuilder())
+        .setSystemPrompt("""Your job is simple, but requires effort. Read the rewritten chapter under the "rewrittenChapter" key and
+            |emit a JSON SurgicalChangeList describing the surgical replacements that remove the following three
+            |classes of "LLM trash" writing. Make sure your edits conform to the style guide. Be conservative --
+            |only flag genuine offenders, not borderline cases.
+            |
+            |1. Emphasis on symbolism and importance: statements that puff up the importance of the subject by
+            |asserting how arbitrary aspects of it represent or contribute to a broader topic
+            |("...a symbol of...", "...representing the larger struggle of...", "...the weight of generations...").
+            |Use mode "delete" to drop the entire sentence, or mode "replace" to neutralize the symbolism claim.
+            |
+            |2. Superficial analyses: insertions of analysis of information, often in relation to its significance,
+            |recognition, or impact ("This is significant because...", "It marked a turning point in...",
+            |"Little did they know..."). Use mode "delete" to cut the analysis paragraph or sentence, or mode
+            |"replace" to fold the substance into the action it analyzes.
+            |
+            |3. Rule of three: the "adjective, adjective, adjective" or "short phrase, short phrase, and short phrase"
+            |pattern. For this one specifically, when you see a three-item list that is really two items padded with
+            |a third, emit a mode "replace" entry that reduces it to the first two items only.
+            |
+            |###NOTE: DO NOT TOUCH DIALOGUE. Any text inside quotation marks that is spoken by a character is exempt
+            |from this rule -- leave it alone.
+            |
+            |For each occurrence, emit one entry in the changeList. subStringToChange must include enough surrounding
+            |context to uniquely identify the passage.
+            |
+            |If none of the three classes are present, emit {"changeList": []}.
+            |
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("rewrittenChapter").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .setPipeName("remove bad writing step two pipe")
+
     rewritePipeline.add(analysisPipe)
     rewritePipeline.add(loreValidationPipe)
     rewritePipeline.add(rewritePipe)
     rewritePipeline.add(untwistPipe)
     rewritePipeline.add(noParallelNegationPipe)
+    rewritePipeline.add(removeBadWritingStepOnePipe)
+    rewritePipeline.add(removeBadWritingStepTwoPipe)
     rewritePipeline.add(styleCheckPipe)
     rewritePipeline.add(styleSuggestPipe)
     rewritePipeline.add(styleFixPipe)
