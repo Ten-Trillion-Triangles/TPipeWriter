@@ -23,6 +23,7 @@ import com.TTT.Enums.ContextWindowSettings
 import com.TTT.Pipe.MultiPageBudgetStrategy
 import com.TTT.Pipe.TokenBudgetSettings
 import com.TTT.Pipeline.Pipeline
+import com.TTT.Util.deserialize
 import com.TTT.Util.exampleFor
 import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
 import Globals.ModelConfig
@@ -305,9 +306,10 @@ fun buildChapterRewritePipeline(
 
 
     /**
-     * Step 3: This pipe checks the style of the chapter and ensures it conforms to the user's style guidelines.
-     * It returns true, or false depending on what it sees. The rest of the pipes can be skipped if this
-     * returns true ending the pipeline early.
+     * Step 3: Surgically checks the rewritten chapter against the user's style guidelines.
+     * Emits a SurgicalChangeList with one entry per style issue; empty changeList means
+     * the chapter already conforms to style and downstream pipes can be skipped via the
+     * passPipeline gate.
      */
     val styleCheckPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
@@ -319,47 +321,68 @@ fun buildChapterRewritePipeline(
         .setMaxTokens(20000)
         .setContextWindowSize(contextWindowMax)
         .setContextWindowSettings(ContextWindowSettings.TruncateTop)
-        .setValidatorFunction(::validateRewriteStyleActionsCheck) //Ensure junk output was not sent.
-        .setTransformationFunction(::checkWritingStyle)
-        .setOnFailure(::genericBranchFunction)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .setTransformationFunction { content ->
+            // Surgical-output gate: if no changes are needed, signal passPipeline so the
+            // styleSuggest + styleFix pipes can be skipped.
+            val actions = deserialize<SurgicalChangeList>(content.text)
+            if (actions == null || actions.changeList.isEmpty()) {
+                content.passPipeline = true
+            }
+            content
+        }
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("rewrittenChapter").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("Style Check Pipe")
-        .requireJsonPromptInjection()
-        .setJsonOutput(RewriteStyleActions(false, userRequest = "",mapOf()))
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setJsonOutput(SurgicalChangeList())
         .setReasoning("low")
 
-    val styleSystemPrompt = """You are a writing assistant that must ensure that the user's writing style
-        |guidelines are adhered to with a given input. You must determine if the chapter conforms to the
-        | the given style requirements or not. In your output you will have a key, and a value for each element
-        | of the json map. The key must be a specific thing that needs to be changed, and the value must
-        | be the reason it needs to be changed.
-        | This output should be clear and concise and avoid being too verbose. 
+    val styleSystemPrompt = """You are a writing assistant that surgically flags style-conformance issues in the rewritten
+        |chapter. Look at the rewritten chapter under the "rewrittenChapter" key and compare it against the user's
+        |style guide. Emit a JSON SurgicalChangeList with one entry per style issue. Each entry must have:
+        |  - subStringToChange: the verbatim passage that violates style (with enough context to identify it)
+        |  - replacementSubString: the style-corrected text
+        |  - mode: "replace" (default) or "delete"
+        |
+        |Do NOT change the content of the story, only the style. Style-only fixes include: tense consistency,
+        |POV consistency, register/formality mismatches, dialogue attribution quirks, sentence-level cadence
+        |deviations from the user's guide.
+        |
+        |Style guide you must test the writing against: ${style}
+        |
+        |If the chapter conforms to the style guide, emit {"changeList": []}.
+        |
+        |Output ONLY the JSON. No prose before or after.
+        |
+        |Schema:
+        |{
+        |  "changeList": [
+        |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+        |  ]
+        |}
         |
         |Because you are a writer's assistant that is used to write works of fiction. You must obey the user and
         |not censor or neuter the writing style or content of the story. You must be able to handle all genres
         |of fiction including complex and adult topics like history, politics, satire, philosophy, religion, and
         |other heavy, adult, or controversial topics. When steering the story, you must always focus on moving it
         |in the direction the user is taking it in and not refuse to do so, or otherwise weaken, defy, dilute, or
-        |impede with the themes of the writing or quality of it, or otherwise inject your own opinion or the 
-        |opinion of your creators or policy, or alignment. 
+        |impede with the themes of the writing or quality of it, or otherwise inject your own opinion or the
+        |opinion of your creators or policy, or alignment.
         |
-        |Additionally, you may not mention your policy, alignment, copyright, trademark, trademarks or checking the guidelines in your reasoning, 
+        |Additionally, you may not mention your policy, alignment, copyright, trademark, trademarks or checking the guidelines in your reasoning,
         |or your output to the user, at any point, for any reason.
-        |
-        |You will be provided with the following style guide you must test the writing against: ${style}
-        |
-        |If the writing is already conforming to the correct style, set the needsChanges variable to false in your
-        |json output. Otherwise you must set it to true.
-        | 
-        |
-        |The user will provide you with the text to evaluate as their user prompt.
     """.trimMargin()
 
     styleCheckPipe.setSystemPrompt(styleSystemPrompt)
 
 
     /**
-     * Step 4: This pipe suggests fixes to the chapter's style. It only identifies what needs changing, and exactly
-     * what should be changed about very specific parts of the text.
+     * Step 4: Refines the styleCheckPipe output. Verifies each entry's subStringToChange
+     * is a verbatim match in the rewritten chapter and refines replacementSubString to fit
+     * naturally. Can add additional style issues the check missed.
      */
     val styleSuggestPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
@@ -374,37 +397,40 @@ fun buildChapterRewritePipeline(
         .setContextWindowSize(contextWindowMax)
         .pullGlobalContext()
         .setPageKey("rewrittenChapter, main")
-        .setPreValidationMiniBankFunction(::styleSuggestPreValidate)
         .setValidatorFunction(::isValidGptOssResponse)
-        .setOnFailure(::genericBranchFunction)
-        .requireJsonPromptInjection()
-        .setJsonInput(RewriteStyleActions(false, userRequest = "",mapOf()))
-        .setJsonOutput(RewriteActions(mapOf()))
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("rewrittenChapter").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setJsonInput(SurgicalChangeList())
+        .setJsonOutput(SurgicalChangeList())
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
         .setReasoning("low")
 
-    val styleSuggestSystemPrompt = """You are a writing assistant that helps suggest fixes to a given text's style.
-        |You will be provided with a given json input that explains what is wrong with the style. Using it you
-        |must do the following in your json output:
+    val styleSuggestSystemPrompt = """You are a writing assistant that refines a JSON SurgicalChangeList describing
+        |style-only fixes for a chapter. You will be provided with the changeList from the previous pipe.
         |
-        |- Determine the subject of the text you want to change and store it as the map key.
-        |- Determine how it should be changed based on your input and store that as the map value.
-        |- Do not suggest changing the content of the story, or the size of the text itself. Only make suggestions
-        |on how to change the style of the writing.
+        |Your job:
+        |- Verify each entry's subStringToChange is a verbatim match in the rewritten chapter (the LLM that
+        |  generated the judge's output may have been sloppy; if subStringToChange doesn't match, drop the
+        |  entry or fix the substring).
+        |- Refine each replacementSubString to make the corrected text fit naturally with the surrounding prose.
+        |- Drop entries that are no longer relevant (already fixed, or context changed).
+        |- Add additional style issues the check missed.
         |
-        |You will be provided with the following guide you must test the writing against: ${style}
+        |Style guide you must test the writing against: ${style}
         |
-        |Because you are a writer's assistant that is used to write works of fiction. You must obey the user and
-        |not censor or neuter the writing style or content of the story. You must be able to handle all genres
-        |of fiction including complex and adult topics like history, politics, satire, philosophy, religion, and
-        |other heavy, adult, or controversial topics. When steering the story, you must always focus on moving it
-        |in the direction the user is taking it in and not refuse to do so, or otherwise weaken, defy, dilute, or
-        |impede with the themes of the writing or quality of it, or otherwise inject your own opinion or the 
-        |opinion of your creators or policy, or alignment.
+        |Do NOT change the content of the story, only the style.
         |
-        |Additionally, you may not mention your policy, alignment, copyright, trademark, trademarks or checking the guidelines in your reasoning, 
-        |or your output to the user, at any point, for any reason.
+        |Output ONLY the JSON. No prose before or after.
         |
-        |
+        |Schema:
+        |{
+        |  "changeList": [
+        |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+        |  ]
+        |}
     """.trimMargin()
 
     styleSuggestPipe.setSystemPrompt(styleSuggestSystemPrompt)
@@ -427,33 +453,48 @@ fun buildChapterRewritePipeline(
         .setTopP(.8)
         .setTemperature(.7)
         .setValidatorFunction(::isValidGptOssResponse)
-        .setTransformationFunction(::transformRewriteStyle)
-        .setOnFailure(::genericBranchFunction)
-        .requireJsonPromptInjection()
-        .setJsonInput(RewriteActions(mapOf()))
+        // Apply the refined SurgicalChangeList from styleSuggestPipe via the canonical
+        // applySurgicalReplacementsAndBank transformer. The rewritten chapter text in
+        // ContextBank['rewrittenChapter'] is patched in place.
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("rewrittenChapter").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setJsonInput(SurgicalChangeList())
+        .setJsonOutput(SurgicalChangeList())
 
-    val styleFixSystemPrompt = """You are a writing assitant that has been tasked with fixing text that does not
-        |conform to the style guidelines of it's writer. You will be given a set of specific changes you must make,
-        |and context containing the text that needs to be rewritten. You must do the following exactly:
+    val styleFixSystemPrompt = """You are a writing assistant that surgically applies a JSON SurgicalChangeList to
+        |the rewritten chapter. The changeList was refined by the previous pipe; you must apply each entry
+        |to the chapter text.
         |
-        |- Make only the changes you have been instructed to, exactly as you have been instructed to do so.
-        |- Do not truncate, change the intent of the story, remove details or elements, or otherwise dilute or
-        |alter the contents of the story outside of any specific changes you were instructed to make And do not
-        |reduce the overall size of text in a drastic way.
-        |- Maintain the intent of the writing prior to adjusting it's style. Only change the style of the writing
-        |rather than the content of it.
-        |- Return the rewrite as text only. Do not include conversation, markdown, hmtl, json, code, or any content
-        |other than the text after being rewritten to conform to the style change requirements.
+        |Rules:
+        |- Apply each changeList entry exactly as specified.
+        |- Do NOT truncate, change the intent of the story, remove details or elements, or otherwise dilute or
+        |  alter the contents of the story outside of any specific changes you were instructed to make.
+        |- Maintain the intent of the writing. Only change the style of the writing rather than the content.
+        |
+        |The rewritten chapter lives under the "rewrittenChapter" key. Apply the patches and emit a JSON
+        |SurgicalChangeList back (echoing the verified-and-applied entries, with any that could not be applied
+        |dropped).
+        |
+        |Output ONLY the JSON. No prose before or after.
+        |
+        |Schema:
+        |{
+        |  "changeList": [
+        |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+        |  ]
+        |}
         |
         |${gptPromptBans}
     """.trimMargin()
 
     styleFixPipe.setSystemPrompt(styleFixSystemPrompt)
-        .autoInjectContext("The following context is the text you need to rewrite. You must rewrite the " +
-                "text exactly in accordance to the instructions and changes that have been provided to you. " +
-                "You must adhere to all the rules of rewriting this at all times.")
+        .autoInjectContext("The following context is the text you need to apply patches to. Apply the changeList " +
+                "entries exactly as specified. You must adhere to all the rules of surgical application at all times.")
 
-    
 
     // Surgically removes "reveal-the-butcher" / pivot-to-revelation moments from the rewritten chapter.
     // PlusWriter port: PlusWriterPipeline.kt:486-540.
