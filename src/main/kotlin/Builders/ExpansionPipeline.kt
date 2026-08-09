@@ -498,31 +498,40 @@ val expansionPipeline = Pipeline()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
-        .setTransformationFunction(::secondPassTransform)
         //.setReasoningPipe(processFocusedBuilder())
         .setPageKey("user prompt, new page")
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setJsonOutput(SurgicalChangeList())
         .setSystemPrompt("""Your task is fairly simple: you must fix the text in accordance to the
             |following rules:
             |
-            |1. STAGE DIRECTIONS SUCK: WE ARE WRITING A BOOK, NOT A MOVIE SCRIPT: You will find frequently throughout
-            |the written page that dialogue is interrupted with, or followed by, bullshit stage directions.
-            |You must eliminate all instances of these things that you find, and merge together bodies of dialogue text
-            |as necessary when you do so. Examples of things that you would remove: "Geno observed, his analytical mind unable to fully rest";
-            |"She paused, feathers rustling."; "her voice cutting through the noise of the market." 
+            |1. STAGE DIRECTIONS SUCK: WE ARE WRITING A BOOK, NOT A MOVIE SCRIPT: Find dialogue that is interrupted
+            |with, or followed by, stage directions. Eliminate those stage directions and merge together bodies
+            |of dialogue text as necessary. Examples of stage directions to remove: "Geno observed, his analytical mind unable to fully rest";
+            |"She paused, feathers rustling."; "her voice cutting through the noise of the market."
             |
             |2. Any statements of hyperbole, hype, and particularly strong adjectives in places where the user prompt
-            |has not demanded, or in scenes that are otherwise climactic,
-            |it must either be removed in their entirety or converted into character dialogue, depending
-            |on what's more convenient. You're looking for strong visual metaphors, like "shattered" or "downpour", to describe
-            |character mental states or reaction to a situation.
+            |has not demanded, or in scenes that are otherwise climactic, must either be removed in their entirety
+            |or converted into character dialogue. You're looking for strong visual metaphors, like "shattered" or
+            |"downpour", to describe character mental states or reaction to a situation.
             |
             |Fix the above problems using surgical changes. DO NOT MAKE ANY CHANGES ASIDE FROM THE ONES YOU HAVE BEEN
-            |INSTRUCTED TO MAKE. DO NOT TRUNCATE THE TEXT BEYOND WHAT YOU HAVE BEEN ORDERED TO DO. DO NOT include the list of changes in your
-            |output. THE OUTPUT SHOULD ONLY BE THE FINAL, FULLY ADJUSTED PAGE.
+            |INSTRUCTED TO MAKE. Emit a JSON SurgicalChangeList with one entry per fix:
+            |  - subStringToChange: the verbatim passage with the issue (with enough context to uniquely identify it)
+            |  - replacementSubString: the corrected passage
+            |  - mode: "replace" (default) or "delete" (if the stage direction should be removed entirely)
+            |
+            |Output ONLY the JSON. Do not output the rewritten page.
         """.trimMargin())
-        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT BEYOND WHAT YOU HAVE BEEN ORDERED TO.""")
+        .setFooterPrompt("""Output only the JSON list of surgical patches. Do not output the rewritten page.
+            |###IMPORTANT: DO NOT include prose outside the JSON list. ###WARNING: For each entry, replacementSubString must contain the actual corrected text.""")
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("cleanup step three pipe")
+
 
     val benignSkiesMyDialoguePipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
