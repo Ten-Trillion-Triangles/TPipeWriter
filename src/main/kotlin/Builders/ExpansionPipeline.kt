@@ -192,8 +192,8 @@ val expansionPipeline = Pipeline()
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-            .requireJsonPromptInjection()
-            .setJsonOutput(RequestList())
+            .requireJsonPromptInjection(stripExternalText = true)
+            .setJsonOutput(SurgicalChangeList())
             .truncateModuleContext()
             .setMaxTokens(32000)
             .setTemperature(1.0)
@@ -217,25 +217,28 @@ val expansionPipeline = Pipeline()
                 |that are either impossible in a way that is unentertaining or non-dreamlike?
                 |
                 |As you review, mark out any issues of lore inconsistency, tonal incoherence, or logical incoherence.
-                |You must make a json array that contains a list of SPECIFIC, TARGETED fixes that ameliorate any and all
-                |lore problems, tonal problems, and logical problems. HOWEVER: if something appears in the text that isn't in the lorebook,
-                |so long as it doesn't contradict anything in the lorebook, it is NOT an error, 
-                |and should not be removed! 
-                |Here are the parameters your solutions should follow:
-                |1. Make sure everything in the page conforms to the lorebook and user prompt. 
-                |2. Whatever the majority tone of the scene is, change the tone of the parts that clash so that the 
-                |scene is tonally homogenous.
-                |3. Any kind of illogical items in the story must be fixed so that they are following the intended logic
-                |and requests of the user prompt: using the details of the scene and context of the story, make sure
-                |nothing illogical happens. BE AGGRESSIVE WITH YOUR REQUESTED FIXES TO THE STORY'S LOGIC.
+                |For each issue, emit a JSON SurgicalChangeList entry:
+                |  - subStringToChange: the verbatim passage with the issue (with enough surrounding context
+                |    — a sentence or two — to uniquely identify it)
+                |  - replacementSubString: the corrected version of the passage that conforms to lore / tone / logic
+                |  - mode: "replace" (default) or "delete" (if the entire passage must be removed)
+                |
                 |You must request as many potential changes as you believe you can possibly get away with.
-                |###WARNING: DO NOT RETURN AN EMPTY JSON ARRAY. YOU MUST FIND AT LEAST ONE PROBLEM TO FIX.
+                |###WARNING: YOU MUST FIND AT LEAST ONE PROBLEM TO FIX. Emit at least one entry.
+                |
+                |Output ONLY the JSON. Do not output a new page of the story.
             """.trimMargin())
-            .setFooterPrompt("""Create your list of fixes as a NUMBERED LIST. Include ONLY ONE IDEA per array elem.
-                |DO NOT RETURN AN EMPTY JSON.
+            .setFooterPrompt("""Output only the JSON list of surgical patches. Include ONLY ONE surgical change per changeList entry.
+                |DO NOT RETURN AN EMPTY JSON ARRAY.
                 |###IMPORTANT: ONLY RETURN JSON. DO NOT WRITE A NEW PAGE OF THE STORY.
             """.trimMargin())
+            .setTransformationFunction(::applySurgicalReplacementsAndBank)
+            .setOnFailure { _, processed ->
+                processed.text = ContextBank.getContextFromBank("new page").contextElements.lastOrNull() ?: processed.text
+                processed
+            }
             .setPipeName("instructor pipe")
+
 
         val implementerPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
