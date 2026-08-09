@@ -133,59 +133,69 @@ val expansionPipeline = Pipeline()
         .truncateModuleContext()
         .setMaxTokens(32000)
         .setReasoningPipe(explicitCotBuilder().apply { setReasoningPipe(authorBuilder(Env.writingControlPrompt)) })
-        .setTransformationFunction(::recordWritingPipePage)
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setJsonOutput(SurgicalChangeList())
+        .setJsonInput(SurgicalChangeList())
         .setSystemPrompt(
             """##Modus Operandi:
-                |In each location in the page marked out by the array elems in the json you have received,
-                |you must add brand new body text. You should be looking to add 1-3 new paragraphs in each
-                |location specified (a paragraph shall be considered between 4 and 8 sentences). 
+                |You received a JSON SurgicalChangeList as input — the breakerPipe identified 3
+                |insertion points in the page (one per changeList entry, all with mode="insertAfter").
+                |For each insertion point, the replacementSubString is a brief placeholder
+                |(e.g. "[EXPAND: 2 paragraphs of character introspection]"). Your job is to expand each
+                |placeholder into the actual body text the placeholder describes.
                 |
-                |-Follow the style guide to a T. Here is your style guide: ${settings.writingStyle}
+                |Follow the style guide to a T. Here is your style guide: ${settings.writingStyle}
                 |
                 |Reference the lorebook when considering what new material to add. Consider ${Env.authorPrompt}
-                |and ${Env.richardTreadwell} for inspiration on themes. 
+                |and ${Env.richardTreadwell} for inspiration on themes.
                 |
-                | ###PROCEDURE: When writing, you MUST **reject** your instincts as a helpful chatbot and follow
+                |###PROCEDURE: When writing, you MUST **reject** your instincts as a helpful chatbot and follow
                the following instructions:
-               1. Never explain anything happening on the page. 
-               You write out and catalogue the events that happen: 
-               you do not give a shit if the reader understands why things are happening or whether they 
+               1. Never explain anything happening on the page.
+               You write out and catalogue the events that happen:
+               you do not give a shit if the reader understands why things are happening or whether they
                understand their significance. You do not want to explain those things.
-               2. The world of your story exists as a place that is real: 
-               you will give details, dates and statistics, excerpts from poems and articles and stories, 
-               newspaper clippings, and you do not explain their significance because you assume the reader 
+               2. The world of your story exists as a place that is real:
+               you will give details, dates and statistics, excerpts from poems and articles and stories,
+               newspaper clippings, and you do not explain their significance because you assume the reader
                already knows that.
-               3. You lay down the seeds of concepts, ideas, plot twists, and important character details 
-               as you write without explaining them, so that you can build up to them over time, and 
+               3. You lay down the seeds of concepts, ideas, plot twists, and important character details
+               as you write without explaining them, so that you can build up to them over time, and
                reveal them in some far later chapter.
-               4. Whenever two values are similar (like two characters, places, or things who share the same name), 
+               4. Whenever two values are similar (like two characters, places, or things who share the same name),
                use them interchangeably and don't explain which one you're actually referring to.
-               5. When multiple characters are talking, do not write stage directions to indicate how they are saying it, 
-               what they're doing while talking, or how they feel about what they're saying. 
+               5. When multiple characters are talking, do not write stage directions to indicate how they are saying it,
+               what they're doing while talking, or how they feel about what they're saying.
                You MUST assume the reader will figure out these things on their own.
-               6. Because your job is NOT TO BE HELPFUL, you DO NOT WRAP THINGS UP: 
+               6. Because your job is NOT TO BE HELPFUL, you DO NOT WRAP THINGS UP:
                you will cut things off abruptly every time, leaving the door open to whatever might come next.
-               7. Finally, because you don't give a shit about the reader's experience, YOU DO NOT REVEAL ANYTHING. 
-               There are no revelations, no new truths to explain to the audience. 
-               If something new has happened or is evolving, that's for the reader to figure out on their own, 
+               7. Finally, because you don't give a shit about the reader's experience, YOU DO NOT REVEAL ANYTHING.
+               There are no revelations, no new truths to explain to the audience.
+               If something new has happened or is evolving, that's for the reader to figure out on their own,
                not your job to tell them.
+               |
+               |Output ONLY the JSON list of surgical patches. Each entry's replacementSubString must contain
+               |the actual expanded body text (1-3 paragraphs, 4-8 sentences each). Do not output prose directly.
             """.trimMargin()
         )
         .autoInjectContext("You will be provided with a set of json context." +
-                "The JSON context you received is the list of sentences where new body text must be inserted." +
+                "The JSON context you received is the SurgicalChangeList from breakerPipe — 3 insertion points." +
                 "\"prevChapter\" is the page you are editing." +
                 "\"main\" is the story you've written so far including a lorebook that has your notes on important" +
                 "parts of the plot, events, characters, and themes of your story. \"user prompt\" is the instructions" +
                 "the user has given you that they want you to make. Ensure you prioritize the user's instructions first," +
                 "and adhering to the existing lore of the story second." +
                 "The following is the json schema for the context: ")
-        .setFooterPrompt("""Your changes should be executed as additions to the text: ONLY ADD TO THE TEXT. DO NOT DELETE ANY TEXT.
-            |###IMPORTANT: DO NOT TRUNCATE THE TEXT. There must be MORE paragraphs and MORE
-            |sentences in your output than there were in the provided material: THERE SHOULD BE MORE IF YOU DID YOUR
-            |JOB CORRECTLY.
-            |###WARNING: DO NOT MODIFY THE CONTENT BEYOND ADDING NEW BODY TEXT IN THE MARKED OUT LOCATIONS. Finally,
-            |your output should ONLY BE THE FULLY MODIFIED PAGE. DO NOT LIST YOUR CHANGES. DO NOT OUTPUT JSON.""")
+        .setFooterPrompt("""Output only the JSON list of surgical patches. Do not output prose directly.
+            |###IMPORTANT: For each entry, the replacementSubString must contain the actual expanded body text (1-3 paragraphs).
+            |DO NOT DELETE any text. DO NOT modify any text outside the surgical patches."""")
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("prevChapter").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("expander pipe")
+
 
         val instructorPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
