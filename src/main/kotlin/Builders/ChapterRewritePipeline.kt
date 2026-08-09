@@ -3,6 +3,7 @@ package Builders
 import Builders.Util.checkWritingStyle
 import Builders.Util.recordAuthorPlan
 import com.TTT.Context.ContextBank
+import com.TTT.Context.ContextWindow
 // SurgicalChangeList lives in PlusWriterPipeline.kt (same Builders package) — reused as the uniform plan + patch schema.
 import Builders.Util.loreCheckPreInvoke
 import Builders.Util.loreCheckTransform
@@ -240,12 +241,27 @@ fun buildChapterRewritePipeline(
         .setTemperature(1.0)
         .setMaxTokens(maxTokens)
         .pullGlobalContext()
-        .setPageKey("prevChapter, rewriteContext")
+        .setPageKey("prevChapter, rewriteContext, page plan")
         .setContextWindowSize(contextWindowMax)
         .setContextWindowSettings(ContextWindowSettings.TruncateTop)
         .setValidatorFunction(::isValidGptOssResponse)
-        .setTransformationFunction(::transformRewriteResult)
-        .setOnFailure(::genericBranchFunction)
+        // The rewrite pipe PRODUCES the rewritten chapter text (it does not patch anything).
+        // Downstream defensive passes (untwistPipe, noParallelNegationPipe, etc.) read
+        // ContextBank["rewrittenChapter"] and apply surgical edits.
+        .setTransformationFunction { content ->
+            if (!isValidGptOssResponse(content)) {
+                content.terminatePipeline = true
+                return@setTransformationFunction content
+            }
+            val rewrittenChapter = ContextWindow()
+            rewrittenChapter.contextElements.add(content.text)
+            ContextBank.emplaceWithMutex("rewrittenChapter", rewrittenChapter)
+            content
+        }
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("prevChapter").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("Rewrite Pipe")
         .setReasoning("low")
 
