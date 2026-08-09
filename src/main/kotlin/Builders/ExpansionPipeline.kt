@@ -830,6 +830,63 @@ val expansionPipeline = Pipeline()
         .setPipeName("remove bad writing step two pipe")
 
 
+    val untwistPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
+        .truncateModuleContext()
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(0.8)
+        .setTopP(0.8)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .pullGlobalContext()
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setReasoningPipe(explicitCotBuilder())
+        .setPreValidationMiniBankFunction(::copyLorebookFromMain)
+        .setSystemPrompt("""Your job is simple, but requires effort. Read the page provided under the "new page" key
+            |and seek out all "unwanted twists" -- reveal-the-butcher / pivot-to-revelation moments in the prose
+            |THAT ARE NOT SPECIFICALLY REQUESTED BY THE USER PROMPT OR SUBSTANTIATED BY THE LOREBOOK.
+            |For each one, emit a JSON SurgicalChangeList entry that surgically removes or replaces the twist.
+            |
+            |Here are examples of key phrases that indicate you're dealing with an unwanted twist:
+            | 1. ...it's not 'X', it's 'Y.' ; ...it wasn't 'X', it was 'Y.'
+            | 2. ...it's actually an 'X'. ; ...not 'X': 'Y.'
+            | 3. ...it's possible that actually 'Z.'
+            | 4. ...it's not just 'X', it's 'Y.'
+            | 5. ...but in reality, 'Z.' ; ...what he didn't know was 'Z.'
+            | 6. Reveal-of-the-mystery paragraphs that retroactively re-frame prior narration.
+            |
+            |For each twist, subStringToChange is the full twist passage (with enough surrounding context to
+            |uniquely identify it) and replacementSubString is the same passage with the twist removed -- typically
+            |either mode "delete" (drop the passage entirely) or mode "replace" (collapse it to a single neutral
+            |declarative sentence). DO NOT REWRITE THE WHOLE PAGE. Make as few surgical changes as possible while
+            |preserving the page's natural flow.
+            |
+            |If no unwanted twists are present, emit {"changeList": []}.
+            |
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .setPipeName("untwist pipe")
+
+
     val styleReapplyPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
@@ -881,6 +938,7 @@ val expansionPipeline = Pipeline()
         .add(finalEditPipe)
         .add(removeBadWritingStepOnePipe)
         .add(removeBadWritingStepTwoPipe)
+        .add(untwistPipe)
         .add(styleReapplyPipe)
 
     runBlocking {
