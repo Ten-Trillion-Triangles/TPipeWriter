@@ -424,9 +424,14 @@ fun executeWriterPipeline(
         if (result.text.isNotEmpty())
         {
             // Streaming callback wrote raw prose deltas to stdout in real
-            // time. The pipeline's transformation chain (recordWritingPipePage
-            // + applySurgicalReplacementsAndBank) writes the FINAL chapter text
-            // (with surgical fixes applied) to the "new page" ContextBank.
+            // time. The PlusWriter pipeline's transformation chain
+            // (recordWritingPipePage + 14 surgical passes including
+            // applySurgicalReplacementsAndBank, untwistPipe,
+            // noParallelNegationPipe, removeBadWritingStep{One,Two}Pipes,
+            // loreCheckPipe, loreRepairPipe, logicalProgressionPipe,
+            // logicalCorrectionPipe, styleCheckPipe, styleSuggestPipe,
+            // styleFixPipe) writes the FINAL chapter text (with all
+            // surgical fixes applied) to the "new page" ContextBank.
             //
             // Print the banked result so the user has the canonical
             // post-pipeline text on screen — this matches the behavior of
@@ -435,8 +440,8 @@ fun executeWriterPipeline(
             // show <N> to see what was actually written.
             //
             // The streamed output and the banked output will be very similar
-            // (the surgical transformation modifies, doesn't rewrite), but
-            // the banked version is the canonical "what got persisted to
+            // (surgical transformations modify, they don't rewrite), but the
+            // banked version is the canonical "what got persisted to
             // context" text.
             try {
                 val textBarrier = "==================================New Segment========================================="
