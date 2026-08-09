@@ -1,6 +1,8 @@
 package Builders
 
 import Builders.Util.checkWritingStyle
+import Builders.Util.recordAuthorPlan
+// SurgicalChangeList lives in PlusWriterPipeline.kt (same Builders package) — reused as the uniform plan + patch schema.
 import Builders.Util.loreCheckPreInvoke
 import Builders.Util.loreCheckTransform
 import Builders.Util.storeRewritePlan
@@ -103,20 +105,36 @@ fun buildChapterRewritePipeline(
         .setPageKey("rewriteContext, prevChapter")
         .setContextWindowSize(contextWindowMax)
         .setContextWindowSettings(ContextWindowSettings.TruncateTop)
-        .setJsonOutput(RewriteActions(mapOf())) //Store plan as map of subject to change made.
-        .setTransformationFunction(::storeRewritePlan) //Store plan for retrieval if we don't need to overwrite it.
+        .setJsonOutput(SurgicalChangeList()) //Plan is a list of surgical changes the rewrite pipe will execute.
+        .setTransformationFunction(::recordAuthorPlan) //Store plan in ContextBank["page plan"] for downstream pipes.
         .setPipeName("Analysis pipe")
-        .requireJsonPromptInjection()
+        .requireJsonPromptInjection(stripExternalText = true)
 
     val analysisSystemPrompt = """You are a writing assistant that helps the user rewrite a chapter in their text.
         |You will be given a request for revisions the user would like to be made by the user. You must then use that
-        |request and the provided context that is supplied to come up with ideas on how to rewrite the chapter. Using
-        |the context key "rewriteContext" (The current official story so far), and the context key of "prevChapter" which is
-        |the chapter of the story the user wants you to rewrite. You must use this data, combined with the user's 
-        |request to determine a concrete set of ideas and ways the chapter should be rewritten and return that 
-        |set of ideas as your output. In your output you must denote the json key as the subject or thing to change,
-        |and the value of the map as the specific change to make. Keep each change only as verbose as needed to describe
-        |the action that needs to be taken.
+        |request and the provided context to come up with a concrete plan for surgical edits to the chapter.
+        |
+        |Using the context key "rewriteContext" (the current official story so far) and "prevChapter" (the chapter
+        |the user wants rewritten), produce a JSON SurgicalChangeList describing the changes that need to happen.
+        |
+        |Each changeList entry has:
+        |  - subStringToChange: the exact passage in "prevChapter" that must change (verbatim, with enough
+        |    surrounding context — a sentence or two — to uniquely identify it)
+        |  - replacementSubString: the new text that should replace it
+        |  - mode: "replace" (default — substitute the substring), "delete" (remove the substring entirely),
+        |    or "insertAfter" (add replacementSubString after subStringToChange without modifying it)
+        |
+        |Keep each entry as surgical as possible — describe only the specific change. Do not produce full
+        |paragraph rewrites; each entry is a find/replace patch.
+        |
+        |Output ONLY the JSON. No prose before or after.
+        |
+        |Schema:
+        |{
+        |  "changeList": [
+        |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+        |  ]
+        |}
     """.trimMargin()
 
     analysisPipe.setSystemPrompt(analysisSystemPrompt)
