@@ -6,7 +6,9 @@ import Globals.Env
 import Globals.ModelConfig
 import Shell.loadSettings
 import com.TTT.Debug.TraceStreamMerger
+import com.TTT.Pipe.MultiPageBudgetStrategy
 import com.TTT.Pipe.MultimodalContent
+import com.TTT.Pipe.TokenBudgetSettings
 import com.TTT.Pipeline.Connector
 import com.TTT.Pipeline.Pipeline
 import com.TTT.Util.extractJson
@@ -32,6 +34,26 @@ data class dialogueClass (
 fun buildDialogueConnector() : Pair<Pipeline, Connector>
 {
 
+
+/**
+ * Per-pipe token budget applied to every pipe in DialogueConnector.
+ *
+ * Mirrors chapterRewritePipelineBudget (ChapterRewritePipeline.kt:51-65).
+ * Same MiniMax-M3 512k context window, 12k output cap, no reasoning
+ * carve-out, user prompt preserved untouched, DYNAMIC_SIZE_FILL multi-page
+ * strategy.
+ */
+val dialogueConnectorBudget: TokenBudgetSettings = TokenBudgetSettings(
+    contextWindowSize = 512_000,
+    maxTokens = 12_000,
+    reasoningBudget = null,
+    userPromptSize = null,
+    allowUserPromptTruncation = false,
+    compressUserPrompt = false,
+    truncateContextWindowAsString = false,
+    preserveTextMatches = true,
+    multiPageBudgetStrategy = MultiPageBudgetStrategy.DYNAMIC_SIZE_FILL
+)
 
     val settings = loadSettings()
 
@@ -289,6 +311,20 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
 
 
 
+
+    // Apply per-pipe TokenBudgetSettings to every pipe reachable through the connector.
+    // Pattern mirrors ChapterRewritePipeline.kt's getPipes().forEach block.
+    val allPipelines = mutableListOf<Pipeline>().apply {
+        add(evaluateDialoguePipeline)
+        dialogueConnector.getPipelinesFromInterface().forEach { add(it) }
+    }
+    allPipelines.forEach { pipeline ->
+        pipeline.getPipes().forEach {
+            it.useEntireContextForLoreSelection()
+            it.setTokenBudget(dialogueConnectorBudget)
+            it.enableComprehensiveTokenTracking()
+        }
+    }
 
     return Pair<Pipeline, Connector>(evaluateDialoguePipeline, dialogueConnector)
 }
