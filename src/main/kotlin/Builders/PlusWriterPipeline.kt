@@ -520,7 +520,30 @@ fun buildPlusWriterPipeline() : Pipeline
             |declarative sentence). DO NOT REWRITE THE WHOLE PAGE. Make as few surgical changes as possible while
             |preserving the page's natural flow.
             |
-            |If no unwanted twists are present, emit {"changeList": []}.
+            |##STYLE: NO PARALLEL-NEGATION CONSTRUCTS
+            |A subset of unwanted-twist variants uses 'not X but Y' parallel-negation structures. These deserve
+            |a stronger, separate treatment than mere 'twist removal' because they read as chatbot rhetoric even
+            |when the literal content of the assertion is true. When you see a parallel-negation construct,
+            |DO NOT just delete the assertion -- rewrite the second clause as a positive assertion that lets
+            |the reader infer the contrast from context.
+            |
+            |Do NOT use "not X but Y" rhetorical structures. Chatbot-tuned LLMs overproduce this family of
+            |tics because it cheaply delivers contrast. Variants to avoid:
+            |  - "Not X but Y"
+            |  - "It's not X, it's Y"
+            |  - "Not because A but because B"
+            |  - "Not A but B"
+            |  - "Is not A but is B"
+            |  - "Not A, not B, is C"
+            |  - "Isn't X, but is Y"
+            |State what something IS directly. If the prose genuinely needs to negate the false expectation
+            |(e.g. "It was not a weapon but a key"), write the second clause as a positive assertion
+            |("It was a key") and let the reader infer the contrast from context. Never lead with the negation.
+            |
+            |For these parallel-negation constructs, mode is always "replace" (substitute the positive
+            |assertion), not "delete" (because the underlying fact may still be important to the prose).
+            |
+            |If no unwanted twists AND no parallel-negation constructs are present, emit {"changeList": []}.
             |
             |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
             |
