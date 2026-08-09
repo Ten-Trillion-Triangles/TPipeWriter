@@ -361,23 +361,25 @@ suspend fun shunt(content: MultimodalContent) : MultimodalContent
 
     var result = dialogueSelectionPipeline.execute(content)
 
-    val json = extractJson<dialogueClass>(result.text)
-
-    if(json == null)
-    {
-        throw Exception("dialogueConnector did not return valid json, or we were unable to extract it.")
+    val json = extractJson<SurgicalChangeList>(result.text)
+    val firstEntry = json?.changeList?.firstOrNull()
+    val dialogueType: DialogueType = if (firstEntry != null) {
+        val inner = extractJson<dialogueClass>(firstEntry.replacementSubString)
+        inner?.dialogueType ?: DialogueType.FormalRote
+    } else {
+        // No classification -> treat as no-op (FormalRote returns originalText)
+        DialogueType.FormalRote
     }
 
-
-    if(json.dialogueType == DialogueType.FormalRote)
+    if(dialogueType == DialogueType.FormalRote)
     {
         content.text = originalText
         return content
     }
 
-    val finalResult = connector.execute(json.dialogueType, content)
+    val finalResult = connector.execute(dialogueType, content)
 
-    val dialoguePipeline = connector.get(json.dialogueType)
+    val dialoguePipeline = connector.get(dialogueType)
 
     if(hostPipeline != null && dialoguePipeline != null)
     {
