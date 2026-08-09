@@ -887,6 +887,65 @@ val expansionPipeline = Pipeline()
         .setPipeName("untwist pipe")
 
 
+    // Surgically rewrites any "not X but Y" parallel-negation constructs in the rewritten chapter.
+    // Autogenesis port: writerAgent.kt:658-671 footer prompt ("NO PARALLEL-NEGATION CONSTRUCTS").
+    val noParallelNegationPipe = GenericOpenAIPipe()
+        .setBaseUrl("https://api.minimax.io/v1")
+        .setApiKey(genericOpenAIEnv.resolveApiKey())
+        .setApiMode(ApiMode.OpenAIResponses)
+        .setModel(ModelConfig.primaryModelName)
+        .truncateModuleContext()
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(0.7)
+        .setTopP(0.8)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .pullGlobalContext()
+        .setPageKey("new page")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setReasoningPipe(explicitCotBuilder())
+        .setSystemPrompt("""##STYLE: NO PARALLEL-NEGATION CONSTRUCTS
+            |Do NOT use "not X but Y" rhetorical structures. Chatbot-tuned LLMs overproduce
+            |this family of tics because it cheaply delivers contrast. Variants to avoid:
+            |  - "Not X but Y"
+            |  - "It's not X, it's Y"
+            |  - "Not because A but because B"
+            |  - "Not A but B"
+            |  - "Is not A but is B"
+            |  - "Not A, not B, is C"
+            |  - "Isn't X, but is Y"
+            |State what something IS directly. If the prose genuinely needs to negate
+            |the false expectation (e.g. "It was not a weapon but a key"), write the
+            |second clause as a positive assertion ("It was a key") and let the reader
+            |infer the contrast from context. Never lead with the negation.
+            |
+            |Read the rewritten chapter under the "new page" key and emit a JSON
+            |SurgicalChangeList describing the surgical replacements that remove any
+            |parallel-negation constructs you find. For each occurrence, emit one entry
+            |with subStringToChange (the offending passage) and replacementSubString
+            |(the rewritten positive assertion).
+            |
+            |###NOTE: DO NOT TOUCH DIALOGUE. Dialogue inside quotation marks is exempt.
+            |
+            |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+            |  ]
+            |}
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .setPipeName("no parallel negation pipe")
+
+
     val styleReapplyPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
         .setApiKey(genericOpenAIEnv.resolveApiKey())
@@ -939,6 +998,7 @@ val expansionPipeline = Pipeline()
         .add(removeBadWritingStepOnePipe)
         .add(removeBadWritingStepTwoPipe)
         .add(untwistPipe)
+        .add(noParallelNegationPipe)
         .add(styleReapplyPipe)
 
     runBlocking {
