@@ -1,6 +1,7 @@
 package Builders
 
 import Builders.Util.copyLorebookFromMain
+import Builders.Util.recordAuthorPlan
 import Builders.Util.recordWritingPipePage
 import Globals.Env
 import Globals.ModelConfig
@@ -67,8 +68,9 @@ val dialogueConnectorBudget: TokenBudgetSettings = TokenBudgetSettings(
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
         .setContextWindowSize(115000)
-        .requireJsonPromptInjection()
-        .setJsonOutput(dialogueClass())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setJsonOutput(SurgicalChangeList())
+        .setTransformationFunction(::recordAuthorPlan)
         .setMaxTokens(32000)
         .pullGlobalContext()
         .setPageKey("new page, user prompt")
@@ -101,8 +103,19 @@ val dialogueConnectorBudget: TokenBudgetSettings = TokenBudgetSettings(
             first responders speaking to dispatch; etc. OR IF THERE IS NO OR ALMOST NO DIALOGUE.
             ##NOTE: If the user prompt specifies one of the categories specifically, use the requested
             category, regardless of the text content.
-            Depending on what type of dialogue the page predominantly has, assign the appropriate
-            value to the json variable depending on what dialogue it is.
+            Depending on what type of dialogue the page predominantly has, emit your classification
+            as a JSON SurgicalChangeList with exactly one entry:
+              - subStringToChange: the literal string "dialogueType" (used as a marker)
+              - replacementSubString: a JSON object of the form
+                {"dialogueType": "InformalCasual" | "InformalSerious" | "FormalFreeform" | "FormalRote"}
+              - mode: "replace"
+            Output ONLY the JSON. Do not output any prose.
+            Schema:
+            {
+              "changeList": [
+                {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+              ]
+            }
             """)
         .setPipeName("identify my dialogue pipe")
 
