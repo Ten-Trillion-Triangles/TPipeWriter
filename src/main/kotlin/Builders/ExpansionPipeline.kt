@@ -830,21 +830,29 @@ val expansionPipeline = Pipeline()
         .setContextWindowSize(115000)
         .setMaxTokens(32000)
         .setValidatorFunction(::isValidGptOssResponse)
-        .setTransformationFunction(::secondPassTransform)
         .setReasoningPipe(authorBuilder(Env.editorPrompt))
         .setPageKey("user prompt, new page")
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setJsonOutput(SurgicalChangeList())
         .setSystemPrompt("""Your job is straightforward: you must do one final pass over of the new page to ensure
-            |the style guide is adhered to properly. Here is your style guide: ${settings.writingStyle}. 
+            |the style guide is adhered to properly. Here is your style guide: ${settings.writingStyle}.
             |Do not make any changes beyond the ones you were instructed to make.
-            |###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material.
+            |
+            |Emit a JSON SurgicalChangeList with one entry per style-guide violation:
+            |  - subStringToChange: the verbatim passage that violates the style guide (with enough context to uniquely identify it)
+            |  - replacementSubString: the corrected text that adheres to the style guide
+            |  - mode: "replace"
+            |
+            |Output ONLY the JSON. Do not output the rewritten page.
         """.trimMargin())
-        .setFooterPrompt("""###IMPORTANT: DO NOT include the list of changes in your output. THE OUTPUT SHOULD ONLY BE THE FINAL, 
-            |FULLY ADJUSTED PAGE. ###WARNING: DO NOT TRUNCATE THE TEXT. There must be at least as many paragraphs and at least as many
-            |sentences in your output as there were in the provided material.""")
+        .setFooterPrompt("""Output only the JSON list of surgical patches. Do not output the rewritten page.
+            |###IMPORTANT: DO NOT include prose outside the JSON list. ###WARNING: For each entry, replacementSubString must contain the actual corrected text.""")
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("new page").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("style reapply pipe")
-
 
 
     expansionPipeline
