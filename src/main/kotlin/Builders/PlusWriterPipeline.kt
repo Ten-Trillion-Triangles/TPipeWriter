@@ -1601,6 +1601,7 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
 
     return plusWriterPipeline.apply {
         getPipes().forEach {
+            it.setDisablePipe(false)
             it.useEntireContextForLoreSelection()
             it.setTokenBudget(plusWriterPipelineBudget)
             it.enableComprehensiveTokenTracking()

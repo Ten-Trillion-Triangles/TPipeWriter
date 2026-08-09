@@ -332,6 +332,7 @@ val dialogueConnectorBudget: TokenBudgetSettings = TokenBudgetSettings(
     }
     allPipelines.forEach { pipeline ->
         pipeline.getPipes().forEach {
+            it.setDisablePipe(false)
             it.useEntireContextForLoreSelection()
             it.setTokenBudget(dialogueConnectorBudget)
             it.enableComprehensiveTokenTracking()

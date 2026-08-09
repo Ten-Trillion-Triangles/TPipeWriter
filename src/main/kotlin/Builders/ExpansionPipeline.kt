@@ -1252,6 +1252,7 @@ val expansionPipeline = Pipeline()
     // Pattern mirrors ChapterRewritePipeline (commit d8c12b2) and
     // DialogueConnector (commit 8803c59).
     expansionPipeline.getPipes().forEach {
+        it.setDisablePipe(false)
         it.useEntireContextForLoreSelection()
         it.setTokenBudget(expansionPipelineBudget)
         it.enableComprehensiveTokenTracking()

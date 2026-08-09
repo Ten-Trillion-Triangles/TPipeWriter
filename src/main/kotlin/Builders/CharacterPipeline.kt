@@ -83,6 +83,7 @@ fun buildCharacterPipeline(character: String): Pipeline
     // Apply per-pipe budget + lore + tracking (PlusWriter Task-2/3 mirror).
     return chatPipeline.apply {
         getPipes().forEach {
+            it.setDisablePipe(false)
             it.useEntireContextForLoreSelection()
             it.setTokenBudget(characterPipelineBudget)
             it.enableComprehensiveTokenTracking()
@@ -156,6 +157,7 @@ fun buildCharacterPipelineWithStory(character: String): Pipeline
     // Apply per-pipe budget + lore + tracking (PlusWriter Task-2/3 mirror).
     return chatPipeline.apply {
         getPipes().forEach {
+            it.setDisablePipe(false)
             it.useEntireContextForLoreSelection()
             it.setTokenBudget(characterPipelineBudget)
             it.enableComprehensiveTokenTracking()

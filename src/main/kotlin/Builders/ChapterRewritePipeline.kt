@@ -969,6 +969,7 @@ fun buildChapterRewritePipeline(
 
     return rewritePipeline.apply {
         getPipes().forEach {
+            it.setDisablePipe(false)
             it.useEntireContextForLoreSelection()
             it.setTokenBudget(chapterRewritePipelineBudget)
             it.enableComprehensiveTokenTracking()

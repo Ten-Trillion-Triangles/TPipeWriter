@@ -363,7 +363,12 @@ pitchSlideWriterPipeline
         pitchSlideWriterPipeline.init(true)
     }
 
-
+    // Defensive per-pipe disable-pipe default (mirror PlusWriter / ChapterRewrite /
+    // ExpansionPipeline / DialogueConnector / CharacterPipeline pattern). Ensures
+    // every pipe in this pipeline is in the enabled state by default.
+    pitchSlideWriterPipeline.getPipes().forEach {
+        it.setDisablePipe(false)
+    }
 
     return pitchSlideWriterPipeline
 

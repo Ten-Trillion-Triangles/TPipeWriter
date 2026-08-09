@@ -297,5 +297,13 @@ fun buildNccWriter(style : String = "",
         nccPipeline.init(true)
     }
 
+    // Defensive per-pipe disable-pipe default (mirror PlusWriter / ChapterRewrite /
+    // ExpansionPipeline / DialogueConnector / CharacterPipeline pattern). Ensures
+    // every pipe in this pipeline is in the enabled state by default; the framework's
+    // setDisablePipe() mechanism can be used later to skip individual pipes.
+    nccPipeline.getPipes().forEach {
+        it.setDisablePipe(false)
+    }
+
     return nccPipeline
 }
