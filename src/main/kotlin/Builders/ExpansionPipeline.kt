@@ -65,8 +65,8 @@ val expansionPipeline = Pipeline()
         .setApiKey(genericOpenAIEnv.resolveApiKey())
         .setApiMode(ApiMode.OpenAIResponses)
         .setModel(ModelConfig.primaryModelName)
-        .requireJsonPromptInjection()
-        .setJsonOutput(BreakerList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setJsonOutput(SurgicalChangeList())
         .truncateModuleContext()
         .setMaxTokens(32000)
         .setTemperature(0.8)
@@ -85,21 +85,40 @@ val expansionPipeline = Pipeline()
             |the sentences:
             |1. Referencing ${Env.authorPrompt}, use the character's personality to select a sentence that requires
             |more body text after it in accordance with the demands of the user prompt.
-            |2. Referencing ${Env.editorPrompt}, use the character's personality to select a DIFFERENT 
+            |2. Referencing ${Env.editorPrompt}, use the character's personality to select a DIFFERENT
             |sentence that requires
             |more body text after it in accordance with the demands of the user prompt.
-            |3. Referencing ${Env.richardTreadwell}, use the character's personality to select a THIRD, 
+            |3. Referencing ${Env.richardTreadwell}, use the character's personality to select a THIRD,
             |YET STILL DIFFERENT sentence that requires
             |more body text after it in accordance with the demands of the user prompt.
             |
-            |Once you have selected the sentences, create a json array/blob that has each of the target sentences
-            |marked out in a numbered list, with each of the three separate selected sentences getting its
-            |OWN array elem. 
+            |For each of the three target sentences, emit a JSON SurgicalChangeList entry:
+            |  - subStringToChange: the verbatim target sentence (with enough surrounding context — the
+            |    sentence before it — to uniquely identify it)
+            |  - replacementSubString: a brief placeholder explaining what body text should be inserted
+            |    (e.g. "[EXPAND: 2 paragraphs of character introspection]"). The downstream expander pipe
+            |    will replace this placeholder with actual body text.
+            |  - mode: "insertAfter"
+            |
+            |Output a JSON SurgicalChangeList with exactly 3 entries. Output ONLY the JSON. Do not add commentary.
+            |
+            |Schema:
+            |{
+            |  "changeList": [
+            |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "insertAfter"}
+            |  ]
+            |}
         """.trimMargin())
-        .setFooterPrompt("""###GOAL: You must return your plan only as a numbered list. Do not write a page or chapter. 
-            |Produce only a plan for what you intend to write, and produce it only as a numbered list. You must
-            |include ONLY ONE target sentence per array element. I repeat: Only ONE target sentence per array element.""")
+        .setFooterPrompt("""###GOAL: Output only the JSON list of surgical patches. Do not write a page or chapter.
+            |Produce only the JSON list with exactly 3 entries (one per insertion point). Each entry must have
+            |a verbatim subStringToChange (the target sentence) and a brief replacementSubString placeholder.""")
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setOnFailure { _, processed ->
+            processed.text = ContextBank.getContextFromBank("prevChapter").contextElements.lastOrNull() ?: processed.text
+            processed
+        }
         .setPipeName("breaker pipe")
+
 
     val expanderPipe = GenericOpenAIPipe()
         .setBaseUrl("https://api.minimax.io/v1")
