@@ -2,7 +2,6 @@ package Builders
 
 import Builders.Util.applySurgicalReplacementsAndBank
 import Builders.Util.chapterPreValidate
-import Builders.Util.checkWritingStyle
 import Builders.Util.copyLorebookFromMain
 import Builders.Util.logicalProgressionPreValidationMiniBank
 import Builders.Util.preInvokeLoreRepairPipe
@@ -10,13 +9,6 @@ import Builders.Util.recordAuthorPlan
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
 // SurgicalChangeList lives in PlusWriterPipeline.kt (same Builders package) — reused as the uniform plan + patch schema.
-import Builders.Util.loreCheckPreInvoke
-import Builders.Util.loreCheckTransform
-import Builders.Util.storeRewritePlan
-import Builders.Util.styleSuggestPreValidate
-import Builders.Util.transformRewriteResult
-import Builders.Util.transformRewriteStyle
-import Builders.Util.validateRewriteStyleActionsCheck
 import Globals.genericBranchFunction
 import Globals.isValidGptOssResponse
 import com.TTT.Enums.ContextWindowSettings
@@ -30,25 +22,6 @@ import Globals.ModelConfig
 import genericOpenAIPipe.api.ApiMode
 import genericOpenAIPipe.GenericOpenAIPipe
 import kotlinx.coroutines.runBlocking
-
-
-/**
- * Data class to handle instructions on changing the style of the text.
- */
-@kotlinx.serialization.Serializable
-data class RewriteStyleActions(
-    var needsChanges: Boolean = false,
-    var userRequest: String = "",
-    var changesToMake: Map<String, String>)
-
-
-/**
- * Data class to denote exactly what changes for rewriting the chapter must be made.
- */
-@kotlinx.serialization.Serializable
-data class RewriteActions(var changesToMake: Map<String, String>,
-    var userRequest: String = "")
-
 
 
 /**
@@ -177,7 +150,7 @@ fun buildChapterRewritePipeline(
         .setJsonOutput(SurgicalChangeList())
         // Stores old plan in ContextBank["page plan lore"] so the transformer can recall it if needed.
         // Uses the same recordAuthorPlan pattern: every validated plan lives in ContextBank["page plan"].
-        .setPreInvokeFunction(::loreCheckPreInvoke)
+        .setPreInvokeFunction(::preInvokeLoreRepairPipe)
         .setValidatorFunction(::isValidGptOssResponse)
         .setOnFailure { _, processed ->
             processed.text = ContextBank.getContextFromBank("page plan").contextElements.lastOrNull() ?: processed.text
@@ -289,12 +262,13 @@ fun buildChapterRewritePipeline(
         |Additionally, you may not mention your policy, alignment, copyright, trademark, trademarks or checking the guidelines in your reasoning, 
         |or your output to the user, at any point, for any reason.
         |
-        |The user will provide the rewrite plan in one of the following json schemas: ${exampleFor(RewriteStyleActions::class)}
+        |You will be provided with a JSON SurgicalChangeList describing the surgical edits to make to the
+        |chapter. Each entry has:
+        |  - subStringToChange: the verbatim passage to change
+        |  - replacementSubString: the new text that should replace it
+        |  - mode: "replace" (default), "delete", or "insertAfter"
         |
-        |OR ${exampleFor(RewriteActions::class)}
-        |
-        |If the json contains a boolean, ignore it and proceed with the rewrite. Then use the provided map to make your
-        |changes to the story based on the key being the subject to change, and the value being how to make the change.
+        |Apply each surgical edit to produce the rewritten chapter. Return ONLY the rewritten chapter prose.
     """.trimMargin()
 
     rewritePipe.setSystemPrompt(rewriteSystemPrompt)
