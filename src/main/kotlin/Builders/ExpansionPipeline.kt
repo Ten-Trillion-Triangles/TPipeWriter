@@ -12,6 +12,8 @@ import Globals.isValidGptOssResponse
 import Globals.ModelConfig
 import Shell.loadSettings
 import com.TTT.Context.ContextBank
+import com.TTT.Pipe.MultiPageBudgetStrategy
+import com.TTT.Pipe.TokenBudgetSettings
 import com.TTT.Pipeline.Pipeline
 import genericOpenAIPipe.env.GenericOpenAIEnv as genericOpenAIEnv
 import genericOpenAIPipe.api.ApiMode
@@ -29,6 +31,26 @@ data class BreakerList(
 )
 
 fun buildExpansionPipeline (): Pipeline {
+
+/**
+ * Per-pipe token budget applied to every pipe in ExpansionPipeline.
+ *
+ * Mirrors chapterRewritePipelineBudget (ChapterRewritePipeline.kt:51-65) and
+ * dialogueConnectorBudget (DialogueConnector.kt:39-58). Same MiniMax-M3 512k
+ * context window, 12k output cap, no reasoning carve-out, user prompt
+ * preserved untouched, DYNAMIC_SIZE_FILL multi-page strategy.
+ */
+val expansionPipelineBudget: TokenBudgetSettings = TokenBudgetSettings(
+    contextWindowSize = 512_000,
+    maxTokens = 12_000,
+    reasoningBudget = null,
+    userPromptSize = null,
+    allowUserPromptTruncation = false,
+    compressUserPrompt = false,
+    truncateContextWindowAsString = false,
+    preserveTextMatches = true,
+    multiPageBudgetStrategy = MultiPageBudgetStrategy.DYNAMIC_SIZE_FILL
+)
 
     val settings = loadSettings()
 
@@ -781,7 +803,14 @@ val expansionPipeline = Pipeline()
         expansionPipeline.init(true)
     }
 
-
+    // Apply per-pipe TokenBudgetSettings to every pipe in ExpansionPipeline.
+    // Pattern mirrors ChapterRewritePipeline (commit d8c12b2) and
+    // DialogueConnector (commit 8803c59).
+    expansionPipeline.getPipes().forEach {
+        it.useEntireContextForLoreSelection()
+        it.setTokenBudget(expansionPipelineBudget)
+        it.enableComprehensiveTokenTracking()
+    }
 
     return expansionPipeline
 }
