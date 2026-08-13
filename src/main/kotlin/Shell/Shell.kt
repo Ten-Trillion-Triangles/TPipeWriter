@@ -284,6 +284,7 @@ fun parseInput()
             "author" -> selectAuthorMode()
             "editor" -> selectEditorMode()
             "budget-info" -> printBudgetInfo()
+            "pipes" -> pipeDisableSubshell()
             "pitch" -> callPitchSubShell()
             else -> println("Unknown command: $extractedSlashCommand. Type /help for available commands.")
         }
@@ -1077,6 +1078,19 @@ fun loadStory()
         if (settingsFile.exists()) {
             println("Settings loaded from ${settingsFile.absolutePath}")
         }
+
+        // Load the project-scoped pipes state sidecar if present. The
+        // pipeline objects have been rebuilt by Env.init above (which calls
+        // buildPlusWriterPipeline), so we apply the loaded state to the live
+        // Env.plusWriterPipe to honor the persisted per-pipe disable set.
+        val pipesState = loadPipesState(filename)
+        if (pipesState != null) {
+            setActivePipesState(pipesState)
+            applyPipesStateToPipeline(Env.plusWriterPipe, ACTIVE_PIPELINE_NAME, pipesState)
+            val disabledCount = pipesState.disabledFor(ACTIVE_PIPELINE_NAME).size
+            println("Pipes state loaded from ${pipesStatePath(filename).absolutePath} " +
+                "($disabledCount pipe(s) disabled in $ACTIVE_PIPELINE_NAME)")
+        }
     }
     catch (e: Exception)
     {
@@ -1265,6 +1279,7 @@ fun printHelp()
         |/author            - Open the author-personality menu (save/load writer guide + Richard Treadwell)
         |/editor            - Open the editor-personality menu (save/load editor guide)
         |/budget-info       - Print the token budget applied to every writer pipe
+        |/pipes             - Toggle / save / load per-pipe enable/disable state for the active writer pipeline
         |/help              - Show this help message
         |/exit              - Exit the application
         |
@@ -1380,6 +1395,13 @@ fun exportStory()
         println("Story data with chapters exported to ${storyDataFile.absolutePath}")
         println("Lorebook exported to ${lorebookFile.absolutePath}")
         println("Settings exported to ${settingsFile.absolutePath}")
+
+        // Export the project-scoped pipes state (which pipes are disabled)
+        // as a sidecar file so /loadStory can restore it. Mirrors the
+        // settings.json / lorebook.json / story.json export pattern.
+        savePipesState(filename, getActivePipesState())
+        val pipesFile = pipesStatePath(filename)
+        println("Pipes state exported to ${pipesFile.absolutePath}")
     }
     catch (e: Exception)
     {

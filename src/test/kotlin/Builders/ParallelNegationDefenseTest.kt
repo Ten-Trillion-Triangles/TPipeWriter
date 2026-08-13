@@ -52,7 +52,8 @@ class ParallelNegationDefenseTest
             "\"Is not A but is B\"",
             "\"Not A, not B, is C\"",
             "\"Isn't X, but is Y\"",
-            "Never lead with the negation",
+            "\"It's not A, it's actually a B\"",
+            "chimney permit violation",
             // PlusWriter-specific framing: distinguishes parallel-negation
             // from twist removal and directs the LLM to use mode=replace
             // (not mode=delete) because the underlying fact may still

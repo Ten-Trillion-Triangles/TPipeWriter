@@ -525,6 +525,7 @@ fun buildChapterRewritePipeline(
             |  - "Is not A but is B"
             |  - "Not A, not B, is C"
             |  - "Isn't X, but is Y"
+            |  - "It's not A, it's actually a B" / "A is not X, A is in fact Y" (escalation-layer form: the second clause does not re-state the same thing positively, it INFLATES into a higher-order justification, dodge, or appeal to authority — e.g. "It's not a blunder, it's a chimney permit violation", "It's not a workaround, it's an emergency infrastructure provision under §7(b)").
             |State what something IS directly. If the prose genuinely needs to negate the false expectation
             |(e.g. "It was not a weapon but a key"), write the second clause as a positive assertion
             |("It was a key") and let the reader infer the contrast from context. Never lead with the negation.
@@ -579,6 +580,7 @@ fun buildChapterRewritePipeline(
             |  - "Is not A but is B"
             |  - "Not A, not B, is C"
             |  - "Isn't X, but is Y"
+            |  - "It's not A, it's actually a B" / "A is not X, A is in fact Y" (escalation-layer form: the second clause does not re-state the same thing positively, it INFLATES into a higher-order justification, dodge, or appeal to authority — e.g. "It's not a blunder, it's a chimney permit violation", "It's not a workaround, it's an emergency infrastructure provision under §7(b)").
             |State what something IS directly. If the prose genuinely needs to negate
             |the false expectation (e.g. "It was not a weapon but a key"), write the
             |second clause as a positive assertion ("It was a key") and let the reader

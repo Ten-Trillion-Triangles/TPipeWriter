@@ -38,6 +38,7 @@ import genericOpenAIPipe.api.ApiMode
 import genericOpenAIPipe.GenericOpenAIPipe
 import kotlinx.coroutines.runBlocking
 import java.io.File
+import Shell.DisabledPipesState
 
 /**
  * Data class for handling the user prompt for the manual lorebook pipeline.
@@ -97,6 +98,14 @@ object Env {
     var expansionPipeline = Pipeline()
     var plusWriterPipe = Pipeline()
     var writingPipelineSettings = mutableMapOf<String, List<ModelSettings>>()
+
+    /**
+     * Live disabled-pipes state for the active writer pipeline. Mutated by
+     * the /pipes subshell via setActivePipesState / getActivePipesState.
+     * Persisted to a per-project sidecar by exportStory / loadStory
+     * (calls savePipesState / loadPipesState).
+     */
+    var activePipesState: DisabledPipesState = DisabledPipesState.EMPTY
 
     /**
      * Pitch-slide writer pipeline — constructed lazily so the `authorBuilder()`
@@ -705,6 +714,15 @@ and the sensual and erotic aspects.
             writeStringToFile("${configDir}/MainStory.json", mainStory)
             writeStringToFile("${configDir}/Summary.json", summary)
             writeStringToFile("${configDir}/Chat.json", chat)
+
+            // Also write the project-scoped pipes state (per-pipe disable set
+            // for the active writer pipeline). Mirrors the existing
+            // MainStory.json / Summary.json / Chat.json pattern. Sidecar
+            // version (`$filename-pipes.json` in ~/TPipeWriter/) is produced
+            // by /exportStory; this is the /save variant.
+            val pipesJson = activePipesState.toJson()
+            writeStringToFile("${configDir}/Pipes.json", pipesJson)
+
             println("Context saved to $configDir")
         }
 
