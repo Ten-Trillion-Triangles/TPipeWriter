@@ -254,6 +254,8 @@ fun buildCharacterPipelineWithStory(character: String) : Pipeline
             |The "story guide" key is the guide for the story as a whole. The "chapter guide" key is the guide
             |for the current chapter.
         """.trimMargin())
+        .setPipeName("Character Chat Pipe")
+        .setDisablePipe(false)
 
     val chatPipeline = Pipeline()
         .add(chatPipe)
@@ -263,5 +265,9 @@ fun buildCharacterPipelineWithStory(character: String) : Pipeline
         chatPipeline.init(true)
     }
 
-    return chatPipeline
+    return chatPipeline.apply {
+        getPipes().forEach {
+            it.setDisablePipe(false)
+        }
+    }
 }

@@ -243,28 +243,6 @@ suspend fun secondPassTransform(content: MultimodalContent) : MultimodalContent
     return content
 }
 
-suspend fun recordLoreBookPlus(content: MultimodalContent) : MultimodalContent
-{
-    //Clean up nonsense Deepseek always tries to inject for some reason.
-    content.text = cleanJsonString(content.text)
-
-    //Create new context window to prepare to merge it with our global context.
-    val newLoreBookEntries = deserialize<ContextWindow>(content.text) ?: ContextWindow()
-    newLoreBookEntries.contextElements.clear() //Stop deepseek from writing to this for some reason.
-
-
-    //Merge in new keys that do not exist yet.
-    var bankedContext = ContextBank.getContextFromBank("main")
-    bankedContext.merge(newLoreBookEntries)
-
-    //Update the banked context.
-    content.context = bankedContext
-    ContextBank.emplaceWithMutex("main", content.context)
-
-
-    return content
-}
-
 /**
  * Compare word counts between two strings and return true if the second string is smaller
  * than the first by the specified percentage threshold.

@@ -1,8 +1,13 @@
 package Builders
 
+import Builders.Util.applySurgicalReplacementsAndBank
 import Builders.Util.checkWritingStyle
+import Builders.Util.copyLorebookFromMain
 import Builders.Util.loreCheckPreInvoke
 import Builders.Util.loreCheckTransform
+import Builders.Util.logicalProgressionPreValidationMiniBank
+import Builders.Util.preInvokeLoreRepairPipe
+import Builders.Util.recordAuthorPlan
 import Builders.Util.storeRewritePlan
 import Builders.Util.styleSuggestPreValidate
 import Builders.Util.transformRewriteResult
@@ -12,6 +17,7 @@ import Globals.genericBranchFunction
 import Globals.isValidGptOssResponse
 import bedrockPipe.BedrockMultimodalPipe
 import com.TTT.Enums.ContextWindowSettings
+import com.TTT.Pipe.TokenBudgetSettings
 import com.TTT.Pipeline.Pipeline
 import com.TTT.Util.exampleFor
 import env.bedrockEnv
@@ -89,20 +95,36 @@ fun buildChapterRewritePipeline(
         .setPageKey("rewriteContext, prevChapter")
         .setContextWindowSize(contextWindowMax)
         .setContextWindowSettings(ContextWindowSettings.TruncateTop)
-        .setJsonOutput(RewriteActions(mapOf())) //Store plan as map of subject to change made.
-        .setTransformationFunction(::storeRewritePlan) //Store plan for retrieval if we don't need to overwrite it.
+        .setJsonOutput(SurgicalChangeList()) //Plan is a list of surgical changes the rewrite pipe will execute.
+        .setTransformationFunction(::recordAuthorPlan) //Store plan in ContextBank["page plan"] for downstream pipes.
         .setPipeName("Analysis pipe")
-        .requireJsonPromptInjection()
+        .requireJsonPromptInjection(stripExternalText = true)
 
     val analysisSystemPrompt = """You are a writing assistant that helps the user rewrite a chapter in their text.
         |You will be given a request for revisions the user would like to be made by the user. You must then use that
-        |request and the provided context that is supplied to come up with ideas on how to rewrite the chapter. Using
-        |the context key "rewriteContext" (The current official story so far), and the context key of "prevChapter" which is
-        |the chapter of the story the user wants you to rewrite. You must use this data, combined with the user's 
-        |request to determine a concrete set of ideas and ways the chapter should be rewritten and return that 
-        |set of ideas as your output. In your output you must denote the json key as the subject or thing to change,
-        |and the value of the map as the specific change to make. Keep each change only as verbose as needed to describe
-        |the action that needs to be taken.
+        |request and the provided context to come up with a concrete plan for surgical edits to the chapter.
+        |
+        |Using the context key "rewriteContext" (the current official story so far) and "prevChapter" (the chapter
+        |the user wants rewritten), produce a JSON SurgicalChangeList describing the changes that need to happen.
+        |
+        |Each changeList entry has:
+        | - subStringToChange: the exact passage in "prevChapter" that must change (verbatim, with enough
+        |   surrounding context — a sentence or two — to uniquely identify it)
+        | - replacementSubString: the new text that should replace it
+        | - mode: "replace" (default — substitute the substring), "delete" (remove the substring entirely),
+        |   or "insertAfter" (add replacementSubString after subStringToChange without modifying it)
+        |
+        |Keep each entry as surgical as possible — describe only the specific change. Do not produce full
+        |paragraph rewrites; each entry is a find/replace patch.
+        |
+        |Output ONLY the JSON. No prose before or after.
+        |
+        |Schema:
+        |{
+        |  "changeList": [
+        |    {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+        |  ]
+        |}
     """.trimMargin()
 
     analysisPipe.setSystemPrompt(analysisSystemPrompt)
@@ -384,5 +406,298 @@ fun buildChapterRewritePipeline(
 
     runBlocking { rewritePipeline.init(true) }
 
-    return rewritePipeline
+
+    /**
+     * Banner I surgical-edit additions: 8 new pipes ported from TPipeWriter-MiniMax.
+     * These pipes emit or consume SurgicalChangeList entries for find/replace patches.
+     * Uses Bedrock chain syntax; model selection mirrors the existing chapter-rewrite pipeline.
+     */
+
+    val untwistPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .truncateModuleContext()
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(0.8)
+        .setTopP(0.8)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .pullGlobalContext()
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setPreValidationMiniBankFunction(::copyLorebookFromMain)
+        .setSystemPrompt("""Your job is simple, but requires effort. Read the page provided under the "new page" key
+            |and seek out all "unwanted twists" — reveal-the-butcher / pivot-to-revelation moments in the prose
+            |THAT ARE NOT SPECIFICALLY REQUESTED BY THE USER PROMPT OR SUBSTANTIATED BY THE LOREBOOK.
+            |For each one, emit a JSON SurgicalChangeList entry that surgically removes or replaces the twist.
+            |
+            |##STYLE: NO PARALLEL-NEGATION CONSTRUCTS
+            |A subset of unwanted-twist variants uses 'not X but Y' parallel-negation structures. These deserve
+            |a stronger, separate treatment than mere 'twist removal' because they read as chatbot rhetoric even
+            |when the literal content of the assertion is true. When you see a parallel-negation construct,
+            |DO NOT just delete the assertion — rewrite the second clause as a positive assertion that lets
+            |the reader infer the contrast from context.
+            |
+            |Do NOT use "not X but Y" rhetorical structures. Variants to avoid:
+            | - "Not X but Y"
+            | - "It's not X, it's Y"
+            | - "Not because A but because B"
+            | - "Not A but B"
+            | - "Is not A but is B"
+            | - "Not A, not B, is C"
+            | - "Isn't X, but is Y"
+            |State what something IS directly. If the prose genuinely needs to negate the false expectation
+            |(e.g. "It was not a weapon but a key"), write the second clause as a positive assertion
+            |("It was a key") and let the reader infer the contrast from context.
+            |
+            |For these parallel-negation constructs, mode is always "replace".
+            |
+            |If no unwanted twists AND no parallel-negation constructs are present, emit {"changeList": []}.
+            |
+            |Output ONLY the JSON. Do not output the rewritten page.
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = com.TTT.Context.ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .setPipeName("untwist pipe")
+
+    val noParallelNegationPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .truncateModuleContext()
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(0.8)
+        .setTopP(0.8)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .pullGlobalContext()
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setPreValidationMiniBankFunction(::copyLorebookFromMain)
+        .setSystemPrompt("""You are a parallel-negation defense pipe. Read the page under the "new page" key
+            |and locate every parallel-negation construct ("not X but Y", "it's not X it's Y", etc).
+            |For each, emit a JSON SurgicalChangeList entry with mode="replace" whose
+            |replacementSubString is the positive-assertion form (the second clause stated directly,
+            |without leading negation).
+            |
+            |If no parallel-negation constructs are present, emit {"changeList": []}.
+            |
+            |Output ONLY the JSON.
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = com.TTT.Context.ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .setPipeName("no parallel negation pipe")
+
+    val removeBadWritingStepOnePipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .truncateModuleContext()
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(0.8)
+        .setTopP(0.8)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .pullGlobalContext()
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setPreValidationMiniBankFunction(::copyLorebookFromMain)
+        .setSystemPrompt("""You are step one of the bad-writing cleanup. Find passages that contain
+            |telltale signs of bad prose: filter words ("felt", "saw", "heard", "thought" used as
+            |sensory crutches), adverbs in -ly modifying dialogue tags, and redundant intensifiers
+            |("very", "really", "quite"). For each, emit a SurgicalChangeList entry with mode="delete"
+            |or mode="replace" that surgically removes the offending word/phrase.
+            |
+            |Output ONLY the JSON. Emit {"changeList": []} if nothing matches.
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = com.TTT.Context.ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .setPipeName("remove bad writing step one pipe")
+
+    val removeBadWritingStepTwoPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .truncateModuleContext()
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(0.8)
+        .setTopP(0.8)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .pullGlobalContext()
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setPreValidationMiniBankFunction(::copyLorebookFromMain)
+        .setSystemPrompt("""You are step two of the bad-writing cleanup. Find remaining issues:
+            |passive-voice constructions, vague attributions ("something happened"), and clichéd
+            |metaphors. For each, emit a SurgicalChangeList entry with mode="replace" or mode="delete"
+            |that surgically rewrites the passage.
+            |
+            |Output ONLY the JSON. Emit {"changeList": []} if nothing matches.
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = com.TTT.Context.ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .setPipeName("remove bad writing step two pipe")
+
+    val loreCheckPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .setContextWindowSize(120000)
+        .setMaxTokens(20000)
+        .setTopP(.8)
+        .setTemperature(.7)
+        .pullGlobalContext()
+        .setPageKey("lorebook, prevChapter")
+        .setPreInvokeFunction(::loreCheckPreInvoke)
+        .setTransformationFunction(::loreCheckTransform)
+        .setSystemPrompt("""You are a lore compliance checker. Read the lorebook and the page under
+            |"prevChapter". Identify any lore inconsistencies: contradictions with established facts,
+            |misuse of entity names, anachronisms, or broken continuity. Return a boolean (true if
+            |issues exist) and a list of issue descriptions.
+            |
+            |Output as JSON: {"hasIssues": true, "issues": ["issue1", "issue2"]}
+        """.trimMargin())
+        .setPipeName("lore check pipe")
+
+    val loreRepairPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .requireJsonPromptInjection()
+        .setJsonInput(SurgicalChangeList())
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(.7)
+        .setTopP(.8)
+        .pullGlobalContext()
+        .setPageKey("lorebook, prevChapter")
+        .setPreInvokeFunction(::preInvokeLoreRepairPipe)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setSystemPrompt("""You are a lore repair pipe. Read the page under "prevChapter" and the
+            |lorebook. Surgically rewrite any passages that contradict established lore.
+            |Output a JSON SurgicalChangeList with mode="replace" entries.
+            |
+            |Output ONLY the JSON.
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = com.TTT.Context.ContextBank.getContextFromBank("prevChapter")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .setPipeName("lore repair pipe")
+
+    val logicalProgressionPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .requireJsonPromptInjection()
+        .truncateModuleContext()
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(.7)
+        .setTopP(.8)
+        .pullGlobalContext()
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setPreValidationMiniBankFunction(::logicalProgressionPreValidationMiniBank)
+        .setSystemPrompt("""You are a logical-progression pipe. Read the page under "new page" and
+            |identify any logical inconsistencies: characters acting out of established pattern,
+            |events that contradict earlier setups, impossible sequences. For each, emit a
+            |SurgicalChangeList entry with mode="replace" that surgically fixes the inconsistency.
+            |
+            |Output ONLY the JSON. Emit {"changeList": []} if no issues.
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = com.TTT.Context.ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .setPipeName("logical progression pipe")
+
+    val logicalCorrectionPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .requireJsonPromptInjection()
+        .setTemperature(.7)
+        .setTopP(.8)
+        .pullGlobalContext()
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setPreValidationMiniBankFunction(::logicalProgressionPreValidationMiniBank)
+        .setSystemPrompt("""You are a logical-correction pipe. Read the page under "new page" and
+            |the logical-progression plan (banked). Apply each plan entry as a surgical replacement
+            |to fix the inconsistency. Emit a SurgicalChangeList with the actual replacements made.
+            |
+            |Output ONLY the JSON.
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setOnFailure { _, processed ->
+            processed.text = com.TTT.Context.ContextBank.getContextFromBank("new page")
+                .contextElements.lastOrNull() ?: processed.text
+            processed
+        }
+        .setPipeName("logical correction pipe")
+
+    rewritePipeline.add(analysisPipe)
+    rewritePipeline.add(loreValidationPipe)
+    rewritePipeline.add(rewritePipe)
+    rewritePipeline.add(untwistPipe)
+    rewritePipeline.add(noParallelNegationPipe)
+    rewritePipeline.add(removeBadWritingStepOnePipe)
+    rewritePipeline.add(removeBadWritingStepTwoPipe)
+    rewritePipeline.add(loreCheckPipe)
+    rewritePipeline.add(loreRepairPipe)
+    rewritePipeline.add(logicalProgressionPipe)
+    rewritePipeline.add(logicalCorrectionPipe)
+    rewritePipeline.add(styleCheckPipe)
+    rewritePipeline.add(styleSuggestPipe)
+    rewritePipeline.add(styleFixPipe)
+
+    runBlocking { rewritePipeline.init(true) }
+
+    val chapterRewriteBudget = TokenBudgetSettings(
+        maxTokens = 8000,
+        contextWindowSize = 200000,
+        allowUserPromptTruncation = true,
+    )
+
+    return rewritePipeline.apply {
+        getPipes().forEach {
+            it.setDisablePipe(false)
+            it.setTokenBudget(chapterRewriteBudget)
+        }
+    }
 }

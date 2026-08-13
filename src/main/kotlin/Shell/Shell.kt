@@ -1228,6 +1228,9 @@ fun printHelp()
         |/write             - Generate story content using the writer pipeline
         |/idea              - Enter idea pipeline sub-shell or generate ideas with prompt
         |/chat              - Chat about the story using the discussion pipeline
+        |/author            - Author-personality save/load subshell
+        |/editor            - Editor-personality save/load subshell
+        |/budget-info       - Show per-pipe token budget status
         |/character         - Chat with a selected character prompt (uses converse history)
         |/lorebook          - Update lorebook entries using the lorebook pipeline
         |/summary           - Summarize content (last/all/1-3/5/custom text)

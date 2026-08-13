@@ -359,6 +359,10 @@ pitchSlideWriterPipeline
 
     enablePipelineStreaming(pitchSlideWriterPipeline)
 
-    return pitchSlideWriterPipeline
+    return pitchSlideWriterPipeline.apply {
+        getPipes().forEach {
+            it.setDisablePipe(false)
+        }
+    }
 
 }

@@ -1,8 +1,12 @@
 package Builders
 
-import Builders.Util.chapterPreValidate
 import Builders.Util.applySurgicalReplacementsAndBank
+import Builders.Util.chapterPreValidate
 import Builders.Util.copyLorebookFromMain
+import Builders.Util.loreCheckPreInvoke
+import Builders.Util.loreCheckTransform
+import Builders.Util.logicalProgressionPreValidationMiniBank
+import Builders.Util.preInvokeLoreRepairPipe
 import Builders.Util.preInvokeShunt
 import Builders.Util.recordAuthorPlan
 import Builders.Util.recordWritingPipePage
@@ -13,6 +17,7 @@ import Shell.loadSettings
 import Util.enablePipelineStreaming
 import bedrockPipe.BedrockMultimodalPipe
 import com.TTT.Context.ContextBank
+import com.TTT.Pipe.TokenBudgetSettings
 import com.TTT.Pipeline.Pipeline
 import env.bedrockEnv
 import kotlinx.coroutines.runBlocking
@@ -818,11 +823,185 @@ val expansionPipeline = Pipeline()
         .add(removeBadWritingStepTwoPipe)
         .add(styleReapplyPipe)
 
+
+    /**
+     * Banner I surgical-edit additions: 7 new pipes ported from TPipeWriter-MiniMax.
+     * Uses Bedrock chain syntax; model selection mirrors existing expansion pipeline.
+     */
+
+    val untwistPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .truncateModuleContext()
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(0.8)
+        .setTopP(0.8)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .pullGlobalContext()
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setPreValidationMiniBankFunction(::copyLorebookFromMain)
+        .setSystemPrompt("""Your job: remove unwanted twists and parallel-negation constructs from the page under "new page".
+            |Emit a JSON SurgicalChangeList with mode="replace" or mode="delete" entries.
+            |Output ONLY the JSON. Emit {"changeList": []} if nothing to change.
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setPipeName("untwist pipe")
+
+    val noParallelNegationPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .truncateModuleContext()
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(0.8)
+        .setTopP(0.8)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .pullGlobalContext()
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setPreValidationMiniBankFunction(::copyLorebookFromMain)
+        .setSystemPrompt("""You are a parallel-negation defense pipe. Find every parallel-negation construct
+            |in the page under "new page" and emit a SurgicalChangeList entry with mode="replace"
+            |whose replacementSubString is the positive-assertion form.
+            |Output ONLY the JSON.
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setPipeName("no parallel negation pipe")
+
+    val cleanupFilterWordsPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .truncateModuleContext()
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(0.8)
+        .setTopP(0.8)
+        .setValidatorFunction(::isValidGptOssResponse)
+        .pullGlobalContext()
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setPreValidationMiniBankFunction(::copyLorebookFromMain)
+        .setSystemPrompt("""Cleanup pass for filter words. Find filter words, -ly adverbs, redundant intensifiers
+            |and emit SurgicalChangeList entries to remove them surgically.
+            |Output ONLY the JSON. Emit {"changeList": []} if nothing matches.
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setPipeName("cleanup filter words pipe")
+
+    val loreCheckPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .setContextWindowSize(120000)
+        .setMaxTokens(20000)
+        .setTopP(.8)
+        .setTemperature(.7)
+        .pullGlobalContext()
+        .setPageKey("lorebook, new page")
+        .setPreInvokeFunction(::loreCheckPreInvoke)
+        .setTransformationFunction(::loreCheckTransform)
+        .setSystemPrompt("""You are a lore compliance checker. Identify lore inconsistencies.
+            |Return JSON: {"hasIssues": bool, "issues": [str]}
+        """.trimMargin())
+        .setPipeName("lore check pipe")
+
+    val loreRepairPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .requireJsonPromptInjection()
+        .setJsonInput(SurgicalChangeList())
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(.7)
+        .setTopP(.8)
+        .pullGlobalContext()
+        .setPageKey("lorebook, new page")
+        .setPreInvokeFunction(::preInvokeLoreRepairPipe)
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setSystemPrompt("""You are a lore repair pipe. Surgically rewrite passages that contradict lore.
+            |Output JSON SurgicalChangeList. Output ONLY the JSON.
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setPipeName("lore repair pipe")
+
+    val logicalProgressionPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .requireJsonPromptInjection()
+        .truncateModuleContext()
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .setTemperature(.7)
+        .setTopP(.8)
+        .pullGlobalContext()
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setPreValidationMiniBankFunction(::logicalProgressionPreValidationMiniBank)
+        .setSystemPrompt("""Logical-progression pipe. Find logical inconsistencies and emit SurgicalChangeList
+            |entries with mode="replace". Output ONLY the JSON.
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setPipeName("logical progression pipe")
+
+    val logicalCorrectionPipe = BedrockMultimodalPipe()
+        .setRegion("us-east-2")
+        .useConverseApi()
+        .setModel(deepseekModelName)
+        .setContextWindowSize(115000)
+        .setMaxTokens(32000)
+        .requireJsonPromptInjection()
+        .setTemperature(.7)
+        .setTopP(.8)
+        .pullGlobalContext()
+        .setPageKey("user prompt, new page")
+        .setJsonOutput(SurgicalChangeList())
+        .setTransformationFunction(::applySurgicalReplacementsAndBank)
+        .setPreValidationMiniBankFunction(::logicalProgressionPreValidationMiniBank)
+        .setSystemPrompt("""Logical-correction pipe. Apply the banked logical-progression plan and emit
+            |SurgicalChangeList with the actual replacements made. Output ONLY the JSON.
+        """.trimMargin())
+        .setFooterPrompt("Output only the JSON list. No prose before or after.")
+        .setPipeName("logical correction pipe")
+
+    expansionPipeline
+        .add(untwistPipe)
+        .add(noParallelNegationPipe)
+        .add(cleanupFilterWordsPipe)
+        .add(loreCheckPipe)
+        .add(loreRepairPipe)
+        .add(logicalProgressionPipe)
+        .add(logicalCorrectionPipe)
+
     runBlocking {
         expansionPipeline.init(true)
     }
 
     enablePipelineStreaming(expansionPipeline)
 
-    return expansionPipeline
+    val expansionBudget = TokenBudgetSettings(
+        maxTokens = 8000,
+        contextWindowSize = 200000,
+        allowUserPromptTruncation = true,
+    )
+
+    return expansionPipeline.apply {
+        getPipes().forEach {
+            it.setDisablePipe(false)
+            it.setTokenBudget(expansionBudget)
+        }
+    }
 }

@@ -19,6 +19,7 @@ import bedrockPipe.BedrockMultimodalPipe
 import com.TTT.Context.ContextBank
 import com.TTT.Context.ContextWindow
 import com.TTT.Enums.PromptMode
+import com.TTT.Pipe.TokenBudgetSettings
 import com.TTT.Pipeline.Pipeline
 import env.bedrockEnv
 import kotlinx.coroutines.runBlocking
@@ -57,6 +58,23 @@ data class SurgicalChanges(
 @kotlinx.serialization.Serializable
 data class SurgicalChangeList(
     var changeList: MutableList<SurgicalChanges> = mutableListOf()
+)
+
+
+/**
+ * Per-pipe token budget applied to every pipe in PlusWriterPipeline.
+ *
+ * Bedrock-side defaults (mirror CharacterPipeline.kt precedent at L89-99, 211-219):
+ *   - contextWindowSize = 980_000 (Bedrock Claude 4 extended-context capacity)
+ *   - maxTokens = 8_000 (LLM output cap, matching CharacterPipeline.kt)
+ *   - allowUserPromptTruncation = true (Bedrock pipelines truncate on overflow)
+ *
+ * Applied to every pipe via the existing post-init getPipes().forEach block.
+ */
+val plusWriterPipelineBudget: TokenBudgetSettings = TokenBudgetSettings(
+    maxTokens = 8000,
+    contextWindowSize = 980000,
+    allowUserPromptTruncation = true,
 )
 
 
@@ -494,7 +512,31 @@ fun buildPlusWriterPipeline() : Pipeline
             |declarative sentence). DO NOT REWRITE THE WHOLE PAGE. Make as few surgical changes as possible while
             |preserving the page's natural flow.
             |
-            |If no unwanted twists are present, emit {"changeList": []}.
+            |##STYLE: NO PARALLEL-NEGATION CONSTRUCTS
+            |A subset of unwanted-twist variants uses 'not X but Y' parallel-negation structures. These deserve
+            |a stronger, separate treatment than mere 'twist removal' because they read as chatbot rhetoric even
+            |when the literal content of the assertion is true. When you see a parallel-negation construct,
+            |DO NOT just delete the assertion -- rewrite the second clause as a positive assertion that lets
+            |the reader infer the contrast from context.
+            |
+            |Do NOT use "not X but Y" rhetorical structures. Chatbot-tuned LLMs overproduce this family of
+            |tics because it cheaply delivers contrast. Variants to avoid:
+            | - "Not X but Y"
+            | - "It's not X, it's Y"
+            | - "Not because A but because B"
+            | - "Not A but B"
+            | - "Is not A but is B"
+            | - "Not A, not B, is C"
+            | - "Isn't X, but is Y"
+            | - "It's not A, it's actually a B" / "A is not X, A is in fact Y"
+            |State what something IS directly. If the prose genuinely needs to negate the false expectation
+            |(e.g. "It was not a weapon but a key"), write the second clause as a positive assertion
+            |("It was a key") and let the reader infer the contrast from context. Never lead with the negation.
+            |
+            |For these parallel-negation constructs, mode is always "replace" (substitute the positive
+            |assertion), not "delete" (because the underlying fact may still be important to the prose).
+            |
+            |If no unwanted twists AND no parallel-negation constructs are present, emit {"changeList": []}.
             |
             |Output ONLY the JSON. Do not output the rewritten page. Do not add commentary.
             |
@@ -1505,6 +1547,8 @@ Acceptable finishes: em dash, mid-action colon, interrupted dialogue, or an unan
 
     return plusWriterPipeline.apply {
         getPipes().forEach {
+            it.setDisablePipe(false)
+            it.setTokenBudget(plusWriterPipelineBudget)
             it.enableComprehensiveTokenTracking()
         }
 

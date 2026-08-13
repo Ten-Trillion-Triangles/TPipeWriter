@@ -305,5 +305,9 @@ fun buildNccWriter(style : String = "",
         nccPipeline.init(true)
     }
 
-    return nccPipeline
+    return nccPipeline.apply {
+        getPipes().forEach {
+            it.setDisablePipe(false)
+        }
+    }
 }

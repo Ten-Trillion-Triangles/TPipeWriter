@@ -1,6 +1,7 @@
 package Builders
 
 import Builders.Util.copyLorebookFromMain
+import Builders.Util.recordAuthorPlan
 import Builders.Util.recordWritingPipePage
 import Globals.Env
 import Shell.loadSettings
@@ -89,8 +90,9 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .useConverseApi()
         .setModel(deepseekModelName)
         .setContextWindowSize(115000)
-        .requireJsonPromptInjection()
-        .setJsonOutput(dialogueClass())
+        .requireJsonPromptInjection(stripExternalText = true)
+        .setJsonOutput(SurgicalChangeList())
+        .setTransformationFunction(::recordAuthorPlan)
         .setMaxTokens(32000)
         .pullGlobalContext()
         .setPageKey("new page, user prompt")
@@ -98,9 +100,9 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .setTopP(.7)
         .applySystemPrompt()
         .autoInjectContext("")
-        .setSystemPrompt("""Your job is to identify which type of dialogue is dominant on the given page. 
-            There are four categories of dialogue you will be looking for. 
-            1. Informal-Casual: when characters are talking to each other in a relatively low stakes 
+        .setSystemPrompt("""Your job is to identify which type of dialogue is dominant on the given page.
+            There are four categories of dialogue you will be looking for.
+            1. Informal-Casual: when characters are talking to each other in a relatively low stakes
             kind of way in a non-formal setting. Note: the topic can be serious, but still fit for
             Informal-Casual. The key is where the scene is taking place: in a home? Casual. In a
             school lunchroom? Probably casual. In a church or doctor's office? Serious.
@@ -108,25 +110,37 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
             strangers chatting at a bar; a customer talking to an employee or business owner; etc.
             2. Informal-Serious: when characters are talking to each other in serious informal
             settings. Examples include someone talking to a trusted confidant (like a therapist or advisor) in their
-            office; people talking after a funeral while leaving the church; business partners talking to each other 
+            office; people talking after a funeral while leaving the church; business partners talking to each other
             in a non-official capacity while still in their offices; etc.
-            3. Formal-Freeform: when characters are talking to each other in an official capacity 
-            (or at least one character in the scene is acting in an official capacity), 
-            or the discussion is related to work or jobs. Examples include a court hearing; 
-            a serious business or council meeting; an arbitration meeting; 
+            3. Formal-Freeform: when characters are talking to each other in an official capacity
+            (or at least one character in the scene is acting in an official capacity),
+            or the discussion is related to work or jobs. Examples include a court hearing;
+            a serious business or council meeting; an arbitration meeting;
             a police officer talking to witnesses or to a victim or perpetrator; etc.
-            4. Formal-Rote: when characters are in the act of working, and the job in question is one 
+            4. Formal-Rote: when characters are in the act of working, and the job in question is one
             where certain statements have certain specific correct responses. Additionally, if a page has
-            little to no dialogue, it also qualifies as Formal-Rote (Formal-Rote is to be used when 
+            little to no dialogue, it also qualifies as Formal-Rote (Formal-Rote is to be used when
             there is no need to edit the dialogue, you see).
-            Examples include ship pilots navigating; doctors in an emergency room working; 
+            Examples include ship pilots navigating; doctors in an emergency room working;
             first responders speaking to dispatch; etc. OR IF THERE IS NO OR ALMOST NO DIALOGUE.
             ##NOTE: If the user prompt specifies one of the categories specifically, use the requested
             category, regardless of the text content.
-            Depending on what type of dialogue the page predominantly has, assign the appropriate
-            value to the json variable depending on what dialogue it is.
+            Depending on what type of dialogue the page predominantly has, emit your classification
+            as a JSON SurgicalChangeList with exactly one entry:
+              - subStringToChange: the literal string "dialogueType" (used as a marker)
+              - replacementSubString: a JSON object of the form
+                {"dialogueType": "InformalCasual" | "InformalSerious" | "FormalFreeform" | "FormalRote"}
+              - mode: "replace"
+            Output ONLY the JSON. Do not output any prose.
+            Schema:
+            {
+              "changeList": [
+                {"subStringToChange": "...", "replacementSubString": "...", "mode": "..."}
+              ]
+            }
             """)
         .setPipeName("identify my dialogue pipe")
+        .setDisablePipe(false)
 
 
     val benignSkiesMyDialoguePipe = BedrockMultimodalPipe()
@@ -179,6 +193,7 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .setTransformationFunction(::recordWritingPipePage)
         .applySystemPrompt()
         .setPipeName("benign skies my dialogue pipe")
+        .setDisablePipe(false)
         .autoInjectContext("New Page is the page of text you must work on.")
 
 
@@ -244,6 +259,7 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .setTransformationFunction(::recordWritingPipePage)
         .applySystemPrompt()
         .setPipeName("polish my dialogue pipe")
+        .setDisablePipe(false)
         .autoInjectContext("New Page is the page of text you must work on.")
 
 
@@ -309,6 +325,7 @@ fun buildDialogueConnector() : Pair<Pipeline, Connector>
         .setTransformationFunction(::recordWritingPipePage)
         .applySystemPrompt()
         .setPipeName("certify my dialogue pipe")
+        .setDisablePipe(false)
         .autoInjectContext("New Page is the page of text you must work on.")
 
         val evaluateDialoguePipeline = Pipeline()
@@ -354,23 +371,25 @@ suspend fun shunt(content: MultimodalContent) : MultimodalContent
 
     var result = dialogueSelectionPipeline.execute(content)
 
-    val json = extractJson<dialogueClass>(result.text)
-
-    if(json == null)
-    {
-        throw Exception("dialogueConnector did not return valid json, or we were unable to extract it.")
+    val json = extractJson<SurgicalChangeList>(result.text)
+    val firstEntry = json?.changeList?.firstOrNull()
+    val dialogueType: DialogueType = if (firstEntry != null) {
+        val inner = extractJson<dialogueClass>(firstEntry.replacementSubString)
+        inner?.dialogueType ?: DialogueType.FormalRote
+    } else {
+        // No classification -> treat as no-op (FormalRote returns originalText)
+        DialogueType.FormalRote
     }
 
-
-    if(json.dialogueType == DialogueType.FormalRote)
+    if(dialogueType == DialogueType.FormalRote)
     {
         content.text = originalText
         return content
     }
 
-    val finalResult = connector.execute(json.dialogueType, content)
+    val finalResult = connector.execute(dialogueType, content)
 
-    val dialoguePipeline = connector.get(json.dialogueType)
+    val dialoguePipeline = connector.get(dialogueType)
 
     if(hostPipeline != null && dialoguePipeline != null)
     {
