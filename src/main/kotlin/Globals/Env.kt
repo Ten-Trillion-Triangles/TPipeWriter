@@ -11,6 +11,7 @@ import Defaults.reasoning.ReasoningInjector
 import Defaults.reasoning.ReasoningMethod
 import Defaults.reasoning.ReasoningSettings
 import Shell.CommandState
+import Shell.applyPersonalitySlotsFromSettings
 import Structs.LorebookExtraction
 import Structs.ModelSettings
 import Structs.applyExtractionToBank
@@ -305,6 +306,17 @@ and the sensual and erotic aspects.
              useAutomaticLoreBookUpdates: Boolean = true)
     {
 
+//=========================================== Personality binding pre-step =============================================
+//  Read the persisted personality slot bindings (from settings.json)
+//  and apply them to Env.authorPrompt / Env.richardTreadwell /
+//  Env.editorPrompt / Env.writingControlPrompt BEFORE any of the
+//  builder functions below run. The builders snapshot those fields
+//  into the pipe's ReasoningSettings.roleCharacter at construction
+//  time, so a binding written by the TUI must be in Env.* first.
+//  applyPersonalitySlotsFromSettings is idempotent and silently
+//  no-ops when settings.json has no binding map yet (a fresh install
+//  falls back to Env.kt's hardcoded defaults).
+        applyPersonalitySlotsFromSettings()
 //=========================================== Construct agents =========================================================
         /**
          * Obliterate and reset existing pipelines. This allows the user to recall init and adjust various

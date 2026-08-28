@@ -6,6 +6,7 @@ import Builders.plusWriterPipelineBudget
 import Chapter.ChapterManager
 import Globals.Env
 import Globals.ModelConfig
+import Structs.AuthorSlot
 import Structs.LoreBookData
 import Structs.ModelSettings
 import Structs.constructModelSettingsList
@@ -282,6 +283,8 @@ fun parseInput()
             }
             "guide" -> selectGuideMode()
             "author" -> selectAuthorMode()
+            "personalities" -> selectPersonalityMode()
+            "personality" -> selectPersonalityMode()
             "editor" -> selectEditorMode()
             "budget-info" -> printBudgetInfo()
             "pipes" -> pipeDisableSubshell()
@@ -1048,13 +1051,32 @@ fun loadStory()
             ContextBank.emplaceWithMutex("main", context)
         }
         
-        // Apply loaded settings and reinitialize system
+        // Apply loaded settings and reinitialize system. Per-story
+        // settings (loaded from <filename>-settings.json) are merged
+        // with the global ~/.TPipeWriter/settings.json rather than
+        // overwriting it wholesale: a legacy story exported before
+        // personality bindings existed has no personalityRoster or
+        // personalitySlotBindings field in its <filename>-settings.json,
+        // and a wholesale overwrite would silently delete the user's
+        // current binding. The merge preserves any binding the
+        // loaded story does not explicitly set, and applies any
+        // binding that the loaded story does set.
         if (settingsFile.exists()) {
-            saveSettings(loadedSettings)
-            Env.init(loadedSettings.writingStyle, loadedSettings.temperature, loadedSettings.topP, loadedSettings.maxTokens, loadedSettings.useAutoLorebook)
-            
-            // Load guides into runtime variables and context banks
-            Env.activeChapterGuide = loadedSettings.chapterGuide
+            val globalBefore = loadSettings()
+            val merged = loadedSettings.copy(
+                personalityRoster = loadedSettings.personalityRoster
+                    .ifEmpty { globalBefore.personalityRoster },
+                personalitySlotBindings = loadedSettings.personalitySlotBindings
+                    .ifEmpty { globalBefore.personalitySlotBindings }
+            )
+            saveSettings(merged)
+            Env.init(merged.writingStyle, merged.temperature, merged.topP, merged.maxTokens, merged.useAutoLorebook)
+
+            // Load guides into runtime variables and context banks.
+            // Use the merged settings so guides restored from a
+            // per-story file still pin to the user's current
+            // personality bindings.
+            Env.activeChapterGuide = merged.chapterGuide
             Env.activeStoryGuide = loadedSettings.storyGuide
             
             // Store guides in context banks
@@ -1131,7 +1153,26 @@ data class TPipeSettings(
     var competingAuthorGuide: String = "",
     var chapterGuide: String = "",
     var storyGuide: String = "",
-    var editorGuide: String = ""
+    var editorGuide: String = "",
+    // Stored as a name -> body map (string -> string) for trivial JSON
+    // serialization; conversion to a List<AuthorPersonality> happens at the
+    // edge where the TUI displays or picks from it.
+    var personalityRoster: Map<String, String> = emptyMap(),
+    // Personality name -> author slot. The four keys correspond to the
+    // entries of AuthorSlot; values are roster keys (names). Empty string
+    // means "no binding; fall back to the Env default".
+    var personalitySlotBindings: Map<String, String> = emptyMap()
+)
+
+/**
+ * Default slot-to-name bindings used when a fresh settings file has no
+ * persisted choice. Mirrors the personalities Env.kt used to bake in.
+ */
+internal fun defaultPersonalitySlotBindings(): Map<String, String> = mapOf(
+    "AUTHOR_PROMPT" to "Xilaron Rigogan",
+    "COMPETING_AUTHOR" to "N'zelquin G'zeeloth",
+    "EDITOR_PROMPT" to "Falkenda Unseppal",
+    "WRITING_CONTROL" to "Invis von Disappearo"
 )
 
 /**
@@ -1140,8 +1181,20 @@ data class TPipeSettings(
 fun configureSettings()
 {
     val currentSettings = loadSettings()
-    
+
     println("\n=== TPipeWriter General Settings ===")
+
+    // Surface personality slot bindings so the user can see at a glance
+    // which author prompt / editor prompt / etc. each personality drives.
+    // Editing happens in the dedicated subshell via /personalities.
+    val effectiveBindings = currentSettings.personalitySlotBindings
+        .ifEmpty { defaultPersonalitySlotBindings() }
+    println("\nAuthor-personality slot bindings:")
+    AuthorSlot.values().forEachIndexed { idx, slot ->
+        val name = effectiveBindings[slot.name] ?: "<unbound>"
+        println("  ${idx + 1}. ${slot.displayName} -> $name")
+    }
+    println("  (use /personalities to list, add, or reassign)")
     
     print("\n\nWriting style (current: ${currentSettings.writingStyle.ifEmpty { "empty" }}): ")
     val writingStyle = readEnhancedInput(removeDelimiterAtEnd = true).trim().ifEmpty { currentSettings.writingStyle }
@@ -1167,6 +1220,7 @@ fun configureSettings()
         Env.init(writingStyle, currentSettings.temperature, currentSettings.topP, maxTokens, useAutoLorebook)
         println("Settings updated successfully!")
         println("\nFor LLM model settings (temperature, topP, models), use /llm-settings")
+        println("For author-personality slot bindings, use /personalities")
     }
     catch (e: Exception)
     {
@@ -1278,6 +1332,7 @@ fun printHelp()
         |/guide             - Open the guide settings menu.
         |/author            - Open the author-personality menu (save/load writer guide + Richard Treadwell)
         |/editor            - Open the editor-personality menu (save/load editor guide)
+        |/personalities     - Manage the personality roster and which personality drives each author slot
         |/budget-info       - Print the token budget applied to every writer pipe
         |/pipes             - Toggle / save / load per-pipe enable/disable state for the active writer pipeline
         |/help              - Show this help message
